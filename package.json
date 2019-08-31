@@ -1,0 +1,35 @@
+{
+  "name": "nera-cli",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "bin": {
+    "@seebaermichi/nera": "bin/nera",
+    "nera": "bin/nera"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "lint": "eslint --ignore-path .gitignore ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "del": "^5.1.0",
+    "esm": "^3.2.25",
+    "exec-sh": "^0.3.2",
+    "gitclone": "^2.0.0",
+    "yargs": "^14.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^6.2.2",
+    "eslint-config-standard": "^14.1.0",
+    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-node": "^9.2.0",
+    "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-standard": "^4.0.1",
+    "husky": "^3.0.4"
+  }
+}
