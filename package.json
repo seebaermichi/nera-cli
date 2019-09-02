@@ -13,8 +13,12 @@
   "scripts": {
     "lint": "eslint --ignore-path .gitignore ."
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["nera", "static site generator"],
+  "files": [
+    "bin/",
+    "src/"
+  ],
+  "author": "Michael <micha.becker79@gmail.com> (https://github.com/seebaermichi)",
   "license": "ISC",
   "dependencies": {
     "del": "^5.1.0",
