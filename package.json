@@ -13,7 +13,10 @@
   "scripts": {
     "lint": "eslint --ignore-path .gitignore ."
   },
-  "keywords": ["nera", "static site generator"],
+  "keywords": [
+    "nera",
+    "static site generator"
+  ],
   "files": [
     "bin/",
     "src/"
@@ -27,17 +30,17 @@
   "dependencies": {
     "del": "^5.1.0",
     "esm": "^3.2.25",
-    "exec-sh": "^0.3.2",
+    "exec-sh": "^0.3.4",
     "gitclone": "^2.0.0",
-    "yargs": "^14.0.0"
+    "yargs": "^14.2.3"
   },
   "devDependencies": {
-    "eslint": "^6.2.2",
-    "eslint-config-standard": "^14.1.0",
-    "eslint-plugin-import": "^2.18.2",
+    "eslint": "^6.8.0",
+    "eslint-config-standard": "^14.1.1",
+    "eslint-plugin-import": "^2.22.0",
     "eslint-plugin-node": "^9.2.0",
     "eslint-plugin-promise": "^4.2.1",
     "eslint-plugin-standard": "^4.0.1",
-    "husky": "^3.0.4"
+    "husky": "^3.1.0"
   }
 }
