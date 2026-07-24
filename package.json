@@ -1,0 +1,55 @@
+{
+    "name": "@nera-static/nera",
+    "version": "1.0.0",
+    "description": "The Nera CLI — scaffold, build, preview and update a Nera static site with one command over the @nera-static/core engine",
+    "type": "module",
+    "bin": {
+        "nera": "./bin/nera.js"
+    },
+    "files": [
+        "bin",
+        "src",
+        "template"
+    ],
+    "scripts": {
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "test": "vitest",
+        "prepare": "husky"
+    },
+    "keywords": [
+        "nera",
+        "static-site-generator",
+        "cli",
+        "scaffolding",
+        "ssg",
+        "jamstack"
+    ],
+    "author": "Michael Becker",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/seebaermichi/nera-cli.git"
+    },
+    "bugs": {
+        "url": "https://github.com/seebaermichi/nera-cli/issues"
+    },
+    "homepage": "https://github.com/seebaermichi/nera-cli#readme",
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "dependencies": {
+        "@nera-static/core": "^4.9.0",
+        "chokidar": "^5.0.0",
+        "semver": "^7.8.5",
+        "vite": "^8.1.5"
+    },
+    "devDependencies": {
+        "eslint": "^9.17.0",
+        "husky": "^9.1.7",
+        "vitest": "^3.2.4"
+    }
+}

@@ -1,0 +1,8 @@
+lang: en
+name: My Nera Site
+robots: index,follow
+
+translations:
+  en:
+    app_description: A static site built with Nera
+    app_keywords: nera, static site generator

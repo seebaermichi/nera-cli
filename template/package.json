@@ -1,0 +1,14 @@
+{
+    "name": "nera-site",
+    "version": "1.0.0",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "dev": "nera dev",
+        "build": "nera build",
+        "serve": "nera serve"
+    },
+    "dependencies": {
+        "@nera-static/nera": "^1.0.0"
+    }
+}
