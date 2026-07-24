@@ -4,6 +4,7 @@ import { runBuild } from '../src/commands/build.js'
 import { runDev } from '../src/commands/dev.js'
 import { runServe } from '../src/commands/serve.js'
 import { runUpdate } from '../src/commands/update.js'
+import { runValidate } from '../src/commands/validate.js'
 
 const [, , command, ...rest] = process.argv
 
@@ -15,6 +16,7 @@ Usage:
   nera dev           build, serve and live-reload
   nera serve         serve the built public/ folder
   nera update        update Nera packages (or migrate a cloned site with --migrate)
+  nera validate      check the site (layouts, includes, YAML) before publish
 `
 
 try {
@@ -33,6 +35,9 @@ try {
         break
     case 'update':
         await runUpdate(rest)
+        break
+    case 'validate':
+        process.exit(runValidate())
         break
     default:
         console.log(usage)
