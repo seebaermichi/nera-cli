@@ -4,6 +4,8 @@ The Nera CLI — scaffold, build, preview and update a [Nera](https://github.com
 static site with a single command. It runs over the [`@nera-static/core`](https://github.com/seebaermichi/nera)
 engine and is the one package a Nera site depends on.
 
+📖 **Documentation:** [nera.js.org](https://nera.js.org)
+
 ## Quick start
 
 ```bash
