@@ -1,5 +1,6 @@
 import fssync from 'fs'
-import run from '@nera-static/core'
+import path from 'path'
+import run, { resolveSiteModel } from '@nera-static/core'
 import { startServer } from './serve.js'
 
 // Build once, serve `public/`, then rebuild on any change to the site's
@@ -19,13 +20,8 @@ export async function runDev(args = []) {
 
     const { default: chokidar } = await import('chokidar')
 
-    // Presentation lives under theme/ in the current layout, or the deprecated
-    // root views/ on an unmigrated site — watch whichever exists.
-    const watchDirs = [
-        'pages',
-        'config',
-        fssync.existsSync('theme') ? 'theme' : 'views',
-    ].filter((d) => fssync.existsSync(d))
+    const watched = new Set(watchTargets())
+    const watcher = chokidar.watch([...watched], { ignoreInitial: true })
 
     // Serialise rebuilds: coalesce changes that land mid-build into one re-run.
     let building = false
@@ -42,20 +38,57 @@ export async function runDev(args = []) {
             console.error('❌ Build error:', err.message)
         }
         building = false
+        // config/app.yaml may now name a different local theme — start
+        // watching it too. A dropped one stays watched; that only costs an
+        // extra rebuild if it is edited.
+        for (const dir of watchTargets()) {
+            if (!watched.has(dir)) {
+                watched.add(dir)
+                watcher.add(dir)
+            }
+        }
         if (queued) {
             queued = false
             await rebuild()
         }
     }
 
-    chokidar
-        .watch(watchDirs, { ignoreInitial: true })
-        .on('all', async (event, filePath) => {
-            console.log(`↻ ${event} ${filePath} — rebuilding`)
-            await rebuild()
-        })
+    watcher.on('all', async (event, filePath) => {
+        console.log(
+            `↻ ${event} ${path.relative(process.cwd(), filePath)} — rebuilding`
+        )
+        await rebuild()
+    })
 
     return server
+}
+
+// What a rebuild depends on: pages/, config/, the site's presentation folder
+// — theme/ in the current layout, or the deprecated root views/ on an
+// unmigrated site — and a LOCAL theme (`theme: ./themes/classic`, or the same
+// via NERA_THEME), which lives outside all of those. The theme is resolved
+// through core, so the watcher follows exactly the spec the build uses. Only
+// the theme's payload folders are watched, never its root: `theme: .` makes
+// the root the site itself, and watching public/ would rebuild forever. An
+// installed theme package under node_modules is left alone: it changes only on
+// npm install, and watching node_modules is expensive.
+export function watchTargets(cwd = process.cwd()) {
+    const dirs = [
+        'pages',
+        'config',
+        fssync.existsSync(path.join(cwd, 'theme')) ? 'theme' : 'views',
+    ].map((d) => path.join(cwd, d))
+
+    const { theme } = resolveSiteModel({ cwd })
+    if (theme && !theme.root.split(path.sep).includes('node_modules')) {
+        dirs.push(
+            theme.viewsRoot,
+            theme.assetsRoot,
+            path.join(theme.root, 'config')
+        )
+    }
+
+    return [...new Set(dirs)].filter((d) => fssync.existsSync(d))
 }
 
 const parsePort = (args) => {

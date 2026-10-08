@@ -20,7 +20,7 @@ npm run dev            # or: nera dev
 |---|---|
 | `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--theme <name>` to start from a theme. |
 | `nera build` | Render `pages/` → `public/`. |
-| `nera dev` | Build, serve `public/`, and rebuild on change with live reload. |
+| `nera dev` | Build, serve `public/`, and rebuild on change with live reload. Watches `pages/`, `config/`, `theme/` and a local theme (`theme: ./themes/<name>`). |
 | `nera serve` | Serve the already-built `public/` folder. |
 | `nera update` | Update the site's Nera packages. On a legacy cloned site, `nera update --migrate` converts it to the thin model. |
 | `nera validate` | Check the site (layouts, includes, YAML) before publishing; exits non-zero on any error. |

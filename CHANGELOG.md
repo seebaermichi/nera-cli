@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-10-08
+
+### Added
+
+-   `nera dev` rebuilds on changes to a local theme (`theme: ./themes/classic`
+    in `config/app.yaml`, or the same via `NERA_THEME`). It watched only
+    `pages/`, `config/` and `theme/`, so editing a theme kept outside those
+    meant restarting the server. The theme's `views/`, `assets/` and
+    `config/` are watched, and a theme switched in `app.yaml` mid-session is
+    picked up after the next rebuild. Installed theme packages under
+    `node_modules` are not watched.
+-   `NERA_THEME` (from `@nera-static/core` 4.12.0) overrides `theme:` for one
+    run of `nera build`, `nera dev` or `nera validate`:
+    `NERA_THEME=./themes/classic nera dev`.
+
+### Changed
+
+-   Requires `@nera-static/core` ^4.12.0.
+
 ## [1.1.0] - 2026-10-08
 
 ### Added
