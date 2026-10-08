@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-10-08
+
+### Added
+
+-   `nera new <name> --theme <name>` (also `--theme=<name>`) starts a site from
+    a theme: it adds the theme package as a dependency (a bare name maps to
+    `@nera-static/theme-<name>`; a scoped package or a local `./path` works
+    too), sets `theme:` in `config/app.yaml`, and leaves out the starter
+    templates. Site views win over theme views file by file, so the starter
+    `layouts/layout.pug` and `pages/default.pug` would otherwise hide the
+    theme's own and the site would look unthemed.
+-   The starter templates now begin with a `//- nera:scaffold-default` line.
+    `nera validate` (via `@nera-static/validate` 1.1.0+) warns with
+    `theme-shadowed` while a file carrying it hides a theme's file of the same
+    name. The line renders nothing.
+
 ## [1.0.1] - 2026-10-08
 
 ### Fixed

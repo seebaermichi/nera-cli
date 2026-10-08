@@ -18,7 +18,7 @@ npm run dev            # or: nera dev
 
 | Command | What it does |
 |---|---|
-| `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). |
+| `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--theme <name>` to start from a theme. |
 | `nera build` | Render `pages/` → `public/`. |
 | `nera dev` | Build, serve `public/`, and rebuild on change with live reload. |
 | `nera serve` | Serve the already-built `public/` folder. |
@@ -34,6 +34,26 @@ dependency and its scripts call the CLI:
   "dependencies": { "@nera-static/nera": "^1.0.0" }
 }
 ```
+
+## Starting from a theme
+
+```bash
+npx @nera-static/nera new my-site --theme example
+```
+
+This installs the theme (`example` → `@nera-static/theme-example`; a full
+package name such as `@acme/my-theme`, or a local path such as `./my-theme`,
+works too), sets `theme:` in `config/app.yaml`, and leaves out the scaffold's
+starter templates.
+
+That last part matters. A site's own `theme/views/` wins over its theme's views
+**file by file** — that is how you override a single theme template. Without
+`--theme`, `nera new` writes a starter `theme/views/layouts/layout.pug` and
+`theme/views/pages/default.pug`, the same names a theme uses, so a theme added
+later stays hidden behind them. Each starter file carries a
+`//- nera:scaffold-default` first line, and `nera validate` warns
+(`theme-shadowed`) while such a file hides a theme's. Delete it to use the
+theme's version, or delete the marker line to keep yours.
 
 ## Migrating a cloned (legacy) site
 

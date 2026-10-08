@@ -11,7 +11,7 @@ const [, , command, ...rest] = process.argv
 const usage = `Nera — the static site generator CLI
 
 Usage:
-  nera new <name>    scaffold a new Nera site
+  nera new <name>    scaffold a new Nera site (--theme <name> to start from a theme)
   nera build         render pages/ → public/
   nera dev           build, serve and live-reload
   nera serve         serve the built public/ folder

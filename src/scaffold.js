@@ -26,11 +26,54 @@ export function validateProjectName(projectName) {
     return projectName
 }
 
+// What `--theme` accepts, mirroring the three forms `app.theme` takes in
+// @nera-static/core (src/theme.js): a bare name (`example` →
+// @nera-static/theme-example), a full package name (`@acme/my-theme`), or a
+// local path (`./my-theme`). Validated because it lands in app.yaml and, for
+// the package forms, on the npm command line.
+const BARE_THEME = /^[a-z0-9][a-z0-9._-]*$/
+const SCOPED_THEME = /^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/
+const LOCAL_THEME = /^\.{1,2}(\/[A-Za-z0-9._-]+)*\/?$/
+
+export function validateThemeSpec(theme) {
+    if (
+        typeof theme === 'string' &&
+        (BARE_THEME.test(theme) ||
+            SCOPED_THEME.test(theme) ||
+            LOCAL_THEME.test(theme))
+    ) {
+        return theme
+    }
+    throw new Error(
+        `Invalid theme "${theme}". Use a theme name (example), a package ` +
+            'name (@scope/theme) or a local path (./my-theme).'
+    )
+}
+
+// The npm package a theme spec installs, or null for a local path. Same rule
+// as core's packageName() — keep the two in step.
+export function themePackageName(theme) {
+    if (theme.startsWith('.')) return null
+    return theme.includes('/') || theme.startsWith('@')
+        ? theme
+        : `@nera-static/theme-${theme}`
+}
+
+// Starter templates carry this marker on their first line. With a theme they
+// are left out: site views win over theme views file by file, so a starter
+// layout would hide the theme's own. @nera-static/validate warns on the same
+// marker (`theme-shadowed`) for sites that kept them.
+const SCAFFOLD_MARKER = 'nera:scaffold-default'
+
+const isStarterTemplate = async (file) =>
+    file.endsWith('.pug') &&
+    (await fs.readFile(file, 'utf-8')).includes(SCAFFOLD_MARKER)
+
 // The scaffold template ships inside this package (package.json `files`).
 export const templateDir = () =>
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'template')
 
-async function copyDir(src, dest) {
+async function copyDir(src, dest, { skipStarters = false } = {}) {
     await fs.mkdir(dest, { recursive: true })
     for (const entry of await fs.readdir(src, { withFileTypes: true })) {
         const from = path.join(src, entry.name)
@@ -39,7 +82,9 @@ async function copyDir(src, dest) {
         const name = entry.name === '_gitignore' ? '.gitignore' : entry.name
         const to = path.join(dest, name)
         if (entry.isDirectory()) {
-            await copyDir(from, to)
+            await copyDir(from, to, { skipStarters })
+        } else if (skipStarters && (await isStarterTemplate(from))) {
+            continue
         } else {
             await fs.copyFile(from, to)
         }
@@ -54,13 +99,35 @@ async function personalize(targetDir, projectName) {
     console.log(`  ✓ Configured project as "${projectName}"`)
 }
 
+// Point the site at its theme: `theme:` in app.yaml (appended, so the
+// template's own lines and comments stay as they are) and, for a package
+// theme, a dependency that `npm install` resolves.
+async function applyTheme(targetDir, theme) {
+    const appYaml = path.join(targetDir, 'config', 'app.yaml')
+    const yaml = await fs.readFile(appYaml, 'utf-8')
+    await fs.writeFile(
+        appYaml,
+        `${yaml.replace(/\n*$/, '\n')}\ntheme: ${theme}\n`
+    )
+
+    const pkgName = themePackageName(theme)
+    if (pkgName) {
+        const pkgPath = path.join(targetDir, 'package.json')
+        const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf-8'))
+        pkg.dependencies = { ...pkg.dependencies, [pkgName]: 'latest' }
+        await fs.writeFile(pkgPath, `${JSON.stringify(pkg, null, 4)}\n`)
+    }
+    console.log(`  ✓ Using theme "${theme}"${pkgName ? ` (${pkgName})` : ''}`)
+}
+
 // Scaffold a thin Nera site: copy the template, name it, and (by default)
 // install its single dependency, @nera-static/nera. No git clone, no vendored
 // engine — the opposite of the old installer's clone-and-strip flow.
 export async function scaffoldProject(projectName, options = {}) {
-    const { install = true, cwd = process.cwd() } = options
+    const { install = true, cwd = process.cwd(), theme } = options
 
     validateProjectName(projectName)
+    if (theme !== undefined) validateThemeSpec(theme)
 
     const targetDir = path.resolve(cwd, projectName)
     if (fssync.existsSync(targetDir)) {
@@ -68,12 +135,18 @@ export async function scaffoldProject(projectName, options = {}) {
     }
 
     console.log(`📦 Creating a new Nera site in ${targetDir}...`)
-    await copyDir(templateDir(), targetDir)
+    await copyDir(templateDir(), targetDir, { skipStarters: Boolean(theme) })
     await personalize(targetDir, projectName)
+    if (theme) await applyTheme(targetDir, theme)
 
     if (install) {
         console.log('📦 Installing dependencies...')
-        execFileSync('npm', ['install'], { cwd: targetDir, stdio: 'inherit' })
+        // Naming the theme package installs everything else too, and makes npm
+        // replace the `latest` placeholder with a caret range for the version
+        // it resolved.
+        const themePkg = theme ? themePackageName(theme) : null
+        const args = themePkg ? ['install', themePkg] : ['install']
+        execFileSync('npm', args, { cwd: targetDir, stdio: 'inherit' })
     }
 
     console.log('✅ Done!')
