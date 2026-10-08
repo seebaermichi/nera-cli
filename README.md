@@ -23,6 +23,7 @@ npm run dev            # or: nera dev
 | `nera dev` | Build, serve `public/`, and rebuild on change with live reload. |
 | `nera serve` | Serve the already-built `public/` folder. |
 | `nera update` | Update the site's Nera packages. On a legacy cloned site, `nera update --migrate` converts it to the thin model. |
+| `nera validate` | Check the site (layouts, includes, YAML) before publishing; exits non-zero on any error. |
 
 A scaffolded site is a thin project — no vendored engine, no clone. It lists one
 dependency and its scripts call the CLI:
@@ -45,7 +46,17 @@ nera update --migrate
 
 It adds `@nera-static/nera`, rewrites the scripts, removes the vendored `src/`
 engine and root `index.js`, and installs — leaving your `pages/`, `config/` and
-`theme/` untouched. Local plugins in `src/plugins/` are moved to `plugins/`.
+`theme/` untouched. Local plugins in `src/plugins/` are moved to `plugins/`;
+add this to `config/app.yaml` so the engine discovers them there:
+
+```yaml
+folders:
+  plugins: ./plugins
+```
+
+A root `views/` and `assets/` (no `theme/` folder) keeps rendering but prints a
+deprecation warning — move them to `theme/views/` and `theme/assets/`, the
+layout `nera new` scaffolds.
 
 ## Requirements
 

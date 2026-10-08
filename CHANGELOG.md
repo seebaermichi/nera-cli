@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-08
+
+### Fixed
+
+-   `README.md` Commands table was missing `nera validate`, which the CLI has
+    shipped since 1.0.0.
+-   `README.md` migration section said local plugins are moved from
+    `src/plugins/` to `plugins/` but not that `config/app.yaml` then needs
+    `folders.plugins: ./plugins` for the engine to find them — the step
+    `nera update --migrate` itself prints as a warning. It now shows that
+    snippet, and notes that a root `views/`/`assets/` keeps building with a
+    deprecation warning until moved under `theme/`. Documentation only.
+
 ## [1.0.0] - 2026-07-24
 
 Initial release — the one Nera CLI, over the `@nera-static/core` engine. Slice 2
