@@ -14,8 +14,8 @@ jobs:
             fail-fast: false
             matrix:
                 # Node 18 is deliberately absent: it reached EOL 2025-04-30,
-                # vite 8 requires Node 20+, and the package declares
-                # `engines.node: >=20.0.0`.
+                # and the package declares
+                # `engines.node: ^20.19.0 || >=22.12.0` (vite 8's own floor).
                 node-version: [20, 22]
 
         steps:
