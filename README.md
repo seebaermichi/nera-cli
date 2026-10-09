@@ -19,11 +19,12 @@ npm run dev            # or: nera dev
 | Command | What it does |
 |---|---|
 | `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--theme <name>` to start from a theme. |
-| `nera build` | Render `pages/` → `public/`. |
+| `nera build` | Render `pages/` → `public/`. With `--check`, then run `nera check` on the result — one command for CI. |
 | `nera dev` | Build, serve `public/`, and rebuild on change with live reload. Watches `pages/`, `config/`, `theme/` and a local theme (`theme: ./themes/<name>`). |
 | `nera serve` | Serve the already-built `public/` folder. |
 | `nera update` | Update the site's Nera packages. On a legacy cloned site, `nera update --migrate` converts it to the thin model. |
-| `nera validate` | Check the site (layouts, includes, YAML) before publishing; exits non-zero on any error. |
+| `nera validate` | Check the site's sources (layouts, includes, YAML) before publishing; exits non-zero on any error. |
+| `nera check` | Check the built `public/` for accessibility, privacy and legal-notice problems (see below). Build first. |
 
 A scaffolded site is a thin project — no vendored engine, no clone. It lists one
 dependency and its scripts call the CLI:
@@ -54,6 +55,61 @@ later stays hidden behind them. Each starter file carries a
 `//- nera:scaffold-default` first line, and `nera validate` warns
 (`theme-shadowed`) while such a file hides a theme's. Delete it to use the
 theme's version, or delete the marker line to keep yours.
+
+## Checking the built site
+
+```bash
+nera build --check    # build, then check — what a CI job runs
+nera check            # check an existing public/ without rebuilding
+```
+
+`nera validate` reads the sources; `nera check` reads the **built** output — the
+page a visitor gets, with its layout, navigation, footer, scripts, stylesheets
+and fonts — and reports what a parser can find there:
+
+- **Accessibility** (`a11y-*`, WCAG 2.2 AA where machine-decidable): `<html
+  lang>`, `<title>`, one `<h1>`, heading jumps, `alt` text, form labels, link
+  names, `<main>`, a skip link, named navigations, duplicate ids, zoom blocked
+  by the viewport.
+- **Privacy** (`privacy-*`, DSGVO / TDDDG): resources loaded from another host
+  (Google Fonts, YouTube, analytics, …), `http://` resources, and — opt-in —
+  scripts using cookies or browser storage.
+- **Legal notice** (`legal-*`, DDG / MStV): every page links to the imprint and
+  the privacy policy, and those pages do not cite a superseded law (TMG, TTDSG,
+  § 55 RStV).
+
+Every finding is a **warning** by default, so `nera check` exits `0`; it exits
+`1` only when a rule you promoted to `error` fires. Without `public/` it stops
+with "run `nera build` first". A template problem is reported once, with the
+number of pages it appears on.
+
+These are hints, not legal advice, and a clean run is not proof of compliance:
+automated checks find only part of the accessibility problems (about a third of
+WCAG failures), and contrast, focus visibility or whether a law applies to your
+site are not checked. Every report ends with that reminder.
+
+Configure it in `config/validate.yaml` (optional):
+
+```yaml
+rules:
+  a11y-img-alt: error         # promote: fails the check
+  a11y-target-blank: warning  # enable an opt-in rule
+  a11y-skip-link: off         # disable
+legal:
+  imprint: { de: /de/impressum.html, en: /en/imprint.html }
+  privacy: { de: /de/datenschutz.html, en: /en/privacy.html }
+privacy:
+  allowed_hosts: [cdn.example.org]   # third-party hosts you have accounted for
+```
+
+Silence a rule on one page with `validate_ignore: [a11y-h1]` in its frontmatter.
+Your own host is `origin` in `config/app.yaml`, else `app_origin` in
+`config/canonical-links.yaml`. Without `legal.*` config, the imprint and privacy
+links are found by their text in German and English only (*Impressum*,
+*Imprint*, *Datenschutz*, *Privacy*, …); pages in other languages need
+`legal.imprint.<lang>` / `legal.privacy.<lang>`. The full rule tables, with the
+WCAG criterion or law behind each rule, are in the
+[`@nera-static/validate` README](https://github.com/seebaermichi/nera-validate#checking-the-built-output).
 
 ## Migrating a cloned (legacy) site
 

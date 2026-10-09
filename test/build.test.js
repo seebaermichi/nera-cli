@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import path from 'path'
 import fs from 'fs/promises'
 import fssync from 'fs'
@@ -38,5 +38,59 @@ describe('new → build', () => {
         const html = await fs.readFile(out, 'utf-8')
         expect(html).toContain('Welcome to Nera')
         expect(html).toContain('<title>')
+    })
+
+    describe('--check', () => {
+        let log
+
+        beforeEach(() => {
+            log = vi.spyOn(console, 'log').mockImplementation(() => {})
+        })
+
+        afterEach(() => {
+            log.mockRestore()
+        })
+
+        const printed = () => log.mock.calls.map((c) => c.join(' ')).join('\n')
+
+        it('builds, then checks the output; warnings alone return 0', async () => {
+            const target = await scaffoldProject('site', {
+                cwd: workdir,
+                install: false,
+            })
+            process.chdir(target)
+
+            expect(await runBuild(['--check'])).toBe(0)
+            expect(fssync.existsSync(path.join(target, 'public', 'index.html')))
+                .toBe(true)
+            // The starter layout has no skip link.
+            expect(printed()).toContain('a11y-skip-link')
+            expect(printed()).toContain('not proof of compliance')
+        })
+
+        it('returns 1 when a rule promoted to error fires', async () => {
+            const target = await scaffoldProject('site', {
+                cwd: workdir,
+                install: false,
+            })
+            await fs.writeFile(
+                path.join(target, 'config', 'validate.yaml'),
+                'rules:\n  a11y-skip-link: error\n'
+            )
+            process.chdir(target)
+
+            expect(await runBuild(['--check'])).toBe(1)
+        })
+
+        it('does not check without the flag', async () => {
+            const target = await scaffoldProject('site', {
+                cwd: workdir,
+                install: false,
+            })
+            process.chdir(target)
+
+            expect(await runBuild()).toBe(0)
+            expect(printed()).not.toContain('a11y-skip-link')
+        })
     })
 })

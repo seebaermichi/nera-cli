@@ -5,6 +5,7 @@ import { runDev } from '../src/commands/dev.js'
 import { runServe } from '../src/commands/serve.js'
 import { runUpdate } from '../src/commands/update.js'
 import { runValidate } from '../src/commands/validate.js'
+import { runCheck } from '../src/commands/check.js'
 
 const [, , command, ...rest] = process.argv
 
@@ -12,11 +13,12 @@ const usage = `Nera — the static site generator CLI
 
 Usage:
   nera new <name>    scaffold a new Nera site (--theme <name> to start from a theme)
-  nera build         render pages/ → public/
+  nera build         render pages/ → public/ (--check to check the output after)
   nera dev           build, serve and live-reload
   nera serve         serve the built public/ folder
   nera update        update Nera packages (or migrate a cloned site with --migrate)
   nera validate      check the site (layouts, includes, YAML) before publish
+  nera check         check the built public/ (accessibility, privacy, legal hints)
 `
 
 try {
@@ -25,7 +27,7 @@ try {
         await runNew(rest)
         break
     case 'build':
-        await runBuild(rest)
+        process.exitCode = await runBuild(rest)
         break
     case 'dev':
         await runDev(rest)
@@ -38,6 +40,9 @@ try {
         break
     case 'validate':
         process.exit(runValidate())
+        break
+    case 'check':
+        process.exit(runCheck())
         break
     default:
         console.log(usage)

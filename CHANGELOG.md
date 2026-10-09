@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+-   `nera check`: checks the built `public/` for accessibility, privacy and
+    legal-notice problems with `validateOutput` from `@nera-static/validate`
+    — hints, all warnings by default, configured in `config/validate.yaml`.
+    Exits 1 only when a finding has the level `error`; without `public/` it
+    stops with "run `nera build` first". The report ends with the reminder
+    that a clean run is not proof of compliance. `nera validate` is unchanged
+    and checks the sources only.
+-   `nera build --check`: build, then `nera check` — one command for CI.
+
 ## [1.2.0] - 2026-10-08
 
 ### Added
