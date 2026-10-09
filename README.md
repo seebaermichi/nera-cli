@@ -103,6 +103,17 @@ privacy:
 ```
 
 Silence a rule on one page with `validate_ignore: [a11y-h1]` in its frontmatter.
+To silence a rule on whole files or folders, list them under `ignore` — this
+works for `nera validate` too, e.g. for `layout-missing` on content fragments
+another page pulls in, or on drafts, which have no `layout` on purpose:
+
+```yaml
+ignore:
+  layout-missing:
+    - pages/*/references     # a folder covers everything below it; * = one folder name
+    - pages/de/blog/drafts
+```
+
 Your own host is `origin` in `config/app.yaml`, else `app_origin` in
 `config/canonical-links.yaml`. Without `legal.*` config, the imprint and privacy
 links are found by their text in German and English only (*Impressum*,
