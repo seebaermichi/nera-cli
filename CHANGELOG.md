@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0] - 2026-10-09
 
 ### Added
 
@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     that a clean run is not proof of compliance. `nera validate` is unchanged
     and checks the sources only.
 -   `nera build --check`: build, then `nera check` — one command for CI.
+
+### Changed
+
+-   Requires `@nera-static/validate` ^1.2.0 (for `validateOutput`).
 
 ## [1.2.0] - 2026-10-08
 
