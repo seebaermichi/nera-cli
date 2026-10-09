@@ -3,3 +3,4 @@ public
 .env
 .npmrc
 .vite
+.nera-cache
