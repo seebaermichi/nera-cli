@@ -1,6 +1,6 @@
 {
     "name": "@nera-static/nera",
-    "version": "1.5.1",
+    "version": "1.6.0",
     "description": "The Nera CLI — scaffold, build, preview and update a Nera static site with one command over the @nera-static/core engine",
     "type": "module",
     "bin": {

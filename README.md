@@ -41,6 +41,20 @@ dependency and its scripts call the CLI:
 }
 ```
 
+## Instructions for AI assistants
+
+Every scaffolded site carries an `AGENTS.md`, the file Codex, Cursor, Copilot
+and other assistants read first, and a `CLAUDE.md` holding the single line
+`@AGENTS.md`, so Claude Code loads the same text. `AGENTS.md` covers what
+Nera is, the folder map, the commands, the common traps, and the check loop:
+`nera validate`, then `nera build --check`, after every change.
+
+It ends with a **Notes for this site** section for your own instructions —
+brand voice, pages not to touch, where the site is deployed. It starts below
+the marker line `<!-- nera:site-notes … -->`; keep that line in place. The
+part above it is Nera's and may be replaced by a later Nera version; your
+notes below it are yours.
+
 ## Starting from a theme
 
 ```bash

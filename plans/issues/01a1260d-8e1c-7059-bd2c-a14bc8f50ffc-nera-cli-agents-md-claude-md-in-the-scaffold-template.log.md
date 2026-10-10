@@ -108,3 +108,73 @@ goal (three scaffold modes write both files, byte-equal; marker once, above last
 ## Step 1 — approved (2026-10-10)
 
 snagio: ticked
+commit: 97997bc
+
+## Step 2 — started (2026-10-10)
+
+base_sha: 97997bc280aaeee19c0f7b06bbbef922d0c9896c
+mode: fresh
+
+## Step 2 — implemented (2026-10-10)
+
+base_sha: 97997bc
+
+### Changed
+- `README.md` — new "Instructions for AI assistants" section (after the thin-project block): the two files, the check loop, the user-owned "Notes for this site" section behind `<!-- nera:site-notes … -->`
+- `ROADMAP-ai.md` — status header (slice 1 under way, template part in 1.6.0); L1 folder map `plugins/` → `src/plugins/` (D2 correction); slice-plan item 1 marks only the template part done; new "Slice 1 — progress" section recording D1 (marker literal as contract), D2 (only facts true today, `src/plugins`), the llms.txt Decision (homepage link until slice 2), and naming `nera update` + the consistency test as still open
+- `CHANGELOG.md` — `## [1.6.0] - 2026-10-10` / `### Added` entry for `AGENTS.md` + `CLAUDE.md`, "Existing sites are not changed"
+- `package.json`, `package-lock.json` — 1.5.1 → 1.6.0 via `npm version minor --no-git-tag-version`
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none
+
+### Verification
+```
+npx vitest run → Tests  71 passed (71)
+npm run lint → eslint . (no output, exit 0)
+node -p "require('./package.json').version" → 1.6.0
+package-lock.json → "version": "1.6.0" (lines 3 and 9)
+```
+
+### Self-critique
+- Every CHANGELOG/README claim checked against `template/AGENTS.md` (traps, `.html` URLs, `public/` regenerated, check loop, marker line); README says the part above the marker "may be replaced by a later Nera version" — hedged on purpose, since `nera update` does not touch `AGENTS.md` yet.
+- ROADMAP wording kept future tense for `nera update` ("will split on it") so nothing claims the update issue is done.
+- Left the L1 spec bullets for `llms.txt`, `nera publish`, `--json` unchanged: they describe the target, and the progress section records why the template omits them today.
+- Least sure: placement of the README section (own `##` between the thin-project block and "Starting from a theme"); it could also sit under Quick start.
+- The workspace-root `CLAUDE.md` still names nera 1.5.1 as latest; it is untracked and should change at release (after the tag), not in this diff.
+
+### Pressure-test questions for the reviewer
+1. Does any line of the ROADMAP diff (header, slice plan, progress section) read as if `nera update` writing the files or the command-consistency test were done?
+2. Is "Existing sites are not changed" in the CHANGELOG accurate — i.e. does `nera update` on 1.6.0 really leave a site without `AGENTS.md` untouched?
+3. Is minor the right bump (new template files only affect new sites)?
+
+## Step 2 — reviewed (2026-10-10)
+
+Verdict: approve
+
+### 🔴 Blocking
+- none
+
+### Fixed in review
+- none
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none
+
+### Checked
+goal (README section, ROADMAP header/L1 map/slice plan/progress section, CHANGELOG 1.6.0 Added, minor bump) · `npx vitest run` → 71 passed; `npm run lint` → exit 0; version → 1.6.0; lockfile lines 3/9 → 1.6.0 · Non-negotiables, Framework correctness, Tests & hygiene · claims checked: `template/AGENTS.md` is 118 lines, marker at line 114 starts `<!-- nera:site-notes` and closes on the same line, `src/plugins` matches core (`../generator/src/core.js:72`, `setup-plugins.js:81`), AGENTS.md links nera.js.org and not `/llms.txt`, `template/CLAUDE.md` is `@AGENTS.md` · scope: only the step's 5 files plus plan/log bookkeeping · walkthrough n/a
+
+### Answers to the pressure-test questions
+1. No. Header: "`nera update` writing them and the command-consistency test are still open"; slice plan: "Template part done … `nera update` and the consistency test are open"; progress section uses future tense ("`nera update` will split on it") and closes with a "Still open in slice 1" paragraph naming both.
+2. Yes. `src/commands/update.js` writes only `package.json` (line 70) and moves `src/plugins` on `--migrate`; nothing reads `template/` or writes `AGENTS.md`/`CLAUDE.md`, so an existing site is unchanged.
+3. Yes. The conventions say template changes that only affect new sites are minor; this adds files to `template/` only, with no CLI contract change.
+
+## Step 2 — approved (2026-10-10)
+
+snagio: ticked

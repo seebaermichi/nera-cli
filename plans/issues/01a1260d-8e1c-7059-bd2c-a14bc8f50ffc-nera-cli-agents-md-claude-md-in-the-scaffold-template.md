@@ -74,7 +74,7 @@ new either.
   (they read `pages/` only — confirm with the existing build test passing).
 - **Walkthrough:** none
 
-### Step 2 — Docs and release bookkeeping for 1.6.0 — ⬜ todo
+### Step 2 — Docs and release bookkeeping for 1.6.0 — ✅ done
 
 - **Goal:** README documents the two files and the marker; ROADMAP-ai.md slice 1
   records D1–D2 (marker literal, `src/plugins` correction of the L1 folder map) and

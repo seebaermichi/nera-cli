@@ -2,8 +2,10 @@
 
 > **Status: spec, written 2026-10-10; decisions D1–D12 settled the same
 > day (see "Decisions"). Slice 0, the baseline cold agent test, is done
-> (2026-10-10, see "Slice 0 — baseline record"). No open questions. Next:
-> slice 1, `AGENTS.md`.**
+> (2026-10-10, see "Slice 0 — baseline record"). Slice 1 is under way: the
+> scaffold ships `AGENTS.md` and `CLAUDE.md` since `@nera-static/nera` 1.6.0
+> (see "Slice 1 — progress"); `nera update` writing them and the
+> command-consistency test are still open. No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -117,7 +119,8 @@ says "make me a website for my bakery" (L7).
   Gemini CLI and others. At most ~120 lines:
   - what Nera is, in two sentences, and the link to https://nera.js.org/llms.txt
   - the folder map: `pages/` (Markdown + frontmatter), `theme/views/` (Pug),
-    `theme/assets/`, `config/*.yaml`, `plugins/` (local plugins), `public/`
+    `theme/assets/`, `config/*.yaml`, `src/plugins/` (local plugins — core's
+    default `folders.plugins`, which the template does not change), `public/`
     (generated, **never edit**)
   - the commands: `npm run dev`, `npm run build`, `npx nera validate`,
     `npx nera check`, `npx nera publish`, and `--json` (L3)
@@ -465,7 +468,9 @@ The first round, settled with the maintainer:
    Those failures decide what `AGENTS.md` must say. **Done 2026-10-10**, see
    "Slice 0 — baseline record".
 1. **L1** — `AGENTS.md` + `CLAUDE.md` in the template and via `nera update`, the
-   marker logic, the command-consistency test.
+   marker logic, the command-consistency test. **Template part done
+   2026-10-10** (`@nera-static/nera` 1.6.0), see "Slice 1 — progress";
+   `nera update` and the consistency test are open.
 2. **L2** — `llms.txt` + `llms-full.txt` in `nera-website`; the "Using Nera with
    AI" page in en/de/es.
 3. **L3** — `--json` and the message review. Slices 1 and 3 can share a release.
@@ -626,6 +631,34 @@ The L1 list's other traps (`public/` wiped on every build, plugin templates
 copied with `publish-template`, theme files overridden per path) were not
 exercised: neither agent wrote into `public/` or published a plugin template.
 They stay in, and slice 7 shows whether they hold.
+
+## Slice 1 — progress
+
+**Done 2026-10-10 (`@nera-static/nera` 1.6.0): the scaffold template.**
+`nera new` — with or without `--theme`, and in place with `nera new .` —
+writes `AGENTS.md` (118 lines, built from "Inputs for `AGENTS.md`" above) and
+`CLAUDE.md` (the single line `@AGENTS.md`). `src/scaffold.js` needed no
+change; it copies `template/` as it is. Settled on the way:
+
+- **The ownership marker is one HTML-comment line directly above
+  `## Notes for this site`:** it starts with `<!-- nera:site-notes` and closes
+  on the same line. It is invisible when rendered, survives Markdown
+  formatters, and does not depend on the heading, which a user may reword or
+  translate. The literal is now a contract: `nera update` will split on it, and
+  changing it later means accepting both spellings.
+- **Only facts true for core 4.15.1 / nera 1.5.1.** No `nera publish`, no
+  `--json`; "Getting online" says `public/` after `npm run build` is the
+  folder to deploy. Local plugins are documented at core's real default,
+  `src/plugins/<name>/index.js`, settable via `folders.plugins` — the L1
+  folder map above said `plugins/`, which the template does not configure,
+  and is corrected.
+- **`AGENTS.md` links https://nera.js.org, not `/llms.txt`,** which returns
+  404 until slice 2 (L2) ships on `nera-website`. The `llms.txt` link goes
+  into the template with slice 2.
+
+**Still open in slice 1**, each its own issue: `nera update` creating the two
+files and replacing only the part above the marker (D2), and the test that
+every `nera <command>` in `AGENTS.md` exists in the CLI's usage text.
 
 ## Where the work lands
 

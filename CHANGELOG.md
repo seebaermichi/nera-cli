@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-10-10
+
+### Added
+
+-   `nera new` writes `AGENTS.md` and `CLAUDE.md` into every new site, with
+    or without `--theme` and in place with `nera new .`. `AGENTS.md` tells
+    an AI assistant (Codex, Cursor, Copilot, Claude Code, …) what Nera is,
+    where things live, which commands to run, the traps (a page without
+    `layout` is skipped, `public/` is regenerated, URLs end in `.html`) and
+    to run `nera validate` and `nera build --check` after every change.
+    It ends with a "Notes for this site" section that belongs to the site
+    owner, behind a `<!-- nera:site-notes … -->` marker line. `CLAUDE.md`
+    is the single line `@AGENTS.md`, so Claude Code reads the same text.
+    Existing sites are not changed.
+
 ## [1.5.1] - 2026-10-10
 
 ### Fixed
