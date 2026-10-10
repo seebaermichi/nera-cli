@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-10-10
+
+### Fixed
+
+-   `nera new`: the "Next steps" say `npm run dev` instead of `nera dev`,
+    which only worked with a global `nera`, and list `npm install` when it
+    ran with `--no-install`.
+-   `nera new .`: the package name taken from the folder now folds `ß`, `æ`,
+    `œ`, `ø`, `ł` and `đ` (`Straße` → `strasse`, not `stra-e`), stops at
+    npm's 214 characters and falls back to `nera-site` for the names npm
+    refuses (`node_modules`, `favicon.ico`).
+
 ## [1.5.0] - 2026-10-10
 
 ### Added

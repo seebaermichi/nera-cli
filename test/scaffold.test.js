@@ -179,9 +179,54 @@ describe('projectNameFromDir', () => {
         ['/x/--a  b--', 'a-b'],
         ['/x/site.v2_final', 'site.v2_final'],
         ['/x/___', 'nera-site'],
+        ['/x/Straße', 'strasse'],
+        ['/x/Ærø Øl', 'aero-ol'],
+        ['/x/node_modules', 'nera-site'],
+        ['/x/favicon.ico', 'nera-site'],
     ])('%s → %s', (dir, expected) => {
         expect(projectNameFromDir(dir)).toBe(expected)
         expect(validateProjectName(expected)).toBe(expected)
+    })
+
+    it('caps the name at npm\'s 214 characters, without a trailing dash', () => {
+        const name = projectNameFromDir(`/x/${'a'.repeat(213)} b`)
+        expect(name).toBe('a'.repeat(213))
+        expect(projectNameFromDir(`/x/${'b'.repeat(300)}`)).toHaveLength(214)
+    })
+})
+
+describe('scaffoldProject next steps', () => {
+    const nextSteps = async (name, options) => {
+        const logs = []
+        const spy = vi
+            .spyOn(console, 'log')
+            .mockImplementation((m) => logs.push(m))
+        try {
+            await scaffoldProject(name, { cwd: workdir, ...options })
+        } finally {
+            spy.mockRestore()
+        }
+        return logs.find((m) => m.startsWith('👉 Next steps:'))
+    }
+
+    it('names cd, npm install and npm run dev for a new folder', async () => {
+        expect(await nextSteps('my-site', { install: false })).toBe(
+            '👉 Next steps:\n  cd my-site\n  npm install\n  npm run dev\n'
+        )
+    })
+
+    it('leaves out cd in place', async () => {
+        const dir = path.join(workdir, 'here')
+        await fs.mkdir(dir)
+        expect(await nextSteps('.', { cwd: dir, install: false })).toBe(
+            '👉 Next steps:\n  npm install\n  npm run dev\n'
+        )
+    })
+
+    it('never tells the user to run a global nera', async () => {
+        expect(await nextSteps('x', { install: false })).not.toMatch(
+            /^\s+nera /m
+        )
     })
 })
 

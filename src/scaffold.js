@@ -34,20 +34,32 @@ const CURRENT_DIR = new Set(['.', './'])
 
 export const isCurrentDir = (projectName) => CURRENT_DIR.has(projectName)
 
+// Letters NFKD does not decompose into a base letter plus an accent.
+const LETTER_FOLDS = { ß: 'ss', æ: 'ae', œ: 'oe', ø: 'o', ł: 'l', đ: 'd' }
+
+// npm refuses these names outright, and longer ones than this.
+const NPM_RESERVED = new Set(['node_modules', 'favicon.ico'])
+const NPM_MAX_LENGTH = 214
+
 // The package name for a site scaffolded in place, derived from the folder's
-// basename and normalised until it passes validateProjectName: accents
-// dropped (`Bäckerei` → `backerei`), lower-case, each run of other characters
-// → one `-`, no leading dot, dash or underscore.
+// basename and normalised until it passes validateProjectName and npm's own
+// rules: accents dropped (`Bäckerei` → `backerei`, `Straße` → `strasse`),
+// lower-case, each run of other characters → one `-`, no leading dot, dash or
+// underscore, at most 214 characters. `nera-site` when nothing usable is left.
 export function projectNameFromDir(dir) {
     const name = path
         .basename(path.resolve(dir))
+        .toLowerCase()
+        .replace(/[ßæœøłđ]/g, (c) => LETTER_FOLDS[c])
         .normalize('NFKD')
         .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
         .replace(/[^a-z0-9._-]+/g, '-')
         .replace(/^[._-]+/, '')
-        .replace(/-+$/, '')
-    return name === '' ? 'nera-site' : validateProjectName(name)
+        .slice(0, NPM_MAX_LENGTH)
+        .replace(/[-.]+$/, '')
+    return name === '' || NPM_RESERVED.has(name)
+        ? 'nera-site'
+        : validateProjectName(name)
 }
 
 // In-place scaffolding only goes ahead in an empty folder. Dotfiles such as
@@ -195,8 +207,15 @@ export async function scaffoldProject(projectName, options = {}) {
         execFileSync('npm', args, { cwd: targetDir, stdio: 'inherit' })
     }
 
+    // `npm run dev`, not `nera dev`: it works without a global `nera`.
+    const nextSteps = [
+        ...(inPlace ? [] : [`cd ${projectName}`]),
+        ...(install ? [] : ['npm install']),
+        'npm run dev',
+    ]
     console.log('✅ Done!')
-    const cdLine = inPlace ? '' : `  cd ${projectName}\n`
-    console.log(`👉 Next steps:\n${cdLine}  nera dev\n`)
+    console.log(
+        `👉 Next steps:\n${nextSteps.map((l) => `  ${l}\n`).join('')}`
+    )
     return targetDir
 }
