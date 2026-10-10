@@ -178,3 +178,87 @@ goal (README section, ROADMAP header/L1 map/slice plan/progress section, CHANGEL
 ## Step 2 — approved (2026-10-10)
 
 snagio: ticked
+commit: 85df3cf
+
+## Browser test (2026-10-10)
+
+- **Result:** SKIPPED — no browser surface: the issue adds scaffold files (AGENTS.md, CLAUDE.md) that are never rendered; covered by the step-1 tests
+
+## Triage (2026-10-10)
+
+| # | item | from | disposition | why |
+|---|---|---|---|---|
+| 1 | design · `src/scaffold.js:68` — `nera new .` refuses a folder holding only `AGENTS.md`/`CLAUDE.md` (agents often start in one) | Carry forward | fix | default: allow both names in `assertEmptyDir`; `copyDir` already keeps the user's copy ("Kept your existing …"), like `.gitignore`; + test in `test/scaffold.test.js` |
+| 2 | debt · `../nera-plugin-contact-form/README.md:255` — example page layout wraps content in `section.contact` without `main`; on the scaffold layout (no `main`, `pages/default.pug` adds it) `nera build --check` reports `a11y-main` | Step 1 — implemented | fix | README-only, `section.contact` → `main.contact`; no release |
+
+Already done / elsewhere: 1 already resolved (`folders.plugins: ./plugins` — `ROADMAP-ai.md:122` and `:652` were corrected to core's default `src/plugins/`, which `template/AGENTS.md:22` documents; changing the default is unasked)
+Planning signal: none
+
+## Step 3 — started (2026-10-10)
+
+base_sha: 85df3cfd37cbc7a406a66e0018235fe0cbf5ed45
+mode: fresh
+
+## Step 3 — implemented (2026-10-10)
+
+base_sha: 85df3cf
+
+### Changed
+- `src/scaffold.js` — new `AGENT_FILES = new Set(['AGENTS.md', 'CLAUDE.md'])`; `assertEmptyDir` ignores them besides dotfiles (exact, case-sensitive `Set.has`); both comments (above `assertEmptyDir`, in `copyDir`'s existing-file branch) name them. `copyDir` itself unchanged: its `existsSync` branch already keeps the user's copy and logs "Kept your existing …".
+- `test/scaffold.test.js` — in-place scaffold into a folder holding only a user `AGENTS.md` + `CLAUDE.md`: succeeds, both keep their content, `package.json`/`config/app.yaml`/`pages/index.md` written, one "Kept your existing <name>" line each; `AGENTS.md` + `notes.txt` and a lone `agents.md` still refuse and leave the folder untouched.
+- `CHANGELOG.md` — one bullet in the unreleased `## [1.6.0]` Added group (no version bump).
+- `../nera-plugin-contact-form/README.md:255` — example layout `section.contact` → `main.contact` (only diff in that repo; not committed, no release).
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none
+
+### Verification
+```
+npx vitest run → Test Files  6 passed (6) / Tests  73 passed (73)
+npm run lint → eslint . (no output, exit 0)
+../nera-plugin-contact-form: npm run lint → eslint . (no output, exit 0)
+../nera-plugin-contact-form: git diff --stat → README.md | 2 +-   (-  section.contact / +  main.contact)
+with src/scaffold.js stashed: npx vitest run test/scaffold.test.js → × accepts a folder holding only AGENTS.md and CLAUDE.md and keeps both — Tests 1 failed | 49 passed (50)
+```
+
+### Self-critique
+- Considered case-insensitive matching for `agents.md`; rejected per the step ("exact names only") — on macOS's case-insensitive FS a lone `agents.md` would otherwise collide with the template's `AGENTS.md` and be silently "kept" under the wrong case. The test pins the refusal.
+- The refusal test passes with and without the change by design (guards against the allow-list widening); only the acceptance test proves the new behaviour.
+- `main.contact` assumes the site's base layout has no `<main>` of its own — true for the scaffold's `layouts/layout.pug` (`body` → `block content`); a user layout with its own `main` would nest two. The README already says to extend "your own base layout", left as is.
+- ROADMAP-ai.md not touched: the step lists no ROADMAP edit and this is a triage fix, not a new decision. Least sure whether the reviewer wants a line in the slice-1 note.
+
+### Pressure-test questions for the reviewer
+1. Can any path overwrite a user's `AGENTS.md`/`CLAUDE.md`? (`copyDir` checks `existsSync(to)` before `copyFile`; the acceptance test asserts both contents unchanged.)
+2. Does anything besides the two exact names slip past `assertEmptyDir`? (Filter is `!startsWith('.') && !AGENT_FILES.has(n)`.)
+3. Should the contact-form README change get its own commit now or with the nera-cli commit of this step? (Separate repo — needs its own commit there.)
+
+## Step 3 — reviewed (2026-10-10)
+
+Verdict: approve
+
+### 🔴 Blocking
+- none
+
+### Fixed in review
+- `ROADMAP-ai.md:658-661` — added a bullet to the slice-1 "Settled on the way" note recording the decision (`nera new .` accepts a folder with only `AGENTS.md`/`CLAUDE.md`, exact names, user copies kept, merging is `nera update`'s job, D2). Required by the non-negotiable "a decision made while working an issue is written back into the ROADMAP in the same commit"; the note otherwise said `nera new .` "writes `AGENTS.md`", now not always true. Docs only, +4 lines, outside the step's file list (answers the implementer's open question) — `npx vitest run && npm run lint` → 73 passed, eslint exit 0
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none
+
+### Checked
+goal (allow-list + kept copies + contact-form `main.contact`) · `npx vitest run` → 6 files / 73 tests passed · `npm run lint` → exit 0 · `../nera-plugin-contact-form`: `git diff` = README:256 only, `npm run lint` → exit 0 · Non-negotiables, Framework correctness, UI/template rules, Tests & hygiene · self-critique claims verified (copyDir unchanged and its `existsSync` branch keeps the file; refusal test is a regression guard; `main.contact` matches `template/theme/views/pages/default.pug:5` `main !{ content }` and `layouts/layout.pug` has no `main`) · CHANGELOG bullet in unreleased 1.6.0 Added, four-space style · walkthrough n/a (none)
+
+### Answers to the pressure-test questions
+1. No. `assertEmptyDir` only filters; `copyDir` (`src/scaffold.js:145`) takes the `existsSync(to)` branch before any `copyFile`, and the template's `AGENTS.md`/`CLAUDE.md` sit at the template root, so `to` is exactly the user's file. The acceptance test asserts both contents byte-equal and one "Kept your existing" line each.
+2. No. Filter is `!n.startsWith('.') && !AGENT_FILES.has(n)` — exact `Set.has`, case-sensitive; the test pins `agents.md` alone and `AGENTS.md` + `notes.txt` both refusing with the folder untouched.
+3. Its own commit in `../nera-plugin-contact-form` (separate git repo), README only, no version bump or release (patch-level docs, nothing a consumer installs changes until a later release carries it). `/approve-step` should commit it there alongside the nera-cli commit; never push.
+
+## Step 3 — approved (2026-10-10)
+
+snagio: ticked

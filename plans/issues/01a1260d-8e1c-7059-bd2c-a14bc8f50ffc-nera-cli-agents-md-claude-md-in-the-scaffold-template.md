@@ -88,3 +88,29 @@ new either.
   consistency-test parts are done.
 - **Risks:** none beyond docs drift.
 - **Walkthrough:** none
+
+### Step 3 — `nera new .` accepts an existing AGENTS.md/CLAUDE.md; contact-form README gets `main` — ✅ done
+
+- **Goal:** (triage #1) `assertEmptyDir` ignores `AGENTS.md` and `CLAUDE.md`, so
+  `nera new .` works in a folder an agent started in; `copyDir` keeps the user's
+  copy and prints "Kept your existing …" (comment at `src/scaffold.js:139-140`
+  updated to name them). (triage #2) the contact-form README's example page
+  layout uses `main.contact` instead of `section.contact`, so `nera build --check`
+  no longer reports `a11y-main` on the scaffold layout.
+- **Files:** `src/scaffold.js` — `assertEmptyDir` + the `copyDir` comment;
+  `test/scaffold.test.js` — in-place scaffold into a folder holding only a user
+  `AGENTS.md`/`CLAUDE.md`: succeeds, both files keep the user's content, the rest
+  of the template is written; a folder with `AGENTS.md` plus another file still
+  refuses; `CHANGELOG.md` — one bullet in the unreleased `## [1.6.0]` entry (not
+  tagged yet, so no new version);
+  `../nera-plugin-contact-form/README.md:255` — `section.contact` → `main.contact`
+  (README only, its own commit in that repo, no release).
+- **Verify:** `npx vitest run && npm run lint` — green, incl. the new tests;
+  in `../nera-plugin-contact-form`: `npm run lint` green, `git diff` shows only the
+  README line.
+- **Review hardest:** the allow-list matches the two exact names only (no
+  case-folding surprises, no other files slip through); the user's file is never
+  overwritten.
+- **Risks:** a user's `CLAUDE.md` without the Nera content stays as is — intended;
+  `nera update` (`01a1260d-8e34-…`) owns merging the Nera part in.
+- **Walkthrough:** none

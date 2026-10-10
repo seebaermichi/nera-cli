@@ -655,6 +655,10 @@ change; it copies `template/` as it is. Settled on the way:
 - **`AGENTS.md` links https://nera.js.org, not `/llms.txt`,** which returns
   404 until slice 2 (L2) ships on `nera-website`. The `llms.txt` link goes
   into the template with slice 2.
+- **`nera new .` accepts a folder holding only `AGENTS.md` and/or
+  `CLAUDE.md`** (exact names, case-sensitive), as when an assistant wrote
+  them before scaffolding; the user's copies are kept untouched. Merging the
+  Nera part into them is `nera update`'s job (D2).
 
 **Still open in slice 1**, each its own issue: `nera update` creating the two
 files and replacing only the part above the marker (D2), and the test that

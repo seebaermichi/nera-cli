@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     owner, behind a `<!-- nera:site-notes … -->` marker line. `CLAUDE.md`
     is the single line `@AGENTS.md`, so Claude Code reads the same text.
     Existing sites are not changed.
+-   `nera new .` also works in a folder that holds only an `AGENTS.md`
+    and/or `CLAUDE.md`, as when an AI assistant wrote them before
+    scaffolding. Both files are kept as they are ("Kept your existing …");
+    any other file still makes the folder count as not empty.
 
 ## [1.5.1] - 2026-10-10
 

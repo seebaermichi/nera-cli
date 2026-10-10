@@ -137,6 +137,38 @@ describe('scaffoldProject in the current folder (`nera new .`)', () => {
             .toHaveLength(1)
     })
 
+    it('accepts a folder holding only AGENTS.md and CLAUDE.md and keeps both', async () => {
+        const dir = path.join(workdir, 'agent')
+        await fs.mkdir(dir)
+        await fs.writeFile(path.join(dir, 'AGENTS.md'), 'my agents\n')
+        await fs.writeFile(path.join(dir, 'CLAUDE.md'), 'my claude\n')
+        const logs = []
+        const spy = vi.spyOn(console, 'log').mockImplementation((m) => logs.push(m))
+        try {
+            await inPlace(dir)
+        } finally {
+            spy.mockRestore()
+        }
+        expect(await read(dir, 'AGENTS.md')).toBe('my agents\n')
+        expect(await read(dir, 'CLAUDE.md')).toBe('my claude\n')
+        for (const rel of ['package.json', 'config/app.yaml', 'pages/index.md']) {
+            expect(fssync.existsSync(path.join(dir, rel))).toBe(true)
+        }
+        for (const name of ['AGENTS.md', 'CLAUDE.md']) {
+            expect(logs.filter((m) => m === `  • Kept your existing ${name}`))
+                .toHaveLength(1)
+        }
+    })
+
+    it('still refuses AGENTS.md next to another file, or in another case', async () => {
+        for (const files of [['AGENTS.md', 'notes.txt'], ['agents.md']]) {
+            const dir = await fs.mkdtemp(path.join(workdir, 'busy-'))
+            for (const f of files) await fs.writeFile(path.join(dir, f), 'x')
+            await expect(inPlace(dir)).rejects.toThrow(/not empty/)
+            expect((await fs.readdir(dir)).sort()).toEqual([...files].sort())
+        }
+    })
+
     it('refuses a non-empty folder and writes nothing', async () => {
         const dir = path.join(workdir, 'busy')
         await fs.mkdir(dir)

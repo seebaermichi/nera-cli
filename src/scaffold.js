@@ -62,11 +62,18 @@ export function projectNameFromDir(dir) {
         : validateProjectName(name)
 }
 
+// Files an AI assistant may have written before running `nera new .`. They
+// do not make the folder count as non-empty, and the user's copy is kept.
+// Exact names only, matched case-sensitively.
+const AGENT_FILES = new Set(['AGENTS.md', 'CLAUDE.md'])
+
 // In-place scaffolding only goes ahead in an empty folder. Dotfiles such as
 // `.git` or an editor folder do not count: `git init` first is the usual way
-// to start a project.
+// to start a project. Neither do AGENT_FILES.
 async function assertEmptyDir(dir) {
-    const entries = (await fs.readdir(dir)).filter((n) => !n.startsWith('.'))
+    const entries = (await fs.readdir(dir)).filter(
+        (n) => !n.startsWith('.') && !AGENT_FILES.has(n)
+    )
     if (entries.length > 0) {
         throw new Error(
             `The current folder is not empty (${entries.slice(0, 3).join(', ')}` +
@@ -136,8 +143,9 @@ async function copyDir(src, dest, { skipStarters = false } = {}) {
         } else if (skipStarters && (await isStarterTemplate(from))) {
             continue
         } else if (fssync.existsSync(to)) {
-            // Only in place, and then only a dotfile such as .gitignore can be
-            // there already (assertEmptyDir): the user's copy wins.
+            // Only in place, and then only a dotfile such as .gitignore, or
+            // AGENTS.md / CLAUDE.md, can be there already (assertEmptyDir):
+            // the user's copy wins.
             console.log(`  • Kept your existing ${path.basename(to)}`)
         } else {
             await fs.copyFile(from, to)
