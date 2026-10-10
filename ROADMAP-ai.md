@@ -1,8 +1,8 @@
 # ROADMAP — Nera for AI assistants, and a site online in one command
 
-> **Status: spec, written 2026-10-10; decisions D1–D10 settled the same
-> day (see "Decisions"). Nothing implemented. The remaining open questions at
-> the end are small enough to settle during the slices they belong to.**
+> **Status: spec, written 2026-10-10; decisions D1–D11 settled the same
+> day (see "Decisions"). Nothing implemented, no open questions. Next: slice 0,
+> the baseline cold agent test.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -429,6 +429,17 @@ The first round, settled with the maintainer:
   infrastructure** (Hetzner via Forge, `nera-platform/plans/03`), sharing the
   GitHub App. Its plan stays here; `nera-platform/plans/` links to it rather
   than copying it. (Was O2.)
+- **D11 — The maintainer, Michael Becker, operates the hosted service** in his
+  own name (https://michael-becker-berlin.de): he is the provider named in the
+  imprint, the controller in the privacy policy, the party to the terms of use,
+  and the owner of the GitHub App, the Netlify OAuth app and the directory
+  listings. Hetzner is only the processor (data processing agreement with
+  Hetzner needed). Consequences for slice 9: `nera-pro.app` gets its own
+  imprint, privacy policy and terms naming him, written for this service —
+  GitHub identity and tokens, Netlify tokens, EU hosting, no site content kept
+  beyond a call — rather than linking to michael-becker-berlin.de's pages, whose
+  privacy policy describes a different processing. Have the texts checked
+  before launch. (Was O4.)
 
 ## Semver
 
@@ -465,7 +476,7 @@ The first round, settled with the maintainer:
 8. **L7a** — local MCP server, the Desktop extension, the Claude Code plugin.
 9. **L7b** — hosted MCP server on `mcp.nera-pro.app`: OAuth server + GitHub
    delegation, API-backed tools, deployment, legal pages; then directory
-   submissions. Needs O4 settled first.
+   submissions. Legal pages per D11 before going public.
 10. **Field test** — a non-developer builds a real site through claude.ai with
     only the connector. Record what broke.
 
@@ -501,18 +512,7 @@ ten minutes, without reading docs.
 
 ## Open questions
 
-O1–O3 are settled (D8–D10). Remaining:
-
-- **O4 — The legal operator of the hosted service** — not the hosting company
-  (Hetzner is only a processor that runs the machine, under a data processing
-  agreement), but the person or company that *offers* the service to users and
-  is responsible for it: named in the imprint, the "controller" in the privacy
-  policy, party to the terms of use, owner of the GitHub App, the Netlify OAuth
-  app and the directory listings, and the one who is liable. Options: the
-  maintainer as a private person, as a sole trader (freelancer), or a company
-  (e.g. a UG/GmbH, which limits personal liability). Decide before slice 9,
-  ideally with advice from a lawyer or tax adviser — and in line with how Nera
-  Pro will be run, since it shares the service. Not needed for slices 0–8.
+None. O1–O4 are settled (D8–D11). New questions go here.
 
 ## Later
 
