@@ -573,14 +573,17 @@ The record above stays as measured. What the same issue fixed afterwards:
     into the current folder when that holds nothing but dotfiles (`.git`,
     editor folders), keeps an existing `.gitignore`, names the package after
     the folder (normalised, `nera-site` as the fallback) and drops the `cd`
-    from "Next steps".
+    from "Next steps". 1.5.1 makes those say `npm run dev` (not `nera dev`,
+    which needs a global `nera`) and folds `ß` and similar letters into the
+    package name.
 -   **Core log noise:** `@nera-static/core` 4.15.1 logs `HTML created:` with
     the written file (`/about.html`) instead of `/`, and runs dotenv with
     `quiet: true`. The `glob@10.5.0` deprecation warning is untouched.
 -   **Harness:** Codex runs from a dedicated `CODEX_HOME` (never a copy of the
     real login), `site/` lives in its own temp folder away from `out/`, and
     `COLD_MODEL` pins a model when a comparison needs one (unset = the CLI's
-    default, which is what a user gets). See `test/cold-agent/README.md`.
+    default, which is what a user gets). That `CODEX_HOME` is reset to its
+    `auth.json` before every run. See `test/cold-agent/README.md`.
 
 ### Inputs for `AGENTS.md` (slice 1)
 
