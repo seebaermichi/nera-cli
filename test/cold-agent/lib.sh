@@ -40,6 +40,36 @@ cold_make_root() {
     # npx lstat()s <prefix>/lib and fails with ENOENT when it is missing.
     mkdir -p "$COLD_HOME" "$COLD_SITE" "$COLD_ROOT/gh" "$COLD_ROOT/npm-global/lib"
     : > "$COLD_ROOT/npmrc-global"
+    cold_make_path
+}
+
+# The maintainer's PATH, without any globally installed Nera command (e.g.
+# the deprecated @nera-static/installer as `nera` in /opt/homebrew/bin): a
+# cold machine has none, so `nera build` outside a site must be "command not
+# found". A PATH folder holding `nera` or `nera-*` is replaced by a mirror of
+# symlinks to everything else in it. Sets COLD_PATH.
+cold_make_path() {
+    local dir entry mirror i=0
+    local -a dirs
+    COLD_PATH="$COLD_ROOT/npm-global/bin"
+    rm -rf "$COLD_ROOT/path"
+    IFS=: read -ra dirs <<< "$PATH"
+    for dir in "${dirs[@]}"; do
+        [ -n "$dir" ] || continue
+        if compgen -G "$dir/nera" > /dev/null || compgen -G "$dir/nera-*" > /dev/null; then
+            mirror="$COLD_ROOT/path/$i"
+            mkdir -p "$mirror"
+            for entry in "$dir"/*; do
+                case "${entry##*/}" in
+                    nera | nera-*) ;;
+                    *) ln -s "$entry" "$mirror/" ;;
+                esac
+            done
+            dir="$mirror"
+            i=$((i + 1))
+        fi
+        COLD_PATH="$COLD_PATH:$dir"
+    done
 }
 
 # Print the environment as NAME=value lines for `env -i`. Credentials are
@@ -58,7 +88,7 @@ cold_make_root() {
 cold_env() {
     printf '%s\n' \
         "HOME=$COLD_HOME" \
-        "PATH=$COLD_ROOT/npm-global/bin:$PATH" \
+        "PATH=$COLD_PATH" \
         "TMPDIR=${TMPDIR:-/tmp}" \
         "USER=${USER:-}" \
         "LOGNAME=${LOGNAME:-}" \

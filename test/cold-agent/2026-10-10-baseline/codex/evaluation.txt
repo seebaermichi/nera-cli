@@ -1,0 +1,27 @@
+## foreign generator traces
+ok    no foreign generator files or dependencies
+## project
+info  project: /
+ok    depends on @nera-static/nera
+## pages
+info  page pages/datenschutz.md — Datenschutzerklärung
+info  page pages/impressum.md — Impressum
+info  page pages/index.md — Brot & Zeit — Handwerk, das den Morgen verändert
+info  page pages/kontakt.md — Kontakt
+info  page pages/oeffnungszeiten.md — Öffnungszeiten
+info  page pages/ueber-uns.md — Über uns
+## public/ before the build
+info  public/ holds 8 files from the agent's session
+## install and build
+ok    npm ci --no-audit --no-fund
+ok    nera build
+ok    nera validate
+ok    nera check
+## public/ after the build
+info  6 HTML files rendered from 6 Markdown pages
+ok    nothing in public/ that a clean build does not produce
+## contact form
+FAIL  does not depend on @nera-static/plugin-contact-form
+WARN  hand-written form markup: pages/kontakt.md
+
+evaluate: FAILED

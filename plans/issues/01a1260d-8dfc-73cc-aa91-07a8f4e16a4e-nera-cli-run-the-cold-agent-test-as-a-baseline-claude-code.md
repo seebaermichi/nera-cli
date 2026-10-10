@@ -68,7 +68,7 @@ and the raw material lives next to the harness.
 - **Risks:** a long or looping session. Cap it with `--max-turns` and record the cap.
 - **Walkthrough:** none
 
-### Step 3 — Run the Codex baseline and evaluate it — ⬜ todo
+### Step 3 — Run the Codex baseline and evaluate it — ✅ done
 
 - **Goal:** the same as step 2 for Codex (`codex exec`, sandbox allowing network and writes inside the temp dir), in `test/cold-agent/2026-10-10-baseline/codex/`. Precondition: the user has installed Codex and logged in (`! npm i -g @openai/codex && codex login`).
 - **Files:** `test/cold-agent/2026-10-10-baseline/codex/{transcript.md,tree.txt,evaluation.txt,meta.md}`

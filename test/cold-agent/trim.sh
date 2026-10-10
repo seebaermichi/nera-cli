@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# Trims a Claude Code run's transcript.jsonl into the committed transcript.md.
+# Trims a run's transcript.jsonl into the committed transcript.md. Reads both
+# `claude -p --output-format stream-json` and `codex exec --json`, told apart
+# by the first event.
 #
-#   bash test/cold-agent/trim.sh <run root> > <date>-<label>/claude/transcript.md
+#   bash test/cold-agent/trim.sh <run root> > <date>-<label>/<agent>/transcript.md
 #
 # Mechanical, so it can be rerun: every agent message and tool call in order,
 # nothing reworded. Commands keep every line except heredoc bodies, which
 # collapse to "<opener> … [N lines]". Results keep their first 15 lines plus
 # every later line that shows an error or warning. The run root becomes
-# <root>, the temp dir <tmp>, and colour codes are stripped. Thinking blocks
-# and token/rate-limit events are dropped.
+# <root>, the temp dir <tmp>, and colour codes are stripped. Thinking and
+# reasoning blocks, token/rate-limit events and Codex's `item.started`
+# duplicates are dropped.
 set -euo pipefail
 
 root=${1:?usage: trim.sh <run root>}
@@ -17,7 +20,7 @@ jsonl=$root/out/transcript.jsonl
 tmp=$(cd "${TMPDIR:-/tmp}" && pwd -P)
 
 # macOS reports the same folders with and without /private.
-jq -r --arg root "$root" --arg tmp "$tmp" --argjson head 15 '
+common='
 def paths:
     gsub($root; "<root>") | gsub($root | ltrimstr("/private"); "<root>")
     | gsub($tmp; "<tmp>") | gsub($tmp | ltrimstr("/private"); "<tmp>")
@@ -53,6 +56,10 @@ def trim_result:
 
 def block: "````text\n" + . + "\n````\n";
 
+def result_block: rtrimstr("\n") | paths | if . == "" then "(empty)" else trim_result end | block;
+'
+
+claude='
 def text_of: if type == "string" then . else map(select(.type == "text") | .text) | join("\n") end;
 
 if .type == "system" and .subtype == "init" then
@@ -68,14 +75,49 @@ elif .type == "assistant" then
 elif .type == "user" then
     .message.content[]
     | select(.type == "tool_result")
-    | (.content | text_of | rtrimstr("\n") | paths) as $r
     | "Result" + (if .is_error then " (error)" else "" end) + ":\n"
-      + (if $r == "" then "(empty)" else $r | trim_result end | block)
+      + (.content | text_of | result_block)
 elif .type == "result" then
     "_Session end: `\(.subtype)`, \(.num_turns) turns, \(.duration_ms) ms._\n"
 else empty end
-' "$jsonl" | {
-    echo '# Cold agent test — Claude Code — transcript (trimmed)'
+'
+
+# Codex emits every item twice (started, completed); only the completed one
+# carries the output.
+codex='
+if .type == "thread.started" then
+    "_Session start: thread `\(.thread_id)`._\n"
+elif .type == "item.completed" then
+    .item
+    | if .type == "agent_message" then "**Agent:** " + (.text | paths) + "\n"
+      elif .type == "command_execution" then
+          "**Tool `shell`:**\n" + (.command | paths | collapse_heredocs | block)
+          + "Result (exit \(.exit_code // "none"), \(.status)):\n" + (.aggregated_output // "" | result_block)
+      elif .type == "web_search" then
+          "**Tool `web_search`:** " + ((.action // {}) | tojson | paths) + "\n"
+      elif .type == "file_change" then
+          "**Tool `file_change` (\(.status)):** " + ([.changes[] | "\(.kind) \(.path | paths)"] | join(", ")) + "\n"
+      elif .type == "mcp_tool_call" then
+          "**Tool `\(.server).\(.tool)` (\(.status)):** `" + (.arguments | tojson | paths) + "`\n"
+      elif .type == "todo_list" then
+          "**Plan:**\n" + ([.items[] | "- [" + (if .completed then "x" else " " end) + "] " + .text] | join("\n")) + "\n"
+      elif .type == "error" then "**Error:** " + (.message | paths) + "\n"
+      else empty end
+elif .type == "turn.completed" then
+    "_Turn end: \(.usage.input_tokens // 0) input / \(.usage.output_tokens // 0) output tokens._\n"
+elif .type == "turn.failed" then "**Turn failed:** " + (.error.message | paths) + "\n"
+elif .type == "error" then "**Error:** " + (.message | paths) + "\n"
+else empty end
+'
+
+if [ "$(head -n 1 "$jsonl" | jq -r .type)" = thread.started ]; then
+    title='Codex' filter=$codex
+else
+    title='Claude Code' filter=$claude
+fi
+
+jq -r --arg root "$root" --arg tmp "$tmp" --argjson head 15 "$common$filter" "$jsonl" | {
+    echo "# Cold agent test — $title — transcript (trimmed)"
     echo
     echo 'Generated from `transcript.jsonl` by `test/cold-agent/trim.sh`: every agent message and tool call in order, nothing reworded. Heredoc bodies in commands collapse to `… [N lines]`; results keep their first 15 lines plus every line showing an error or warning. The run root is `<root>`, the temp dir `<tmp>`; colour codes are stripped.'
     echo

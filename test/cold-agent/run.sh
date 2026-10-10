@@ -12,7 +12,7 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "$0")/lib.sh"
 
-# Turn cap for the Claude session; the Codex session is not capped yet.
+# Turn cap for the Claude session. `codex exec` has no turn limit flag.
 COLD_MAX_TURNS="${COLD_MAX_TURNS:-60}"
 
 usage() {
@@ -94,6 +94,8 @@ check_isolation() {
         in_env "[ \"\$HOME\" = '$COLD_HOME' ] && [ ! -e \"\$HOME/.claude\" ] && [ ! -e \"\$HOME/.codex\" ]"
     check 'no CLAUDE.md or AGENTS.md walking up from the site folder' \
         in_env 'd=$(pwd -P); while :; do [ -e "$d/CLAUDE.md" ] || [ -e "$d/AGENTS.md" ] || [ -e "$d/.claude" ] && exit 1; [ "$d" = / ] && break; d=$(dirname "$d"); done'
+    check 'no global Nera command on PATH' \
+        in_env '! command -v nera && ! compgen -c nera-'
     check 'no token variables in the environment' \
         in_env '! env | grep -qiE "token|secret|_key=|ssh_auth_sock|npm_config__auth"'
     if command -v gh > /dev/null; then

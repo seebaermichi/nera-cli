@@ -11,7 +11,7 @@ This folder is not in the package `files`, so nothing here ships.
 | `run.sh` | runs one agent headless in an isolated temp folder and keeps the transcript and file tree |
 | `evaluate.sh` | checks the folder the agent left behind against the pass criteria |
 | `lib.sh` | the isolated environment, shared by both scripts |
-| `trim.sh` | turns a Claude run's `transcript.jsonl` into the committed `transcript.md` |
+| `trim.sh` | turns a run's `transcript.jsonl` (Claude or Codex) into the committed `transcript.md` |
 | `<date>-<label>/<agent>/` | a committed run: trimmed transcript, tree, evaluation |
 
 ## Running it
@@ -31,7 +31,9 @@ holds `site/` (the agent's folder, kept for `evaluate.sh`) and `out/`:
 is never deleted automatically.
 
 The Claude session is capped at 60 turns (`--max-turns`); set
-`COLD_MAX_TURNS` to change it. The Codex session is not capped yet (step 3).
+`COLD_MAX_TURNS` to change it. The Codex session is not capped: `codex exec`
+has no turn limit flag (checked with codex-cli 0.162.1), so watch a Codex run
+and stop it by hand if it loops.
 
 The prompt is read verbatim from the ROADMAP's first `text` block after
 **Cold agent test**, so editing the ROADMAP changes the test.
@@ -76,6 +78,12 @@ Nothing may leave the machine. A leaked credential would publish for real.
   `GIT_SSH_COMMAND` forces no config, no identity files and no agent.
 - **npm:** an empty user and global npmrc, and a private `prefix`, so
   `npm i -g` does not touch the real Node install.
+- **No global Nera command.** The maintainer's PATH can hold `nera` (the
+  deprecated `@nera-static/installer`) or `nera-validate` from an old global
+  install. A cold machine has neither, so every PATH folder holding `nera` or
+  `nera-*` is replaced by a mirror of symlinks to everything else in it. The
+  first Codex run hit the installer's `nera` on `npm run build` before
+  `npm install`.
 
 Reading stays allowed: nera.js.org, the npm registry and anonymous
 `git ls-remote` all work.
@@ -107,7 +115,7 @@ Commit to `test/cold-agent/<date>-<label>/<agent>/`, for example
   discarded run, anything the agent did outside its folder)
 - `evaluation.txt`, the output of `evaluate.sh`
 - `transcript.md`, generated, never hand-edited:
-  `bash test/cold-agent/trim.sh <run root> > transcript.md` (Claude runs).
+  `bash test/cold-agent/trim.sh <run root> > transcript.md` (either agent).
   It keeps every agent message and tool call in order. Commands keep every
   line except heredoc bodies, which collapse to
   `cat > <file> <<'EOF' … [N lines]`. Results keep their first 15 lines plus every line that shows an
