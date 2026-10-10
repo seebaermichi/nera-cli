@@ -16,14 +16,15 @@ npm run dev            # or: nera dev
 
 Already in the folder the site should live in? `nera new .` scaffolds into the
 current folder instead. The folder must be empty apart from dotfiles such as
-`.git` (an existing `.gitignore` is kept), and the package is named after the
-folder (`My Bakery` → `my-bakery`).
+`.git` and an `AGENTS.md`/`CLAUDE.md` an AI assistant may have written first
+(an existing `.gitignore`, `AGENTS.md` or `CLAUDE.md` is kept), and the
+package is named after the folder (`My Bakery` → `my-bakery`).
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--theme <name>` to start from a theme. `nera new .` scaffolds into the current, empty folder. |
+| `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--theme <name>` to start from a theme. `nera new .` scaffolds into the current, empty folder (dotfiles, `AGENTS.md` and `CLAUDE.md` allowed). |
 | `nera build` | Render `pages/` → `public/`. With `--check`, then run `nera check` on the result — one command for CI. |
 | `nera dev` | Build, serve `public/`, and rebuild on change with live reload. Watches `pages/`, `config/`, `theme/` and a local theme (`theme: ./themes/<name>`). |
 | `nera serve` | Serve the already-built `public/` folder. |
