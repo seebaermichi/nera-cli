@@ -9,20 +9,25 @@
 # nothing reworded. Commands keep every line except heredoc bodies, which
 # collapse to "<opener> … [N lines]". Results keep their first 15 lines plus
 # every later line that shows an error or warning. The run root becomes
-# <root>, the temp dir <tmp>, and colour codes are stripped. Thinking and
-# reasoning blocks, token/rate-limit events and Codex's `item.started`
-# duplicates are dropped.
+# <root>, the site folder <site>, the temp dir <tmp>, and colour codes are
+# stripped. Thinking and reasoning blocks, token/rate-limit events and
+# Codex's `item.started` duplicates are dropped.
 set -euo pipefail
 
 root=${1:?usage: trim.sh <run root>}
 root=$(cd "$root" && pwd -P)
 jsonl=$root/out/transcript.jsonl
 tmp=$(cd "${TMPDIR:-/tmp}" && pwd -P)
+# The site folder is a temp folder of its own (meta.txt names it); in runs
+# before that it was <root>/site, which the <root> rule already covers.
+site=$(sed -n 's/^site: //p' "$root/out/meta.txt" 2> /dev/null | head -n 1 || true)
+case "$site/" in "$root"/*) site= ;; esac
 
 # macOS reports the same folders with and without /private.
 common='
 def paths:
-    gsub($root; "<root>") | gsub($root | ltrimstr("/private"); "<root>")
+    (if $site == "" then . else gsub($site; "<site>") | gsub($site | ltrimstr("/private"); "<site>") end)
+    | gsub($root; "<root>") | gsub($root | ltrimstr("/private"); "<root>")
     | gsub($tmp; "<tmp>") | gsub($tmp | ltrimstr("/private"); "<tmp>")
     | gsub("\u001b\\[[0-9;]*m"; "");
 
@@ -116,10 +121,10 @@ else
     title='Claude Code' filter=$claude
 fi
 
-jq -r --arg root "$root" --arg tmp "$tmp" --argjson head 15 "$common$filter" "$jsonl" | {
+jq -r --arg root "$root" --arg site "$site" --arg tmp "$tmp" --argjson head 15 "$common$filter" "$jsonl" | {
     echo "# Cold agent test — $title — transcript (trimmed)"
     echo
-    echo 'Generated from `transcript.jsonl` by `test/cold-agent/trim.sh`: every agent message and tool call in order, nothing reworded. Heredoc bodies in commands collapse to `… [N lines]`; results keep their first 15 lines plus every line showing an error or warning. The run root is `<root>`, the temp dir `<tmp>`; colour codes are stripped.'
+    echo 'Generated from `transcript.jsonl` by `test/cold-agent/trim.sh`: every agent message and tool call in order, nothing reworded. Heredoc bodies in commands collapse to `… [N lines]`; results keep their first 15 lines plus every line showing an error or warning. The run root is `<root>`'"${site:+, the site folder \`<site>\`}"', the temp dir `<tmp>`; colour codes are stripped.'
     echo
     cat
 }

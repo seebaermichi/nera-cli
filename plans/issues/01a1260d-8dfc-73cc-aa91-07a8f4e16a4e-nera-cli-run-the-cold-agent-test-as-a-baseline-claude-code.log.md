@@ -432,3 +432,101 @@ goal (table, 7 missteps, AGENTS inputs, status "Next: slice 1", item 0 done, REA
 ## Step 4 — approved (2026-10-10)
 
 snagio: ticked
+commit: abab0e2
+
+## Browser test (2026-10-10)
+
+- **Result:** SKIPPED — no browser surface (CLI test harness + ROADMAP notes)
+
+## Triage (2026-10-10)
+
+| # | item | from | disposition | why |
+|---|---|---|---|---|
+| 1 | infra · `test/cold-agent/run.sh:41-48` — copied `~/.codex/auth.json` shares a rotating refresh token with the real Codex login | Step 1 — reviewed | fix | default: a persistent dedicated `CODEX_HOME` (`COLD_CODEX_HOME`, logged in once with `codex login`) or `OPENAI_API_KEY`; never copy the real login |
+| 2 | infra · `test/cold-agent/lib.sh:30-37` — `out/` and scratch are siblings of `site/` in one root, visible to the agent | Step 2 — reviewed | fix | separate mktemp for `site/`; small harness change |
+| 3 | infra · `test/cold-agent/run.sh:39` — no `--model` pin for slice-7 comparability | Step 2 — reviewed + Step 4 — implemented | fix | default: `COLD_MODEL` passthrough, unset = CLI default (cold = what a user gets) |
+| 4 | bug · `src/scaffold.js:10` — `nera new .` refused with "Invalid project name"; every agent scaffolded elsewhere and copied up | Step 4 — implemented | fix | default: `nera new .` scaffolds into the current folder when it is empty (dotfiles like `.git` allowed), package name from the folder's basename; minor release |
+| 5 | bug · `../generator/src/render.js:515` — `HTML created: ${meta.dirname}` logs `/` for every root page | Step 3 — implemented | fix | one-line fix + test in core; patch release (tag needs your go) |
+| 6 | debt · `../generator/src/render.js:11` — `dotenv.config()` prints `◇ injected env (0) from .env` on every command | Step 4 — implemented | fix | `dotenv.config({ quiet: true })`, same core step and patch as #5 |
+
+Already done / elsewhere: 2 fixed by later steps (Claude token passthrough in `run.sh:35-36`; Codex branch in `trim.sh:85-114`).
+Planning signal: the plan treated the baseline as record-only and did not reserve steps for fixing what the record itself found in the CLI and core.
+
+## Step 5 — started (2026-10-10)
+
+base_sha: abab0e2e86e48ca4516675ef6f03e231346bb9ad
+mode: fresh
+
+## Step 5 — implemented (2026-10-10)
+
+base_sha: abab0e2
+
+### Changed
+- `test/cold-agent/lib.sh` — new `cold_mktemp` (mktemp + `pwd -P` + workspace refusal, every step status-checked); `cold_make_root` now creates the site as its own `nera-cold-site.XXXXXX` temp folder, so `..` from the site is `$TMPDIR`, not the run root holding `out/` and `home/`. If the second mktemp fails, the run root is removed.
+- `test/cold-agent/run.sh` — Codex no longer copies `~/.codex/auth.json`. It uses a persistent `COLD_CODEX_HOME` (default `~/.cache/nera-cold-agent/codex`). `prepare_codex_home` refuses a path in the real `~/.codex` (checked textually before `mkdir` and again resolved, so it catches symlinks) or in the workspace, refuses one holding `AGENTS.md`/`AGENTS.override.md`, and stops with `CODEX_HOME=<dir> codex login` when there is no `auth.json` and no `OPENAI_API_KEY`. The `cleanup` trap is gone. `COLD_MODEL` is passed as `--model` (claude) / `-m` (codex) and recorded in `meta.txt`. `prepare_agent` now runs before `cold_make_root`, so a missing login creates no temp folders. `--check-isolation` removes both folders through an EXIT trap, prints the site path and gains the check "site folder is not inside the run root" (also `! -e ../out`, `! -e ../home`). The agent env is reset for the isolation checks and added back for the login ping.
+- `test/cold-agent/evaluate.sh` — the trap removes both folders; the `rmdir "$COLD_SITE"` before rsync is gone (it is unneeded, since rsync fills the existing empty folder).
+- `test/cold-agent/trim.sh` — reads `site:` from `out/meta.txt` and maps it to `<site>` (also the `/private`-less form), and names `<site>` in the header only when it applies. A legacy `<root>/site` is left to the `<root>` rule, so the committed baselines regenerate byte-identically.
+- `test/cold-agent/README.md` — `COLD_MODEL` replaces "run.sh does not pass --model yet". Also updated: the run/evaluate commands (`evaluate.sh <site folder>`), the new folder layout, the isolation bullet about the folders, and the Codex login section (the dedicated `CODEX_HOME`, the one-time login command, what is refused).
+
+### Fixed alongside
+- none. The `cold_mktemp` hazard found in self-review was in code new to this step, so it is not alongside: a failed `mktemp` gave `cd ""` → current dir → the workspace guard → `rm -rf`. Each step is now status-checked, and the workspace case uses `rmdir`. Proven with `TMPDIR=/nonexistent-cold` and `TMPDIR=<workspace>/.tmp-cold`: both exit 1 and delete nothing.
+
+### Carry forward
+- none
+
+### Verification
+```
+bash -n test/cold-agent/{evaluate,lib,run,trim}.sh → all ok
+shellcheck → not installed
+bash test/cold-agent/run.sh --check-isolation → "ok    site folder is not inside the run root" … "isolation: ok"; prints run root …/nera-cold-agent.VjBdED and site …/nera-cold-site.J3bbg3 (outside it); afterwards no nera-cold-site.* left in $TMPDIR
+grep -n 'auth.json' test/cold-agent/*.sh → run.sh:59 only, the existence test in prepare_codex_home (no copy)
+env -u OPENAI_API_KEY COLD_CODEX_HOME=<empty dir> run.sh --check-isolation codex → "codex is not logged in for cold runs; log in once with:  CODEX_HOME=<dir> codex login  or export OPENAI_API_KEY", exit 1, no temp folders created
+COLD_CODEX_HOME=~/.codex/cold-test → refused, exit 1, ~/.codex/cold-test not created; COLD_CODEX_HOME=<workspace>/tmp-codex → refused, not created
+stub claude/codex on PATH, COLD_MODEL=m-test → args "… --max-turns 60 --model m-test …" and "exec … -m m-test …"; without COLD_MODEL no --model
+trim.sh on the two committed baseline run roots (2CYcsl claude, AlmWdg codex) → byte-identical to the committed transcript.md
+npx vitest run → Tests  42 passed (42)
+npm run lint → clean
+```
+
+### Self-critique
+- Considered a `<root>/site` symlink to keep the old README workflow. Rejected: it adds a path the README would have to explain, and `meta.txt`/stderr already name the site.
+- The site's parent is still `$TMPDIR`, so a determined agent could `ls ../nera-cold-agent.*/out`. The goal ("not reachable as siblings") is met, but the run root is not hidden. Hiding it would need the run root outside `$TMPDIR`.
+- The dedicated `CODEX_HOME` persists `sessions/`/`history.jsonl` across cold runs. As far as I know `codex exec` does not load them as context, but I have not verified it. Only `AGENTS*.md` is refused, and `config.toml` (MCP servers) is not checked.
+- I did not run the real `--check-isolation claude`/`codex` against live logins (cost, and there is no Codex login in the new home yet). The ping path was proven with stubs only.
+- `codex_home_allowed` matches by prefix, so `COLD_CODEX_HOME=~/.codex` itself is refused through the trailing `/` in `"$1/"`. Confirmed only by reading, not by a run.
+
+### Pressure-test questions for the reviewer
+1. Does any path still read or write the real `~/.codex`? Check `prepare_codex_home`'s order: the textual check before `mkdir`, the resolved one after.
+2. `cold_mktemp` runs in `$(...)` without errexit. Is every failure path explicit, and can nothing reach `rm -rf` with an empty or unexpected path? (`cold_make_root` only `rm -rf`s a `COLD_ROOT` that mktemp returned.)
+3. In `check_isolation`, `COLD_EXTRA_ENV=()` after the early `prepare_agent`. Is it certain that `OPENAI_API_KEY`/`CODEX_HOME` cannot reach the "no token variables" check?
+4. Should `config.toml` with `[mcp_servers]` in the dedicated `CODEX_HOME` also be refused?
+
+## Step 5 — reviewed (2026-10-10)
+
+Verdict: approve
+
+### 🔴 Blocking
+- none
+
+### Fixed in review
+- none
+
+### Fixed alongside
+- `test/cold-agent/run.sh:47-51` — `prepare_codex_home` runs left of `||`, so `set -e` does not reach it: a failed `mkdir` (unwritable parent) left `COLD_CODEX_HOME=""`, which passed `codex_home_allowed` and, with `OPENAI_API_KEY` set, went on as `CODEX_HOME=` (without it: the misleading hint `CODEX_HOME= codex login`). `mkdir`/`chmod`/`cd` now `|| return 1`, with a comment — +4/−3 lines — `OPENAI_API_KEY=fake COLD_CODEX_HOME=<ro dir>/x run.sh --check-isolation codex` → before: `COLD_CODEX_HOME=` traced, run root created; after: `mkdir: … Permission denied`, exit 1, temp folder count 4 → 4
+- `test/cold-agent/trim.sh:23` — regression from this step: under `set -euo pipefail` the new `site=$(sed … meta.txt 2> /dev/null | head …)` exits 1 with no message when `out/meta.txt` is missing (the old trim.sh exited 0 on the same run root). Added `|| true` — +1/−1 line — `trim.sh <root without meta.txt>` → before exit 1, after exit 0; both committed baselines still regenerate byte-identically (`cmp` → identical claude, identical codex)
+
+### Carry forward
+- design · S · `test/cold-agent/run.sh:56` — the dedicated `CODEX_HOME` is checked for `AGENTS*.md` only; a `config.toml` with `[mcp_servers]`/`instructions` and persisted `sessions/`/`history.jsonl` are not checked or cleared between cold runs — needs a decision (refuse `config.toml`, or wipe everything but `auth.json` per run)
+
+### Checked
+goal (1)–(3) against the diff · `bash -n` all four scripts ok · shellcheck not installed · `run.sh --check-isolation` → all 13 ok incl. "site folder is not inside the run root", "isolation: ok", site `…/nera-cold-site.1UDdA0` beside run root `…/nera-cold-agent.qcgfmq`, no `nera-cold-site.*` left · `grep auth.json` → run.sh:59 existence test only · empty `COLD_CODEX_HOME` + no key → login instruction, exit 1, no temp folders · `COLD_CODEX_HOME` = `~/.codex`, `~/.codex/cold-x`, `<workspace>/tmp-codex`, relative `tmp-codex` → all refused, nothing created · trim byte-identity on both baselines · `npx vitest run` → 42 passed · `npm run lint` clean · conventions: Non-negotiables, Framework correctness, Tests & hygiene (no package code touched, nothing ships: folder not in `files`) · scope: only the step's files · README/evaluate no longer assume `<root>/site` (only historical transcripts mention it) · walkthrough n/a
+
+### Answers to the pressure-test questions
+1. No. The only real-`~/.codex` access is `cd ~/.codex && pwd -P` in `codex_home_allowed` (a read of its resolved path). The textual check precedes `mkdir`; verified `~/.codex` itself and `~/.codex/cold-x` are refused and `~/.codex/cold-x` is not created. Residual: a path that is a symlink *into* `~/.codex` passes the textual check, so `mkdir -p` could create an empty folder there before the resolved check refuses it — needs a deliberately crafted symlink, not worth more code.
+2. `cold_mktemp`: yes, every step is `|| return 1`, the workspace case uses `rmdir`; `cold_make_root` only `rm -rf`s a `COLD_ROOT` that `cold_mktemp` returned successfully. The same errexit hole did exist in `prepare_codex_home` (left of `||`) — fixed alongside above.
+3. Yes. `cold_exec` passes only `cold_env` plus `COLD_EXTRA_ENV` under `env -i` (lib.sh:137); `COLD_EXTRA_ENV=()` runs right after the early `prepare_agent` and is refilled only by the second `prepare_agent` after all isolation checks. The run printed "ok no token variables in the environment".
+4. Probably yes, but it is a decision (refuse vs. wipe per run, and whether `codex login` itself writes a `config.toml`) — carried forward.
+
+## Step 5 — approved (2026-10-10)
+
+snagio: ticked

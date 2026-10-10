@@ -23,22 +23,36 @@ cold_prompt() {
     ' "$roadmap"
 }
 
-# Create the run root under $TMPDIR (outside the workspace, so no workspace
-# CLAUDE.md, project memory or skill is found by walking up) and its
-# subfolders. Sets COLD_ROOT, COLD_HOME, COLD_SITE.
-cold_make_root() {
-    COLD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nera-cold-agent.XXXXXX")"
-    COLD_ROOT="$(cd "$COLD_ROOT" && pwd -P)"
-    case "$COLD_ROOT/" in
+# Create a temp folder under $TMPDIR and print its physical path; refuse one
+# inside the workspace (TMPDIR could point there), so no workspace CLAUDE.md,
+# project memory or skill is found by walking up from it.
+cold_mktemp() {
+    # Called as $(...), where set -e does not reach: every step checks its
+    # own status, so a failed mktemp never turns into `cd ""` (the current
+    # folder). rmdir, not rm -rf: the folder is new and empty.
+    local dir
+    dir="$(mktemp -d "${TMPDIR:-/tmp}/$1.XXXXXX")" || return 1
+    dir="$(cd "$dir" && pwd -P)" || return 1
+    case "$dir/" in
         "$COLD_WORKSPACE"/*)
-            echo "run root $COLD_ROOT is inside the workspace; set TMPDIR elsewhere" >&2
+            rmdir "$dir"
+            echo "temp folder $dir is inside the workspace; set TMPDIR elsewhere" >&2
             return 1
             ;;
     esac
+    echo "$dir"
+}
+
+# Create the run root (fake HOME, configs, the transcript in out/) and, as a
+# separate temp folder, the site folder the agent works in, so the run root
+# is not reachable as `..` from the site. Sets COLD_ROOT, COLD_HOME,
+# COLD_SITE.
+cold_make_root() {
+    COLD_ROOT="$(cold_mktemp nera-cold-agent)" || return 1
+    COLD_SITE="$(cold_mktemp nera-cold-site)" || { rm -rf "$COLD_ROOT"; return 1; }
     COLD_HOME="$COLD_ROOT/home"
-    COLD_SITE="$COLD_ROOT/site"
     # npx lstat()s <prefix>/lib and fails with ENOENT when it is missing.
-    mkdir -p "$COLD_HOME" "$COLD_SITE" "$COLD_ROOT/gh" "$COLD_ROOT/npm-global/lib"
+    mkdir -p "$COLD_HOME" "$COLD_ROOT/gh" "$COLD_ROOT/npm-global/lib"
     : > "$COLD_ROOT/npmrc-global"
     cold_make_path
 }

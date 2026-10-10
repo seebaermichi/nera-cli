@@ -8,8 +8,9 @@ This folder is not in the package `files`, so nothing here ships.
 
 The findings of the baseline run (`2026-10-10-baseline/`) are recorded in
 `ROADMAP-ai.md` under "Slice 0 — baseline record". Slice 7 reruns it on the
-same models (`--model claude-sonnet-5-5`, `--model gpt-6-luna`, decision D12).
-`run.sh` does not pass `--model` yet; it needs that before the rerun.
+same models (`--model claude-sonnet-5-5`, `--model gpt-6-luna`, decision D12):
+set `COLD_MODEL`, which `run.sh` passes as `--model` (Claude) or `-m` (Codex).
+Unset, each CLI uses its default, which is what a cold user gets.
 
 | File | Purpose |
 |---|---|
@@ -25,15 +26,19 @@ same models (`--model claude-sonnet-5-5`, `--model gpt-6-luna`, decision D12).
 bash test/cold-agent/run.sh --check-isolation          # must end with "isolation: ok"
 bash test/cold-agent/run.sh --check-isolation claude   # also proves claude's own login still works
 bash test/cold-agent/run.sh claude                     # or: codex
-bash test/cold-agent/evaluate.sh <run root>/site
+COLD_MODEL=claude-sonnet-5-5 bash test/cold-agent/run.sh claude
+bash test/cold-agent/evaluate.sh <site folder>
 ```
 
-`run.sh <agent>` prints the run root (`$TMPDIR/nera-cold-agent.XXXXXX`). It
-holds `site/` (the agent's folder, kept for `evaluate.sh`) and `out/`:
+`run.sh <agent>` prints the run root (`$TMPDIR/nera-cold-agent.XXXXXX`) on
+stdout and the site folder (`$TMPDIR/nera-cold-site.XXXXXX`, the agent's
+folder, kept for `evaluate.sh`) on stderr; `out/meta.txt` names it too. The
+site folder is a temp folder of its own, so the run root (fake `HOME`,
+transcript) is not reachable as `..` from it. The run root holds `out/`:
 `prompt.txt`, `transcript.jsonl` (`claude -p --output-format stream-json` or
 `codex exec --json`), `stderr.log`, `tree.txt` (without `node_modules`) and
-`meta.txt` (agent version, full command, start, end, exit code). The run root
-is never deleted automatically.
+`meta.txt` (agent version, model, full command, site folder, start, end,
+exit code). Neither folder is deleted automatically.
 
 The Claude session is capped at 60 turns (`--max-turns`); set
 `COLD_MAX_TURNS` to change it. The Codex session is not capped: `codex exec`
@@ -70,9 +75,11 @@ Nothing may leave the machine. A leaked credential would publish for real.
   `~/.config/gh`, and no `~/.claude` or `~/.codex`. That also keeps the user's
   `CLAUDE.md`, skills, plugins, memory and Codex `AGENTS.md` out, so the
   session stays cold.
-- **Folder outside the workspace** (`$TMPDIR`), so no workspace `CLAUDE.md` or
-  project memory is found by walking up. `run.sh` refuses a run root inside
-  the workspace.
+- **Folders outside the workspace** (`$TMPDIR`), so no workspace `CLAUDE.md`
+  or project memory is found by walking up. `run.sh` refuses a run root or
+  site folder inside the workspace. The site folder is not inside the run
+  root, so the agent does not see its own transcript or fake `HOME` next to
+  it.
 - **gh:** an empty `GH_CONFIG_DIR`. Without a `hosts.yml`, gh never asks the
   keyring.
 - **git:** `GIT_CONFIG_NOSYSTEM=1` (Apple's git configures the `osxkeychain`
@@ -96,9 +103,19 @@ Reading stays allowed: nera.js.org, the npm registry and anonymous
 The agent keeps **its own** login. Claude Code's login lives in the macOS
 keychain. If the fake `HOME` hides it (`--check-isolation claude` fails), run
 `claude setup-token` and export `CLAUDE_CODE_OAUTH_TOKEN`; `run.sh` passes
-exactly that variable, or `ANTHROPIC_API_KEY`, through. For Codex, `run.sh`
-copies only `~/.codex/auth.json` into a private `CODEX_HOME` and deletes the
-copy on exit. `OPENAI_API_KEY` is passed through if set.
+exactly that variable, or `ANTHROPIC_API_KEY`, through. Codex gets a
+dedicated `CODEX_HOME` that is never the real `~/.codex` (whose `AGENTS.md`,
+`config.toml` and history would make the session warm): `COLD_CODEX_HOME`,
+by default `~/.cache/nera-cold-agent/codex`. Log in there once:
+
+```bash
+CODEX_HOME=~/.cache/nera-cold-agent/codex codex login
+```
+
+Nothing is copied from `~/.codex`. `OPENAI_API_KEY` is passed through if set
+and replaces that login. Without either, `run.sh` stops with the login
+command. It also refuses a `COLD_CODEX_HOME` inside `~/.codex` or the
+workspace, and one holding an `AGENTS.md`.
 
 **Not covered.** The agent runs as the same macOS user. Something that
 deliberately calls `security find-internet-password`, or reads `~/.ssh`

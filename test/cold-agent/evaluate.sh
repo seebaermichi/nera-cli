@@ -80,8 +80,7 @@ fi
 
 # Work on a copy; the run's env, with the copy as its site folder.
 cold_make_root
-trap 'rm -rf "$COLD_ROOT"' EXIT
-rmdir "$COLD_SITE"
+trap 'rm -rf "$COLD_ROOT" "$COLD_SITE"' EXIT
 rsync -a --exclude node_modules "$PROJECT/" "$COLD_SITE/"
 COLD_EXTRA_ENV=()
 

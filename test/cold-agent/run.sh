@@ -14,10 +14,56 @@ source "$(dirname "$0")/lib.sh"
 
 # Turn cap for the Claude session. `codex exec` has no turn limit flag.
 COLD_MAX_TURNS="${COLD_MAX_TURNS:-60}"
+# Model for the session; unset means the CLI default, as a cold user gets.
+COLD_MODEL="${COLD_MODEL:-}"
+# Codex's own login, kept apart from ~/.codex for good: log in once with
+# `CODEX_HOME=<this> codex login`.
+COLD_CODEX_HOME="${COLD_CODEX_HOME:-$COLD_REAL_HOME/.cache/nera-cold-agent/codex}"
 
 usage() {
     sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2
     exit 2
+}
+
+# A path that is neither in the real ~/.codex (also through a symlink) nor
+# in the workspace.
+codex_home_allowed() {
+    local real_codex
+    real_codex="$(cd "$COLD_REAL_HOME/.codex" 2> /dev/null && pwd -P || echo "$(cd "$COLD_REAL_HOME" && pwd -P)/.codex")"
+    case "$1/" in
+        "$COLD_REAL_HOME/.codex/"* | "$real_codex/"* | "$COLD_WORKSPACE"/*) return 1 ;;
+    esac
+}
+
+# The dedicated CODEX_HOME: never the real ~/.codex (its AGENTS.md,
+# config.toml and history would make the session warm), never inside the
+# workspace, and logged in, unless OPENAI_API_KEY is set. Nothing is copied
+# into it; Codex keeps its own login there across runs.
+prepare_codex_home() {
+    # Checked before mkdir, so a wrong setting creates nothing in ~/.codex,
+    # and again resolved, in case a symlink points back there.
+    case "$COLD_CODEX_HOME" in /*) ;; *) COLD_CODEX_HOME="$PWD/$COLD_CODEX_HOME" ;; esac
+    if codex_home_allowed "$COLD_CODEX_HOME"; then
+        # Called left of ||, where set -e does not reach: a failed mkdir must
+        # not leave COLD_CODEX_HOME empty (CODEX_HOME= would pass the checks).
+        mkdir -p "$COLD_CODEX_HOME" || return 1
+        chmod 700 "$COLD_CODEX_HOME" || return 1
+        COLD_CODEX_HOME="$(cd "$COLD_CODEX_HOME" && pwd -P)" || return 1
+    fi
+    if ! codex_home_allowed "$COLD_CODEX_HOME"; then
+        echo "COLD_CODEX_HOME=$COLD_CODEX_HOME must be a dedicated folder outside ~/.codex and the workspace" >&2
+        return 1
+    fi
+    if [ -e "$COLD_CODEX_HOME/AGENTS.md" ] || [ -e "$COLD_CODEX_HOME/AGENTS.override.md" ]; then
+        echo "$COLD_CODEX_HOME holds an AGENTS.md, which would make the session warm; remove it" >&2
+        return 1
+    fi
+    if [ ! -f "$COLD_CODEX_HOME/auth.json" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
+        echo "codex is not logged in for cold runs; log in once with:" >&2
+        echo "    CODEX_HOME=$COLD_CODEX_HOME codex login" >&2
+        echo "or export OPENAI_API_KEY" >&2
+        return 1
+    fi
 }
 
 # Agent-specific login, passed into the isolated env. Only the agent's own
@@ -37,33 +83,21 @@ prepare_agent() {
             # --max-turns caps a looping session; it is accepted but not
             # listed in `claude --help`.
             AGENT_CMD=(claude -p --dangerously-skip-permissions --output-format stream-json --verbose --max-turns "$COLD_MAX_TURNS")
+            if [ -n "$COLD_MODEL" ]; then AGENT_CMD+=(--model "$COLD_MODEL"); fi
             ;;
         codex)
             command -v codex > /dev/null || { echo 'codex is not installed' >&2; return 1; }
-            # A private CODEX_HOME holding only the login: ~/.codex/AGENTS.md,
-            # config.toml (MCP servers) and history stay out.
-            mkdir -p "$COLD_ROOT/codex"
-            if [ -f "$COLD_REAL_HOME/.codex/auth.json" ]; then
-                cp "$COLD_REAL_HOME/.codex/auth.json" "$COLD_ROOT/codex/auth.json"
-                chmod 600 "$COLD_ROOT/codex/auth.json"
-            fi
-            COLD_EXTRA_ENV+=("CODEX_HOME=$COLD_ROOT/codex")
+            prepare_codex_home || return 1
+            COLD_EXTRA_ENV+=("CODEX_HOME=$COLD_CODEX_HOME")
             [ -n "${OPENAI_API_KEY:-}" ] && COLD_EXTRA_ENV+=("OPENAI_API_KEY=$OPENAI_API_KEY")
             AGENT_CMD=(codex exec --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox)
+            if [ -n "$COLD_MODEL" ]; then AGENT_CMD+=(-m "$COLD_MODEL"); fi
             ;;
         *)
             usage
             ;;
     esac
 }
-
-# The copied Codex login must not outlive the run.
-cleanup() {
-    if [ -n "${COLD_ROOT:-}" ]; then
-        rm -f "$COLD_ROOT/codex/auth.json"
-    fi
-}
-trap cleanup EXIT
 
 CHECK_FAILED=0
 
@@ -85,11 +119,21 @@ in_env() {
 
 check_isolation() {
     local agent="${1:-}"
+    # Fail before anything is created if the agent cannot run at all. Its
+    # login stays out of the isolation checks and is added back for the ping.
+    if [ -n "$agent" ]; then
+        prepare_agent "$agent"
+        COLD_EXTRA_ENV=()
+    fi
     cold_make_root
+    trap 'rm -rf "$COLD_ROOT" "$COLD_SITE"' EXIT
     echo "run root: $COLD_ROOT"
+    echo "site:     $COLD_SITE"
 
     check 'site folder is outside the workspace' \
         in_env "case \"\$(pwd -P)/\" in '$COLD_WORKSPACE'/*) exit 1;; esac"
+    check 'site folder is not inside the run root' \
+        in_env "case \"\$(pwd -P)/\" in '$COLD_ROOT'/*) exit 1;; esac; [ ! -e ../out ] && [ ! -e ../home ]"
     check 'HOME is the fake one' \
         in_env "[ \"\$HOME\" = '$COLD_HOME' ] && [ ! -e \"\$HOME/.claude\" ] && [ ! -e \"\$HOME/.codex\" ]"
     check 'no CLAUDE.md or AGENTS.md walking up from the site folder' \
@@ -123,13 +167,12 @@ check_isolation() {
             grep -oE '"(result|message)":"[^"]{0,160}' <<< "$reply" | head -n 3 | sed 's/^/      /'
             case "$agent" in
                 claude) echo '      the fake HOME hides the keychain login: run `claude setup-token` and export CLAUDE_CODE_OAUTH_TOKEN' ;;
-                codex) echo '      log in once with `codex login`, so ~/.codex/auth.json exists' ;;
+                codex) echo "      log in once with \`CODEX_HOME=$COLD_CODEX_HOME codex login\`" ;;
             esac
         fi
         check "$agent is still logged in" grep -q '"OK"' <<< "$reply"
     fi
 
-    rm -rf "$COLD_ROOT"
     [ "$CHECK_FAILED" = 0 ] && echo 'isolation: ok' || echo 'isolation: FAILED'
     return "$CHECK_FAILED"
 }
@@ -140,14 +183,15 @@ run_agent() {
     prompt="$(cold_prompt)"
     [ -n "$prompt" ] || { echo 'bakery prompt not found in ROADMAP-ai.md' >&2; return 1; }
 
-    cold_make_root
     prepare_agent "$agent"
+    cold_make_root
     out="$COLD_ROOT/out"
     mkdir -p "$out"
     printf '%s\n' "$prompt" > "$out/prompt.txt"
     {
         echo "agent: $agent"
         echo "version: $("$agent" --version 2>&1 | head -n 1)"
+        echo "model: ${COLD_MODEL:-(CLI default)}"
         echo "command: ${AGENT_CMD[*]}"
         echo "started: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "site: $COLD_SITE"
@@ -165,6 +209,7 @@ run_agent() {
     (cd "$COLD_SITE" && find . -path ./node_modules -prune -o -path '*/node_modules' -prune -o -print | sort) > "$out/tree.txt"
 
     echo "$COLD_ROOT"
+    echo "site: $COLD_SITE" >&2
     echo "next: bash $(dirname "$0")/evaluate.sh $COLD_SITE" >&2
 }
 
