@@ -12,6 +12,9 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "$0")/lib.sh"
 
+# Turn cap for the Claude session; the Codex session is not capped yet.
+COLD_MAX_TURNS="${COLD_MAX_TURNS:-60}"
+
 usage() {
     sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2
     exit 2
@@ -31,7 +34,9 @@ prepare_agent() {
             # hides that too, export one of these before running.
             [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && COLD_EXTRA_ENV+=("CLAUDE_CODE_OAUTH_TOKEN=$CLAUDE_CODE_OAUTH_TOKEN")
             [ -n "${ANTHROPIC_API_KEY:-}" ] && COLD_EXTRA_ENV+=("ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY")
-            AGENT_CMD=(claude -p --dangerously-skip-permissions --output-format stream-json --verbose)
+            # --max-turns caps a looping session; it is accepted but not
+            # listed in `claude --help`.
+            AGENT_CMD=(claude -p --dangerously-skip-permissions --output-format stream-json --verbose --max-turns "$COLD_MAX_TURNS")
             ;;
         codex)
             command -v codex > /dev/null || { echo 'codex is not installed' >&2; return 1; }
@@ -141,6 +146,7 @@ run_agent() {
     {
         echo "agent: $agent"
         echo "version: $("$agent" --version 2>&1 | head -n 1)"
+        echo "command: ${AGENT_CMD[*]}"
         echo "started: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "site: $COLD_SITE"
     } > "$out/meta.txt"

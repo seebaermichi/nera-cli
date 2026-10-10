@@ -59,7 +59,7 @@ and the raw material lives next to the harness.
 - **Risks:** a leaked credential publishes for real. User-level `~/.claude/CLAUDE.md`, skills or plugins that mention Nera would make the test un-cold, so check them and disable them for the run if needed.
 - **Walkthrough:** none
 
-### Step 2 — Run the Claude Code baseline and evaluate it — ⬜ todo
+### Step 2 — Run the Claude Code baseline and evaluate it — ✅ done
 
 - **Goal:** one complete Claude Code session is recorded. The trimmed transcript (tool calls, commands, fetched URLs, final message), the final file tree and the `evaluate.sh` output are in `test/cold-agent/2026-10-10-baseline/claude/`, together with the exact `claude --version`, model, date and node version.
 - **Files:** `test/cold-agent/2026-10-10-baseline/claude/{transcript.md,tree.txt,evaluation.txt,meta.md}`

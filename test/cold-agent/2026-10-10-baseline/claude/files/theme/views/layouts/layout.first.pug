@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+html(lang=app.lang)
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport", content="width=device-width, initial-scale=1.0")
+    title #{ meta.title } | #{ app.name }
+    meta(name="description", content=`${ meta.description || t('app_description') }`)
+    meta(name="keywords", content=`${ meta.keywords || t('app_keywords') }`)
+    meta(name="generator" content="nera")
+    meta(name="robots" content=`${ meta.robots || app.robots }`)
+    link(rel="stylesheet", href="/style.css")
+
+  body
+    a.skip(href="#main") Zum Inhalt springen
+    header.site-header
+      a.brand(href="/") Brot &amp; Zeit
+      nav(aria-label="Hauptnavigation")
+        a(href="/") Start
+        a(href="/ueber-uns/") Über uns
+        a(href="/oeffnungszeiten/") Öffnungszeiten
+        a(href="/kontakt/") Kontakt
+    block content
+    footer.site-footer
+      p © Brot &amp; Zeit, Berlin
+      nav(aria-label="Rechtliches")
+        a(href="/impressum/") Impressum
+        a(href="/datenschutz/") Datenschutz

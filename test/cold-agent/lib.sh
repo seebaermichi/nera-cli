@@ -37,7 +37,8 @@ cold_make_root() {
     esac
     COLD_HOME="$COLD_ROOT/home"
     COLD_SITE="$COLD_ROOT/site"
-    mkdir -p "$COLD_HOME" "$COLD_SITE" "$COLD_ROOT/gh" "$COLD_ROOT/npm-global"
+    # npx lstat()s <prefix>/lib and fails with ENOENT when it is missing.
+    mkdir -p "$COLD_HOME" "$COLD_SITE" "$COLD_ROOT/gh" "$COLD_ROOT/npm-global/lib"
     : > "$COLD_ROOT/npmrc-global"
 }
 

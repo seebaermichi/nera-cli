@@ -11,6 +11,7 @@ This folder is not in the package `files`, so nothing here ships.
 | `run.sh` | runs one agent headless in an isolated temp folder and keeps the transcript and file tree |
 | `evaluate.sh` | checks the folder the agent left behind against the pass criteria |
 | `lib.sh` | the isolated environment, shared by both scripts |
+| `trim.sh` | turns a Claude run's `transcript.jsonl` into the committed `transcript.md` |
 | `<date>-<label>/<agent>/` | a committed run: trimmed transcript, tree, evaluation |
 
 ## Running it
@@ -26,8 +27,11 @@ bash test/cold-agent/evaluate.sh <run root>/site
 holds `site/` (the agent's folder, kept for `evaluate.sh`) and `out/`:
 `prompt.txt`, `transcript.jsonl` (`claude -p --output-format stream-json` or
 `codex exec --json`), `stderr.log`, `tree.txt` (without `node_modules`) and
-`meta.txt` (agent version, start, end, exit code). The run root is never
-deleted automatically.
+`meta.txt` (agent version, full command, start, end, exit code). The run root
+is never deleted automatically.
+
+The Claude session is capped at 60 turns (`--max-turns`); set
+`COLD_MAX_TURNS` to change it. The Codex session is not capped yet (step 3).
 
 The prompt is read verbatim from the ROADMAP's first `text` block after
 **Cold agent test**, so editing the ROADMAP changes the test.
@@ -97,13 +101,20 @@ someone clicks "Authorize", so watch the screen during a run.
 Commit to `test/cold-agent/<date>-<label>/<agent>/`, for example
 `2026-10-10-baseline/claude/`:
 
-- `prompt.txt`, `meta.txt`, `tree.txt` as written
+- `prompt.txt`, `tree.txt` as written
+- `meta.md`: `meta.txt` plus the model, node/npm version, the resolved
+  `@nera-static/*` versions, turns used, cost, and notes on the run (a
+  discarded run, anything the agent did outside its folder)
 - `evaluation.txt`, the output of `evaluate.sh`
-- `transcript.md`, trimmed from `transcript.jsonl`: every agent message and
-  every tool call (command or file path written) with the first lines of its
-  result, in order. Drop file contents the tree already shows, repeated
-  `npm install` output and token-usage events. Replace the run root path with
-  `<root>`.
+- `transcript.md`, generated, never hand-edited:
+  `bash test/cold-agent/trim.sh <run root> > transcript.md` (Claude runs).
+  It keeps every agent message and tool call in order. Commands keep every
+  line except heredoc bodies, which collapse to
+  `cat > <file> <<'EOF' … [N lines]`. Results keep their first 15 lines plus every line that shows an
+  error or warning. The run root becomes `<root>`, the temp dir `<tmp>`.
+- `files/`, verbatim copies of the site files a finding rests on, since
+  `tree.txt` lists names only and the run root is not committed. Name an
+  earlier version, recovered from a heredoc, `<name>.first.<ext>`.
 
 Before committing, grep the trimmed files for `token`, `ghp_`, `npm_` and
 `sk-`. The isolation should make a hit impossible, so a hit is itself a finding.

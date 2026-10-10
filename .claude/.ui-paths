@@ -1,1 +1,1 @@
-\.pug$|\.s?css$
+^template/.*\.(pug|s?css)$
