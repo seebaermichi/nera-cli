@@ -262,3 +262,4 @@ goal (allow-list + kept copies + contact-form `main.contact`) · `npx vitest run
 ## Step 3 — approved (2026-10-10)
 
 snagio: ticked
+commit: 4dd6170
