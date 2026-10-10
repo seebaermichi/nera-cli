@@ -530,3 +530,76 @@ goal (1)–(3) against the diff · `bash -n` all four scripts ok · shellcheck n
 ## Step 5 — approved (2026-10-10)
 
 snagio: ticked
+commit: e662987
+
+## Step 6 — started (2026-10-10)
+
+base_sha: e6629878b14722fb3c1ac14203e888767095e5fc
+mode: fresh
+
+## Step 6 — implemented (2026-10-10)
+
+base_sha: e6629878b14722fb3c1ac14203e888767095e5fc
+
+### Changed
+- `src/scaffold.js` — `nera new .`/`./` scaffold in place: `isCurrentDir`, `projectNameFromDir` (basename → accents dropped, lower-case, runs of invalid chars → `-`, leading `._-` and trailing `-` stripped, `nera-site` if empty, result re-checked by `validateProjectName`), `assertEmptyDir` (dotfiles ignored, throws before any write), `copyDir` keeps an existing file and logs `• Kept your existing .gitignore`, "Next steps" drop `cd` in place, empty-name error mentions `nera new .`
+- `bin/nera.js` — usage line `nera new .`
+- `test/scaffold.test.js` — 8 in-place tests (empty folder + name, `./`, `.git` only, kept `.gitignore` + one log line, non-empty refused and untouched, bad theme writes nothing, `My Site` → `my-site`, `..`/`../`/`.//`/absolute still rejected) + 6 `projectNameFromDir` cases
+- `README.md` — Quick start paragraph + command table mention `nera new .`
+- `CHANGELOG.md`, `package.json`, `package-lock.json` — 1.5.0 (minor, `npm version minor --no-git-tag-version`)
+
+### Fixed alongside
+- none
+
+### Carry forward
+- debt · S · `src/scaffold.js` "Next steps" — says `nera dev`, which only works with a global `nera`; `npm run dev` (what the README Quick start shows) would work in every site — pre-existing, outside this step's goal
+- debt · S · `src/scaffold.js` — with `--no-install` the "Next steps" omit `npm install` — pre-existing
+
+### Verification
+```
+npx vitest run test/scaffold.test.js → Tests  33 passed (33)
+npx vitest run → Test Files  6 passed (6) / Tests  56 passed (56)
+npm run lint → exit 0
+node bin/nera.js new . --no-install   (in "My Bakery" with .git/ and .gitignore) → "• Kept your existing .gitignore", "✓ Configured project as "my-bakery"", Next steps: "nera dev" only, exit=0
+same command again → "❌ The current folder is not empty (config, package.json, pages, …). Run `nera new .` in an empty folder, or `nera new <name>` to create a new one." exit=1
+```
+
+### Self-critique
+- Accent folding (NFKD + strip combining marks) goes slightly beyond "same rule as validateProjectName"; added because a German folder name (`Bäckerei`) would otherwise become `b-ckerei`. Non-Latin names (e.g. CJK) fold to `nera-site`.
+- The "keep existing file" branch in `copyDir` is unconditional, not gated on in-place mode. In `nera new <name>` the target is fresh so it cannot trigger; gating it would add a flag for no behaviour change.
+- Theme spec is validated before the empty check; both happen before any write — order between them does not matter.
+- Least sure: whether the fallback `nera-site` should instead be an error asking for `nera new <name>`.
+
+### Pressure-test questions for the reviewer
+1. Can any input other than `.`/`./` reach the in-place branch, or any in-place path write before `assertEmptyDir`?
+2. Is a dotfile *directory* in the template (none today) able to merge into an existing one silently? (copyDir recurses with `mkdir -p` — only files are guarded.)
+3. Is `projectNameFromDir` output always npm-valid (lower-case, ≤ 214 chars not enforced)?
+
+## Step 6 — reviewed (2026-10-10)
+
+Verdict: approve
+
+### 🔴 Blocking
+- none
+
+### Fixed in review
+- none
+
+### Fixed alongside
+- none
+
+### Carry forward
+- debt · S · `ROADMAP-ai.md:523` — finding 2 still reads as open; record under slice 0 that nera 1.5.0 ships `nera new .` (dotfiles ignored, existing `.gitignore` kept, name from the folder, `nera-site` fallback) per the "decisions go back into the ROADMAP" non-negotiable — why not now: outside the step's file list, belongs to the issue's reconcile
+- debt · S · `src/scaffold.js:41` — `projectNameFromDir` does not cap at npm's 214 chars nor avoid npm's reserved names (`node_modules`, `favicon.ico`); `ß` folds to `-` (`Straße` → `stra-e`) — why not now: negligible in practice, needs a decision on the fallback
+
+### Checked
+Goal met (in place for `.`/`./`, dotfiles ignored, non-empty refused before writes, basename-derived name, no `cd`, usage + README + CHANGELOG 1.5.0 via npm version) · `npx vitest run` → 6 files / 56 tests passed · `npm run lint` → exit 0 · smoke: `nera new . --no-install` in a folder with only `.DS_Store` → exit 0, Next steps `nera dev` only; `nera new ""` → exit 1 with the new usage hint · Non-negotiables, Framework correctness, Tests & hygiene: no new dependency, no process.exit outside bin, temp-dir tests, no prompts · self-critique claims verified (accent folding, unconditional keep-branch harmless for fresh targets, theme check + empty check both precede the first write) · walkthrough n/a
+
+### Answers to the pressure-test questions
+1. No. `isCurrentDir` is a two-entry Set (`.`, `./`); every other string goes through `validateProjectName`, whose regex requires a leading alphanumeric, so `..`, `../`, `.//` and absolute paths throw (pinned by the "still rejects" test, which also asserts `workdir` stays empty). In place, the order is `validateThemeSpec` → `assertEmptyDir` → `projectNameFromDir` → `copyDir`; the first write is `copyDir`'s `mkdir`/`copyFile`. `projectNameFromDir` cannot throw after the check: its output is `[a-z0-9][a-z0-9._-]*` or `nera-site`, both of which pass `validateProjectName`.
+2. Yes in principle: `copyDir` merges into an existing directory with `mkdir -p`, but each file inside is still guarded by the `existsSync` keep-branch, so nothing is overwritten. The template has no dotfile directory today (`ls -a template` → `_gitignore config package.json pages theme`), so it cannot happen now.
+3. Lower-case, URL-safe, no leading `.`/`_`: yes, by construction. Not enforced: the 214-char limit and npm's reserved names (carried forward above); both need an unusual folder name.
+
+## Step 6 — approved (2026-10-10)
+
+snagio: ticked

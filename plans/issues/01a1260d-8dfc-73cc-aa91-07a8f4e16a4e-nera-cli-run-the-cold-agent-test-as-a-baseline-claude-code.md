@@ -95,7 +95,7 @@ and the raw material lives next to the harness.
 - **Risks:** `evaluate.sh` or the README still assume `<root>/site`. Grep for `COLD_SITE` and `/site` and update every use.
 - **Walkthrough:** none
 
-### Step 6 — `nera new .` scaffolds into the current folder — ⬜ todo
+### Step 6 — `nera new .` scaffolds into the current folder — ✅ done
 
 - **Goal:** fixes triage item 4 (finding 2 in the ROADMAP record). `nera new .` scaffolds into the current working directory when it is empty, ignoring dotfiles such as `.git`. It refuses with a clear message when the folder holds anything else. The package name comes from the folder's basename, normalised to the same rule as `validateProjectName` (lower-case, invalid characters → `-`). The final "Next steps" leave out `cd`. `nera new <name>` behaves as before. README usage and the CLI usage text mention `.`. A minor bump with a CHANGELOG entry.
 - **Files:** `src/scaffold.js`, `bin/nera.js` (usage text), `test/scaffold.test.js`, `README.md`, `CHANGELOG.md`, `package.json`/`package-lock.json` (via `npm version minor --no-git-tag-version`)

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import path from 'path'
 import fs from 'fs/promises'
 import fssync from 'fs'
@@ -8,6 +8,7 @@ import {
     validateProjectName,
     validateThemeSpec,
     themePackageName,
+    projectNameFromDir,
     templateDir,
 } from '../src/scaffold.js'
 import { parseNewArgs } from '../src/commands/new.js'
@@ -87,6 +88,100 @@ describe('scaffoldProject', () => {
         // the underscore form for scaffolding to reproduce it.
         expect(fssync.existsSync(path.join(templateDir(), '_gitignore'))).toBe(true)
         expect(fssync.existsSync(path.join(templateDir(), '.gitignore'))).toBe(false)
+    })
+})
+
+describe('scaffoldProject in the current folder (`nera new .`)', () => {
+    const inPlace = (dir, name = '.') =>
+        scaffoldProject(name, { cwd: dir, install: false })
+
+    it('scaffolds into an empty folder, named after it', async () => {
+        const dir = path.join(workdir, 'bakery')
+        await fs.mkdir(dir)
+        expect(await inPlace(dir)).toBe(dir)
+        const pkg = JSON.parse(await read(dir, 'package.json'))
+        expect(pkg.name).toBe('bakery')
+        for (const rel of ['config/app.yaml', 'pages/index.md', '.gitignore']) {
+            expect(fssync.existsSync(path.join(dir, rel))).toBe(true)
+        }
+    })
+
+    it('accepts ./ as well', async () => {
+        const dir = path.join(workdir, 'site')
+        await fs.mkdir(dir)
+        await inPlace(dir, './')
+        expect(fssync.existsSync(path.join(dir, 'package.json'))).toBe(true)
+    })
+
+    it('ignores dotfiles such as .git', async () => {
+        const dir = path.join(workdir, 'repo')
+        await fs.mkdir(path.join(dir, '.git'), { recursive: true })
+        await inPlace(dir)
+        expect(fssync.existsSync(path.join(dir, 'pages/index.md'))).toBe(true)
+        expect(fssync.existsSync(path.join(dir, '.git'))).toBe(true)
+    })
+
+    it('keeps an existing .gitignore and says so', async () => {
+        const dir = path.join(workdir, 'repo')
+        await fs.mkdir(dir)
+        await fs.writeFile(path.join(dir, '.gitignore'), 'mine\n')
+        const logs = []
+        const spy = vi.spyOn(console, 'log').mockImplementation((m) => logs.push(m))
+        try {
+            await inPlace(dir)
+        } finally {
+            spy.mockRestore()
+        }
+        expect(await read(dir, '.gitignore')).toBe('mine\n')
+        expect(logs.filter((m) => /Kept your existing \.gitignore/.test(m)))
+            .toHaveLength(1)
+    })
+
+    it('refuses a non-empty folder and writes nothing', async () => {
+        const dir = path.join(workdir, 'busy')
+        await fs.mkdir(dir)
+        await fs.writeFile(path.join(dir, 'notes.txt'), 'x')
+        await expect(inPlace(dir)).rejects.toThrow(/not empty \(notes\.txt\)/)
+        expect(await fs.readdir(dir)).toEqual(['notes.txt'])
+    })
+
+    it('rejects an invalid theme before writing anything', async () => {
+        const dir = path.join(workdir, 'empty')
+        await fs.mkdir(dir)
+        await expect(
+            scaffoldProject('.', { cwd: dir, install: false, theme: 'a b' })
+        ).rejects.toThrow(/Invalid theme/)
+        expect(await fs.readdir(dir)).toEqual([])
+    })
+
+    it('normalises the folder name into a valid package name', async () => {
+        const dir = path.join(workdir, 'My Site')
+        await fs.mkdir(dir)
+        await inPlace(dir)
+        expect(JSON.parse(await read(dir, 'package.json')).name).toBe('my-site')
+    })
+
+    it('still rejects .., absolute paths and other dot spellings', async () => {
+        for (const name of ['..', '../', './/', path.join(workdir, 'abs')]) {
+            await expect(inPlace(workdir, name)).rejects.toThrow(
+                /Invalid project name/
+            )
+        }
+        expect(await fs.readdir(workdir)).toEqual([])
+    })
+})
+
+describe('projectNameFromDir', () => {
+    it.each([
+        ['/x/My Site', 'my-site'],
+        ['/x/Bäckerei Müller', 'backerei-muller'],
+        ['/x/.hidden', 'hidden'],
+        ['/x/--a  b--', 'a-b'],
+        ['/x/site.v2_final', 'site.v2_final'],
+        ['/x/___', 'nera-site'],
+    ])('%s → %s', (dir, expected) => {
+        expect(projectNameFromDir(dir)).toBe(expected)
+        expect(validateProjectName(expected)).toBe(expected)
     })
 })
 

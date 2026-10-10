@@ -12,7 +12,8 @@ const VALID_PROJECT_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 export function validateProjectName(projectName) {
     if (typeof projectName !== 'string' || projectName.trim() === '') {
         throw new Error(
-            'Project name is required. Usage: nera new <project-name>'
+            'Project name is required. Usage: nera new <project-name> ' +
+                '(or `nera new .` for the current folder)'
         )
     }
 
@@ -24,6 +25,43 @@ export function validateProjectName(projectName) {
     }
 
     return projectName
+}
+
+// `nera new .` scaffolds into the current folder. Only these two spellings:
+// `..`, absolute paths and every other name still go through
+// validateProjectName unchanged.
+const CURRENT_DIR = new Set(['.', './'])
+
+export const isCurrentDir = (projectName) => CURRENT_DIR.has(projectName)
+
+// The package name for a site scaffolded in place, derived from the folder's
+// basename and normalised until it passes validateProjectName: accents
+// dropped (`Bäckerei` → `backerei`), lower-case, each run of other characters
+// → one `-`, no leading dot, dash or underscore.
+export function projectNameFromDir(dir) {
+    const name = path
+        .basename(path.resolve(dir))
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, '-')
+        .replace(/^[._-]+/, '')
+        .replace(/-+$/, '')
+    return name === '' ? 'nera-site' : validateProjectName(name)
+}
+
+// In-place scaffolding only goes ahead in an empty folder. Dotfiles such as
+// `.git` or an editor folder do not count: `git init` first is the usual way
+// to start a project.
+async function assertEmptyDir(dir) {
+    const entries = (await fs.readdir(dir)).filter((n) => !n.startsWith('.'))
+    if (entries.length > 0) {
+        throw new Error(
+            `The current folder is not empty (${entries.slice(0, 3).join(', ')}` +
+                `${entries.length > 3 ? ', …' : ''}). Run \`nera new .\` in an ` +
+                'empty folder, or `nera new <name>` to create a new one.'
+        )
+    }
 }
 
 // What `--theme` accepts, mirroring the three forms `app.theme` takes in
@@ -85,6 +123,10 @@ async function copyDir(src, dest, { skipStarters = false } = {}) {
             await copyDir(from, to, { skipStarters })
         } else if (skipStarters && (await isStarterTemplate(from))) {
             continue
+        } else if (fssync.existsSync(to)) {
+            // Only in place, and then only a dotfile such as .gitignore can be
+            // there already (assertEmptyDir): the user's copy wins.
+            console.log(`  • Kept your existing ${path.basename(to)}`)
         } else {
             await fs.copyFile(from, to)
         }
@@ -126,17 +168,21 @@ async function applyTheme(targetDir, theme) {
 export async function scaffoldProject(projectName, options = {}) {
     const { install = true, cwd = process.cwd(), theme } = options
 
-    validateProjectName(projectName)
+    const inPlace = isCurrentDir(projectName)
+    if (!inPlace) validateProjectName(projectName)
     if (theme !== undefined) validateThemeSpec(theme)
 
-    const targetDir = path.resolve(cwd, projectName)
-    if (fssync.existsSync(targetDir)) {
+    const targetDir = path.resolve(cwd, inPlace ? '.' : projectName)
+    if (inPlace) {
+        await assertEmptyDir(targetDir)
+    } else if (fssync.existsSync(targetDir)) {
         throw new Error(`Target directory "${projectName}" already exists.`)
     }
+    const packageName = inPlace ? projectNameFromDir(targetDir) : projectName
 
     console.log(`📦 Creating a new Nera site in ${targetDir}...`)
     await copyDir(templateDir(), targetDir, { skipStarters: Boolean(theme) })
-    await personalize(targetDir, projectName)
+    await personalize(targetDir, packageName)
     if (theme) await applyTheme(targetDir, theme)
 
     if (install) {
@@ -150,6 +196,7 @@ export async function scaffoldProject(projectName, options = {}) {
     }
 
     console.log('✅ Done!')
-    console.log(`👉 Next steps:\n  cd ${projectName}\n  nera dev\n`)
+    const cdLine = inPlace ? '' : `  cd ${projectName}\n`
+    console.log(`👉 Next steps:\n${cdLine}  nera dev\n`)
     return targetDir
 }

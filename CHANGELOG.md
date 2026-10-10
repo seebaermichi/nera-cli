@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-10-10
+
+### Added
+
+-   `nera new .` scaffolds into the current folder instead of creating a
+    subfolder — the natural move when the folder already exists, for example
+    one an AI assistant was started in. The folder must be empty apart from
+    dotfiles (`.git`, editor folders); anything else is refused before a
+    single file is written. An existing `.gitignore` is kept, with one line
+    saying so. The package is named after the folder, normalised to a valid
+    name (`My Bakery` → `my-bakery`), and the "Next steps" leave out the
+    `cd`. `nera new <name>` is unchanged.
+
 ## [1.4.1] - 2026-10-09
 
 ### Changed

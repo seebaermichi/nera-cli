@@ -13,6 +13,7 @@ const usage = `Nera — the static site generator CLI
 
 Usage:
   nera new <name>    scaffold a new Nera site (--theme <name> to start from a theme)
+  nera new .         scaffold into the current, empty folder
   nera build         render pages/ → public/ (--check to check the output after)
   nera dev           build, serve and live-reload
   nera serve         serve the built public/ folder
