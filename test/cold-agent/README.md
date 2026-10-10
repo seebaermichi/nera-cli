@@ -115,7 +115,10 @@ CODEX_HOME=~/.cache/nera-cold-agent/codex codex login
 Nothing is copied from `~/.codex`. `OPENAI_API_KEY` is passed through if set
 and replaces that login. Without either, `run.sh` stops with the login
 command. It also refuses a `COLD_CODEX_HOME` inside `~/.codex` or the
-workspace, and one holding an `AGENTS.md`.
+workspace. The folder belongs to the harness: before every run `run.sh`
+removes everything in it except `auth.json`, so an `AGENTS.md`, a
+`config.toml` (instructions, MCP servers) or the sessions and history of the
+previous run never reach the next one.
 
 **Not covered.** The agent runs as the same macOS user. Something that
 deliberately calls `security find-internet-password`, or reads `~/.ssh`

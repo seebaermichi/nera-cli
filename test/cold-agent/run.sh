@@ -37,8 +37,9 @@ codex_home_allowed() {
 
 # The dedicated CODEX_HOME: never the real ~/.codex (its AGENTS.md,
 # config.toml and history would make the session warm), never inside the
-# workspace, and logged in, unless OPENAI_API_KEY is set. Nothing is copied
-# into it; Codex keeps its own login there across runs.
+# workspace, reset to its login before each run, and logged in, unless
+# OPENAI_API_KEY is set. Nothing is copied into it; Codex keeps its own login
+# (auth.json) there across runs, and nothing else.
 prepare_codex_home() {
     # Checked before mkdir, so a wrong setting creates nothing in ~/.codex,
     # and again resolved, in case a symlink points back there.
@@ -54,10 +55,17 @@ prepare_codex_home() {
         echo "COLD_CODEX_HOME=$COLD_CODEX_HOME must be a dedicated folder outside ~/.codex and the workspace" >&2
         return 1
     fi
-    if [ -e "$COLD_CODEX_HOME/AGENTS.md" ] || [ -e "$COLD_CODEX_HOME/AGENTS.override.md" ]; then
-        echo "$COLD_CODEX_HOME holds an AGENTS.md, which would make the session warm; remove it" >&2
-        return 1
-    fi
+    # Everything but the login is reset before each run: an AGENTS.md, a
+    # config.toml (instructions, MCP servers) or the sessions and history of
+    # an earlier run would all make the session warm.
+    local entry cleared=()
+    for entry in "$COLD_CODEX_HOME"/* "$COLD_CODEX_HOME"/.[!.]* "$COLD_CODEX_HOME"/..?*; do
+        [ -e "$entry" ] || [ -L "$entry" ] || continue
+        [ "${entry##*/}" = auth.json ] && continue
+        rm -rf "$entry" || return 1
+        cleared+=("${entry##*/}")
+    done
+    [ ${#cleared[@]} -eq 0 ] || echo "reset $COLD_CODEX_HOME: removed ${cleared[*]}" >&2
     if [ ! -f "$COLD_CODEX_HOME/auth.json" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
         echo "codex is not logged in for cold runs; log in once with:" >&2
         echo "    CODEX_HOME=$COLD_CODEX_HOME codex login" >&2
