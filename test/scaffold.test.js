@@ -315,6 +315,68 @@ describe('scaffoldProject with a theme', () => {
     })
 })
 
+describe('scaffoldProject agent instructions (AGENTS.md, CLAUDE.md)', () => {
+    // `nera update` will split AGENTS.md on this line (ROADMAP-ai.md L1).
+    const SITE_NOTES_MARKER = '<!-- nera:site-notes'
+
+    const modes = {
+        'a new folder': () =>
+            scaffoldProject('plain', { cwd: workdir, install: false }),
+        'a new folder with --theme': () =>
+            scaffoldProject('themed', {
+                cwd: workdir,
+                install: false,
+                theme: 'example',
+            }),
+        'the current folder': async () => {
+            const dir = path.join(workdir, 'here')
+            await fs.mkdir(dir)
+            return scaffoldProject('.', { cwd: dir, install: false })
+        },
+    }
+
+    for (const [mode, scaffold] of Object.entries(modes)) {
+        it(`writes both files into ${mode}`, async () => {
+            const target = await scaffold()
+            expect(await read(target, 'CLAUDE.md')).toBe('@AGENTS.md\n')
+            expect(await read(target, 'AGENTS.md')).toBe(
+                await read(templateDir(), 'AGENTS.md')
+            )
+        })
+    }
+
+    it('keeps AGENTS.md within 120 lines', async () => {
+        const lines = (await read(templateDir(), 'AGENTS.md')).split('\n')
+        expect(lines.at(-1)).toBe('')
+        expect(lines.length - 1).toBeLessThanOrEqual(120)
+    })
+
+    // https://nera.js.org/llms.txt is linked once it exists (slice 2, L2).
+    it('links the docs, not llms.txt before it exists', async () => {
+        const text = await read(templateDir(), 'AGENTS.md')
+        expect(text).toContain('https://nera.js.org')
+        expect(text).not.toContain('llms.txt')
+    })
+
+    it('ends with the owner\'s section, the marker directly above it', async () => {
+        const lines = (await read(templateDir(), 'AGENTS.md')).split('\n')
+        const markers = lines.filter((l) => l.includes(SITE_NOTES_MARKER))
+        expect(markers).toHaveLength(1)
+        expect(markers[0]).toMatch(/^<!-- nera:site-notes .* -->$/)
+
+        const headings = lines.filter((l) => l.startsWith('## '))
+        expect(headings.at(-1)).toBe('## Notes for this site')
+        const at = lines.indexOf(markers[0])
+        expect(lines[at + 1]).toBe('## Notes for this site')
+    })
+
+    it('names only commands and folders that exist today', async () => {
+        const text = await read(templateDir(), 'AGENTS.md')
+        expect(text).not.toMatch(/nera publish|--json/)
+        expect(text).not.toMatch(/(^|[^/])\bplugins\/<name>/m)
+    })
+})
+
 describe('validateThemeSpec / themePackageName', () => {
     it('accepts the three forms core accepts', () => {
         for (const spec of ['example', '@acme/my-theme', './my-theme', '../t', '.']) {

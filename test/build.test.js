@@ -38,6 +38,9 @@ describe('new → build', () => {
         const html = await fs.readFile(out, 'utf-8')
         expect(html).toContain('Welcome to Nera')
         expect(html).toContain('<title>')
+        // AGENTS.md / CLAUDE.md sit at the site root, outside pages/.
+        const built = await fs.readdir(path.join(target, 'public'))
+        expect(built.filter((n) => /^(AGENTS|CLAUDE)\./.test(n))).toEqual([])
     })
 
     describe('--check', () => {
