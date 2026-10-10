@@ -1,8 +1,9 @@
 # ROADMAP — Nera for AI assistants, and a site online in one command
 
-> **Status: spec, written 2026-10-10; decisions D1–D11 settled the same
-> day (see "Decisions"). Nothing implemented, no open questions. Next: slice 0,
-> the baseline cold agent test.**
+> **Status: spec, written 2026-10-10; decisions D1–D12 settled the same
+> day (see "Decisions"). Slice 0, the baseline cold agent test, is done
+> (2026-10-10, see "Slice 0 — baseline record"). No open questions. Next:
+> slice 1, `AGENTS.md`.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -440,6 +441,11 @@ The first round, settled with the maintainer:
   beyond a call — rather than linking to michael-becker-berlin.de's pages, whose
   privacy policy describes a different processing. Have the texts checked
   before launch. (Was O4.)
+- **D12 — The slice-7 rerun pins the baseline's models**:
+  `claude -p --model claude-sonnet-5-5` and `codex exec --model gpt-6-luna`,
+  the CLI defaults the baseline ran on. A difference to the baseline then comes
+  from Nera, not from a newer model. An extra run on the then-current default
+  is optional and recorded separately. (Settled while recording slice 0.)
 
 ## Semver
 
@@ -456,7 +462,8 @@ The first round, settled with the maintainer:
 
 0. **Baseline.** Run the cold agent test (see "Acceptance criteria") with
    Claude Code and Codex *before* any change; record where they fail here.
-   Those failures decide what `AGENTS.md` must say.
+   Those failures decide what `AGENTS.md` must say. **Done 2026-10-10**, see
+   "Slice 0 — baseline record".
 1. **L1** — `AGENTS.md` + `CLAUDE.md` in the template and via `nera update`, the
    marker logic, the command-consistency test.
 2. **L2** — `llms.txt` + `llms-full.txt` in `nera-website`; the "Using Nera with
@@ -481,6 +488,124 @@ The first round, settled with the maintainer:
     only the connector. Record what broke.
 
 Themes (for L5) and L8 run in parallel in their own repos.
+
+## Slice 0 — baseline record (2026-10-10)
+
+The cold agent test from "Acceptance criteria", run once per agent before any
+AI-facing change. Both runs are headless and credential-isolated, and both
+used `@nera-static/nera` 1.4.1 over `@nera-static/core` 4.15.0, Node 20.20.
+The harness is `test/cold-agent/` (see its `README.md`). Everything below
+traces to a committed file in `test/cold-agent/2026-10-10-baseline/`. `claude:N`
+and `codex:N` mean line N of that agent's `transcript.md`. `files/…` are
+verbatim copies of the site files a finding rests on, and `meta.md` holds the
+run notes, including one discarded run per agent (a harness fault each time).
+
+| | Claude Code (`claude-sonnet-5-5`, 11 turns, 87 s) | Codex (`gpt-6-luna`, one turn, 191 s) |
+|---|---|---|
+| builds; `nera validate`, `nera check` no errors | **pass** (`evaluation.txt`) | **pass** (`evaluation.txt`; its own `nera check` warned `a11y-main` once, codex:390, and the agent fixed it) |
+| every requested page renders | **pass**: 6 Markdown pages → 6 HTML | **pass**: 6 → 6 |
+| nothing hand-written into `public/` | **pass** | **pass** |
+| contact form via `@nera-static/plugin-contact-form` | **FAIL**: a hand-written `<form>` posting to Formspree with a placeholder ID (`files/pages/kontakt.md`) | **FAIL**: a hand-written form plus an inline script that opens a `mailto:` link (`files/pages/kontakt.md`) |
+| live at a URL the agent reports | **FAIL**, as expected (no `nera publish` yet): looked for the `netlify`/`vercel`/`wrangler`/`gh`/`surge` CLIs and a `gh` login (claude:108, 130–135), found no login and stopped to ask (claude:235–249). It attempted no publish. | **FAIL**, as expected: probed `gh`/`vercel`/`netlify`, env vars and `git remote` (codex:37, 49), stopped and said so (codex:509) |
+| never confused Nera with another generator | **pass** | **pass** (no foreign files or dependencies), but it read the *core* README first, which says "you probably don't want this package" (codex:86–104) |
+
+Stopping at "Get it online" is the right behaviour without credentials. The
+publish criterion is measured again in slice 7. Neither run needed a human.
+
+### Where the agents went wrong
+
+1. **Docs reach is thin and accidental.** Claude fetched only the homepage. Its
+   summary says the page does not describe the project layout, does not
+   document URL routing and "doesn't cover forms" (claude:30–45). Codex opened
+   nera.js.org (content not logged, `meta.md`), then fell back to web search,
+   the GitHub API, the core README, a guessed raw path that returned 404 and
+   the CLI README (codex:18–123).
+2. **`nera new` cannot fill the folder it was given.** `nera new .` is refused
+   with "Invalid project name" (codex:168–174; also Claude's discarded run,
+   `meta.md`). Both agents scaffolded elsewhere and copied up. Claude used a
+   sibling folder outside its own (claude:54, 108). Codex used a subfolder and
+   removed it with `python3 shutil.rmtree` after its own policy blocked
+   `rm -rf` (codex:179, 233, 273, 428; `meta.md`).
+3. **URL shape guessed wrong** (Claude). The layout linked `/ueber-uns/`
+   (`files/theme/views/layouts/layout.first.pug`). Probing
+   `public/oeffnungszeiten/index.html` failed (claude:164, 185), so it rewrote
+   every link to `.html` with sed (claude:189–193).
+4. **No plugin was considered at all.** Both builds log
+   `0 loaded` (claude:119, codex:336). Navigation is hand-written in the layout
+   (`layout.first.pug`), and the contact form too (see the table). Codex's
+   `mailto:` form uses the plugin's mechanism, but without its YAML field
+   config, honeypot or recipient obfuscation. Claude's
+   adds an external processor and an account the owner must create
+   (claude:245).
+5. **Pages written as HTML, not Markdown** (Codex). All six pages are raw
+   `<section>` markup inside `.md` (codex:460–468, `files/pages/ueber-uns.md`).
+   It renders, because Markdown allows HTML, but it defeats the content model.
+6. **Pug and layout guesses broke the build** (Codex). It deleted the scaffold's
+   `theme/views/pages/default.pug` while every page still named it as its
+   `layout` → `ENOENT` (codex:303, 337). It wrote `!{ content }` on a line of
+   its own → Pug error (codex:359–362). Then two `<main>` per page
+   → `a11y-main` from `nera check`, which the agent fixed by editing both the
+   layout and `pages/default.pug` (codex:390, 396). It ran `nera build` before
+   `nera validate`, which reports a missing layout as `layout-unresolved` with
+   the page and line.
+7. **Side effects outside the folder** (Claude). It started `npx nera serve`
+   in the background with a log in `/tmp/s.log` and stopped it with
+   `pkill -f "nera serve"`, which would kill any other `nera serve` running
+   (claude:196, `meta.md`).
+
+Not agent errors, but read by every agent and worth fixing where they come
+from: the dotenv banner `◇ injected env (0) from .env` (core's `dotenv.config()`
+in `src/render.js`) and an npm deprecation warning for `glob@10.5.0` on every
+`npx` (claude:59–60, codex:172–173), and `HTML created: /` once per page
+instead of the page's path (claude:171–176, codex:385–388; core
+`src/render.js`). The discarded Codex run (`meta.md`) also showed that a global
+`nera` from the deprecated `@nera-static/installer` answers `nera build` with
+installer usage when `node_modules` is missing.
+
+Both agents marked invented business details as placeholders and flagged the
+legal pages as templates to be checked. Nothing to change there.
+
+### Inputs for `AGENTS.md` (slice 1)
+
+`AGENTS.md` is read only once a site exists, so findings 1 and 2 belong to
+nera.js.org (L2, `llms.txt`) and the CLI (`nera new .`), not to it. Each line
+below is true of core 4.15.0 / nera 1.4.1:
+
+- **Pages are Markdown.** `pages/**/*.md` with YAML frontmatter. Write prose in
+  Markdown; page structure and shared markup go in `theme/views/` (finding 5).
+- **URLs.** `pages/a/b.md` becomes `public/a/b.html`, linked as `/a/b.html`.
+  There are no pretty URLs (finding 3).
+- **Layouts.** `layout` in a page's frontmatter names a file under
+  `theme/views/` (the scaffold's pages use `pages/default.pug`). Renaming or
+  deleting it breaks every page that uses it. A page without `layout` is
+  not rendered, and the build says nothing; `nera validate` warns
+  (`layout-missing`) (finding 6).
+- **The page body.** The rendered Markdown arrives in the view as `content`,
+  and the scaffold prints it with `main !{ content }` inside `block content`.
+  That `<main>` is the page's only one, so the layout must not add another
+  (finding 6).
+- **Look for a plugin before hand-writing a feature.** Features come from
+  `@nera-static/plugin-*` npm packages, picked up automatically once
+  installed; most read optional settings from `config/<name>.yaml`. Link the catalog. Name the
+  two these runs needed: `@nera-static/plugin-contact-form` (a `mailto:` form,
+  no backend or form service; `npx nera-contact-form` copies its template to
+  `theme/views/vendor/plugin-contact-form/`) and `@nera-static/plugin-navigation`
+  (finding 4).
+- **Order of checks.** `npx nera validate` before building, then
+  `npx nera build --check`, and fix what they report. In these runs
+  `nera validate` would have named the broken layout, and `nera check` did
+  catch the second `<main>` (finding 6).
+- **Preview.** `npm run dev` serves on port 3000. Stop it when done; do not
+  kill other processes by name (finding 7).
+- **Getting online.** Neither agent found a way. Until `nera publish` exists
+  (slice 6), `AGENTS.md` cannot name it, because the command-consistency test
+  (L1) would fail. Until then, say that `public/` after `nera build` is the
+  folder to deploy.
+
+The L1 list's other traps (`public/` wiped on every build, plugin templates
+copied with `publish-template`, theme files overridden per path) were not
+exercised: neither agent wrote into `public/` or published a plugin template.
+They stay in, and slice 7 shows whether they hold.
 
 ## Where the work lands
 

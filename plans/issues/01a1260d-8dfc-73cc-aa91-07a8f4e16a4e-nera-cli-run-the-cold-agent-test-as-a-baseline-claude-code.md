@@ -77,7 +77,7 @@ and the raw material lives next to the harness.
 - **Risks:** a Codex login or sandbox flag differs from what step 1 assumed, so adjust `run.sh` in this step.
 - **Walkthrough:** none
 
-### Step 4 — Record the findings in the ROADMAP under slice 0 — ⬜ todo
+### Step 4 — Record the findings in the ROADMAP under slice 0 — ✅ done
 
 - **Goal:** `ROADMAP-ai.md` slice 0 carries a dated "Done" record. It has a criteria × agent table (pass/fail with one-line evidence), a numbered list of every misstep with its source in the transcripts, and the derived "`AGENTS.md` must say …" list as the input for slice 1. The status block at the top now reads "Next: slice 1".
 - **Files:** `ROADMAP-ai.md`, `test/cold-agent/README.md` (link to the record)

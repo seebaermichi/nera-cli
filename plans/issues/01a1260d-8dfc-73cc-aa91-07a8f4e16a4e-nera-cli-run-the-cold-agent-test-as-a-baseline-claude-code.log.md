@@ -350,3 +350,85 @@ Goal: the Codex run is committed in `2026-10-10-baseline/codex/` with transcript
 ## Step 3 — approved (2026-10-10)
 
 snagio: ticked
+commit: 6df1ab5
+
+## Step 4 — started (2026-10-10)
+
+base_sha: 6df1ab5fa497aae7b3bcb18ab4e1be53310eff01
+mode: fresh
+
+## Decision (2026-10-10)
+
+Which model the slice-7 rerun uses → pinned to the baseline models (`claude -p --model claude-sonnet-5-5`, `codex exec --model gpt-6-luna`), plus an optional extra run on the then-default model. A difference then comes from Nera, not the model. Written into ROADMAP-ai.md slice 0 record.
+
+## Step 4 — implemented (2026-10-10)
+
+base_sha: 6df1ab5
+
+### Changed
+- `ROADMAP-ai.md` — status block: slice 0 done, D1–D12, "Next: slice 1, `AGENTS.md`"; slice-plan item 0 marked done with a pointer to the record.
+- `ROADMAP-ai.md` — new `## Slice 0 — baseline record (2026-10-10)`: criteria × agent table, 7 numbered missteps plus a "not agent errors" paragraph (noise, `HTML created: /`, installer `nera` shadowing), and "Inputs for `AGENTS.md` (slice 1)" with 8 lines, each mapped to a finding. Every claim cites `claude:N`/`codex:N` (line of the committed `transcript.md`), `files/…`, `evaluation.txt` or `meta.md`.
+- `ROADMAP-ai.md` — Decisions: D12 (slice-7 rerun pins `claude-sonnet-5-5` / `gpt-6-luna`), the user's choice in this step.
+- `test/cold-agent/README.md` — links to the record and D12, and notes that `run.sh` does not pass `--model` yet.
+
+### Fixed alongside
+- none
+
+### Carry forward
+- infra · S · `test/cold-agent/run.sh:39` — add `--model` (or `COLD_MODEL`) passthrough so the slice-7 rerun can pin per D12 — why not now: not needed until slice 7, and this step changes no harness code
+- bug · S · `nera-cli/src/scaffold.js:10` — `nera new .` refused ("Invalid project name"); every agent scaffolds elsewhere and copies up — why not now: CLI behaviour change, its own issue (finding 2 in the record)
+- debt · S · `../generator/src/render.js:8-11` — `dotenv.config()` prints `◇ injected env (0) from .env` on every command, which every agent reads — why not now: different repo (core)
+
+### Verification
+```
+npx vitest run → Tests  42 passed (42)
+npm run lint → eslint . (no output, exit 0)
+grep -n "Slice 0\|slice 0" ROADMAP-ai.md → 4–5 (status), 448 (D12), 466 (slice plan item 0 done), 492 (## Slice 0 — baseline record (2026-10-10))
+```
+Facts checked against today's code: `.md`→`.html` href (`generator/src/core.js:227-230`, no pretty URLs); page without layout skipped (`render.js:479`); body passed as `content` (`render.js:487-498`); scaffold `main !{ content }` (`template/theme/views/pages/default.pug`); `nera validate` has `layout-missing`/`layout-unresolved` (`nera-validate/index.js:142-161`); `nera build --check` (`src/commands/build.js:11`); serve default port 3000 (`src/commands/serve.js:9`); contact-form is mailto, template via `npx nera-contact-form` → `theme/views/vendor/plugin-contact-form/` (its README:207-226, `package.json` bin); `HTML created` at `render.js:515`.
+
+### Self-critique
+- Dropped two step-2 log findings that rest only on the discarded Claude run 1 (it "knew canonical-links/`app_origin`", "read more docs pages"): run 1 is not committed, so they are untraceable. Kept only what `meta.md` records from it (`nera new .`).
+- Dropped "`nera --version` is not a command": true (no case in `bin/nera.js`), but no agent tried it in a committed transcript.
+- Finding 6's "`nera validate` would have reported `layout-unresolved`" is a claim about the validator, checked in code, not observed in the run. It is worded as "would have".
+- The "Getting online" AGENTS input ("say `public/` is the folder to deploy") is a derived recommendation, not an observation. It is tied to the L1 command-consistency test, which forbids naming `nera publish` before slice 6.
+- The record is about 120 lines. I kept quotes to a few words and pointed to transcripts, but the reviewer may judge it too long.
+
+### Pressure-test questions for the reviewer
+1. Spot-check the line citations (e.g. claude:185 `ugrep: warning`, codex:337 ENOENT, codex:390 `a11y-main`, codex:460–468 raw HTML): does each point at what the record says?
+2. Is "Codex's `mailto:` form is close to what the plugin does" fair, or does it understate the finding (no config, no honeypot, no obfuscation)?
+3. Does any AGENTS.md input overstate core, especially "a page without `layout` is skipped silently" now that `nera validate` warns?
+4. Should the "not agent errors" items (dotenv banner, `HTML created: /`, glob warning) live in the record at all, or only as carry-forwards?
+
+## Step 4 — reviewed (2026-10-10)
+
+Verdict: approve
+
+### 🔴 Blocking
+- none
+
+### Fixed in review
+- `ROADMAP-ai.md` finding 4 — "Codex's `mailto:` form is close to what the plugin does" → "uses the plugin's mechanism, but without its YAML field config, honeypot or recipient obfuscation" (plugin README:8, 28, 56) — `npx vitest run && npm run lint` → 42 passed, lint clean
+- `ROADMAP-ai.md` finding 6 — "a second `<main>` in the layout next to the one in `pages/default.pug`" put the extra `<main>` in the layout, which no committed line shows; now "two `<main>` per page … fixed by editing both the layout and `pages/default.pug`" (codex:390, 396) — same verify → pass
+- `ROADMAP-ai.md` AGENTS input "Layouts" — "skipped silently" → "not rendered, and the build says nothing; `nera validate` warns (`layout-missing`)" (`nera-validate/index.js:142-151`) — same verify → pass
+- `ROADMAP-ai.md` AGENTS input "plugin" — "installed and configured in `config/<name>.yaml`" implied config is required; now "installed; most read optional settings from `config/<name>.yaml`" (getConfig returns `{}` when the file is missing) — same verify → pass
+  (4 edits, ~10 lines, 1 file)
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none (the implementer's three carry-forwards stand: `run.sh` `--model`, `nera new .`, core dotenv banner)
+
+### Checked
+goal (table, 7 missteps, AGENTS inputs, status "Next: slice 1", item 0 done, README link) · `npx vitest run` 42 passed, `npm run lint` clean, grep shows lines 4–5, 448, 466, 492 · Non-negotiables (D12 written back to Decisions; no publish/push; no version bump needed, docs/test-only) · Tests & hygiene · every claude:N / codex:N citation opened (claude:30–45, 54, 59–60, 108, 119, 130–135, 164, 171–176, 185, 189–196, 235–249; codex:18–123, 168–179, 233, 273, 303, 336–337, 359–362, 385–390, 396, 428, 460–468, 509) plus both `meta.md` and `evaluation.txt` · core facts (`core.js:227-230`, `render.js:8-11, 479, 515`, `scaffold.js:21`, dev/serve port 3000, template `main !{ content }`, contact-form bin + README:207-226) · scope: only the step's files plus the issue log/plan/marker · walkthrough n/a
+
+### Answers to the pressure-test questions
+1. Yes. claude:185 is `ugrep: warning: public/oeffnungszeiten/index.html: No such file`; codex:337 is `ENOENT … ./theme/views/pages/default.pug`; codex:390 is the `a11y-main` warning; codex:460–468 are raw `<section>` pages. Only imprecision: finding 6 attributed the extra `<main>` to the layout — fixed in review.
+2. It understated it: same mechanism, but no YAML fields, honeypot, obfuscation or i18n. Reworded (above).
+3. "Skipped silently" was true of the build but misleading next to `nera validate`'s `layout-missing` warning (whose own message says "the build skips it silently"). Reworded to name both. "Configured in `config/<name>.yaml`" also overstated; fixed. The other inputs (`.md`→`.html`, `content`, port 3000, `npx nera-contact-form` destination) check out against the code.
+4. Keep them. It is one short paragraph of sourced observations that every agent read, and slice 7 diffs against it; the carry-forwards cover the fixes. It does not turn the record into a second spec.
+
+## Step 4 — approved (2026-10-10)
+
+snagio: ticked

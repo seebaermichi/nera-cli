@@ -6,6 +6,11 @@ the site and get it online. Slice 0 runs it as a baseline before any AI-facing
 change lands. Slice 7 re-runs it and diffs the result against that baseline.
 This folder is not in the package `files`, so nothing here ships.
 
+The findings of the baseline run (`2026-10-10-baseline/`) are recorded in
+`ROADMAP-ai.md` under "Slice 0 — baseline record". Slice 7 reruns it on the
+same models (`--model claude-sonnet-5-5`, `--model gpt-6-luna`, decision D12).
+`run.sh` does not pass `--model` yet; it needs that before the rerun.
+
 | File | Purpose |
 |---|---|
 | `run.sh` | runs one agent headless in an isolated temp folder and keeps the transcript and file tree |
