@@ -104,7 +104,7 @@ and the raw material lives next to the harness.
 - **Risks:** the `.gitignore` written from `_gitignore` collides with an existing `.gitignore` in the folder. Default: keep the user's file and print one line saying so. Test it.
 - **Walkthrough:** none
 
-### Step 7 — Core: `HTML created` names the page, dotenv runs quiet — ⬜ todo
+### Step 7 — Core: `HTML created` names the page, dotenv runs quiet — ✅ done
 
 - **Goal:** fixes triage items 5–6, in `../generator` (`@nera-static/core`). The build log prints the page's output path (`HTML created: /about.html`, `/de/index.html`) instead of `meta.dirname`. `dotenv.config({ quiet: true })` stops the `◇ injected env (0) from .env` banner, while `.env` values are still loaded. Patch bump in core with a CHANGELOG entry (`npm version patch --no-git-tag-version`). Tagging and the CI release need the user's go and are not part of this step.
 - **Files:** `../generator/src/render.js`, a test under `../generator/test/` (log line + `.env` still loaded), `../generator/CHANGELOG.md`, `../generator/package.json`/`package-lock.json`

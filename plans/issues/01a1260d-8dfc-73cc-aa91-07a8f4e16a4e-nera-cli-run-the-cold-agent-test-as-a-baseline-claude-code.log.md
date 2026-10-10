@@ -603,3 +603,77 @@ Goal met (in place for `.`/`./`, dotfiles ignored, non-empty refused before writ
 ## Step 6 — approved (2026-10-10)
 
 snagio: ticked
+commit: 8a7e5e3
+
+## Step 7 — started (2026-10-10)
+
+base_sha: 8a7e5e322d0051096eadd2a0e55e74fe467de538
+generator_base_sha: 4d9724ed570928a8c200d9e55026eca9f8a3ddb2
+mode: fresh
+
+## Step 7 — implemented (2026-10-10)
+
+base_sha: 8a7e5e3 (nera-cli, untouched by this step) · generator_base_sha: 4d9724e — **the diff lives in `../generator`**: review with `git -C ../generator diff 4d9724e`
+
+### Changed
+- `../generator/src/render.js` — `dotenv.config({ quiet: true })`: no `◇ injected env` banner, `.env` still populates `process.env` (an explicit `quiet` option overrides `DOTENV_QUIET` in dotenv 18)
+- `../generator/src/render.js` — `HTML created:` logs `/` + `path.relative(publicFolder, htmlPath)` with forward slashes, i.e. the file actually written, never `base_path`-prefixed (was `meta.dirname`, so `/` for every root page)
+- `../generator/src/test/render.test.js` — two tests: log lines for `/index.html`, `/about.html`, `/de/index.html` under `basePath: '/repo'`; a child-process import of `render.js` in a temp dir with `.env` → value loaded, no `injected env` on stdout/stderr. Both fail on the old `render.js` (checked by stashing it)
+- `../generator/CHANGELOG.md` — `[4.15.1]` with two `### Fixed` entries
+- `../generator/package.json`, `package-lock.json` — 4.15.0 → 4.15.1 via `npm version patch --no-git-tag-version`
+
+### Fixed alongside
+- none
+
+### Carry forward
+- debt · S · `../generator/src/watch-assets.js:7` — still calls `dotenv.config()` without `quiet` — dev-only script, not in the package `files`, so no user sees it (unrelated)
+- design · S · `ROADMAP-ai.md:556–561` — the slice-0 note still says the banner/`HTML created: /` come from core; it is a dated record "true of core 4.15.0", so I left it; a "fixed in core 4.15.1" note could follow once the release is out (decision)
+
+### Verification
+```
+Risk grep (`HTML created`, `dotenv`) over ../generator, nera-cli, nera-validate → only render.js, CHANGELOG history and ROADMAP-ai.md prose; no test or tool parses the line
+npx vitest run (generator) → Test Files  9 passed (9) / Tests  140 passed (140)
+npm run lint (generator) → eslint . — no output (0 problems)
+npm run render (generator demo, 1 page) → HTML created: /index.html (no banner)
+nera-website copy in scratchpad, installed core 4.15.0 with the new render.js → 105 "HTML created" lines, 0 duplicates, 0 "injected env", every logged path exists under public/ (e.g. /about.html, /de/docs/cli.html, /de/tutorials/tags/advanced.html)
+```
+
+### Self-critique
+- Derived the log path from `htmlPath` rather than `meta.fullPath`/`href`, so it shows what was really written even if a plugin rewrites `dirname`/`filename` inconsistently with `href`.
+- Tests live in `src/test/render.test.js` (where core's tests are), not `test/` as the plan's Files line said — there is no top-level `test/` in core.
+- The dotenv test spawns a child process (~250 ms) because `dotenv.config()` runs once at module import; `vi.resetModules` + dynamic import would also work but depends on cwd inside the worker. Least sure whether a reviewer prefers that cheaper variant.
+- Patch is right: only log text changes; no hook, config, `app`/`meta` key or markup changes. Tagging/release v4.15.1 needs the user's go (not done).
+
+### Pressure-test questions for the reviewer
+1. Does any consumer (nera-cli `--json` work, CI logs, the cold-agent harness evaluation) match on `HTML created: /` literally? My grep found none.
+2. With a theme, is `htmlPath` still always under `publicFolder` (no `../` in the relative path)? `dirname` is stripped of leading slashes before the join, so yes, unless a page's `dirname` itself contains `..`.
+3. Should the child-process test assert on `stderr` only? I check both streams since dotenv 17 printed to stdout and 18 to stderr.
+
+## Step 7 — reviewed (2026-10-10)
+
+Verdict: approve
+
+### 🔴 Blocking
+- none
+
+### Fixed in review
+- none
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none (the implementer's two carry-forwards — `watch-assets.js:7` dotenv without `quiet`, and the ROADMAP-ai slice-0 "fixed in core 4.15.1" note once released — stand as logged; not re-logged)
+
+### Checked
+Goal: diff in `../generator` vs `4d9724e` (render.js, render.test.js, CHANGELOG, package.json/lock 4.15.0 → 4.15.1) makes both triage items true · Verify: `npx vitest run` → 9 files / 140 tests passed; `npm run lint` → clean; `npm run render` → `HTML created: /index.html`, no `injected env` banner · Non-negotiables: patch + CHANGELOG in the same change, Keep a Changelog `### Fixed` with four-space bullets, bumped via `npm version` (lock `version` fields in sync), nothing tagged/pushed · Tests & hygiene: new behaviour pinned in core's own test dir (`src/test/`, there is no top-level `test/` in core — plan's Files line was approximate) · Scope: nera-cli diff is plan/log bookkeeping only; generator diff stays in the step's files · Self-critique claims verified (see answers).
+
+### Answers to the pressure-test questions
+1. No consumer matches the text. `grep -rn "HTML created"` over nera-cli, nera-validate, generator (excl. node_modules/.git) → only render.js, the new test, CHANGELOG, `ROADMAP-ai.md:559` (dated prose) and the frozen baseline transcripts under `test/cold-agent/2026-10-10-baseline/` — historical records, no harness script or evaluator parses the line.
+2. Yes. `htmlPath = path.join(publicFolder, meta.dirname.replace(/^\/+/, ''), meta.filename)` (render.js:503–507); themes only change view resolution, not this join, so `path.relative(publicFolder, htmlPath)` is always the in-`public/` path. A `..` in `dirname` would escape `public/` for the *write* itself — pre-existing, and the log would then truthfully show it. Not this step's concern. `basePath` is applied only to the HTML content (`rewriteHtmlUrls`), never to `htmlPath`; the test pins this with `basePath: '/repo'`.
+3. Both streams is right. dotenv 18.0.4 (installed) prints the banner via `console.error` (stderr), and checks `Object.prototype.hasOwnProperty.call(e, "quiet") ? e.quiet : env.quiet` — so the explicit `quiet: true` wins over `DOTENV_QUIET`, and population (`E.populate(n, l, e)`) runs before and independently of the quiet check, so `.env` values still load (the child-process test proves `NERA_DOTENV_PROBE=loaded`). Checking stdout too guards against a dotenv downgrade to 17 (stdout); cheap, keep it. The child-process variant is the more reliable choice since `dotenv.config()` runs at import time with `process.cwd()`.
+
+## Step 7 — approved (2026-10-10)
+
+snagio: ticked
+generator commit: d44caaf
