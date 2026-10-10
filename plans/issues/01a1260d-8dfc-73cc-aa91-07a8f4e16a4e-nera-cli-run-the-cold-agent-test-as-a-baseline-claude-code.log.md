@@ -677,3 +677,8 @@ Goal: diff in `../generator` vs `4d9724e` (render.js, render.test.js, CHANGELOG,
 
 snagio: ticked
 generator commit: d44caaf
+commit: 9cb257d
+
+## Decision (2026-10-10)
+
+- Resolved as 1.5.0 without fixing the four small post-triage carry-forwards: (a) `run.sh:56` CODEX_HOME check covers only `AGENTS*.md`; (b) scaffold "Next steps" `nera dev` vs `npm run dev`, no `npm install` hint with `--no-install`; (c) `projectNameFromDir` no 214-char cap / reserved names / `ß`; (d) `generator/src/watch-assets.js:7` dotenv without `quiet` (dev-only). The user chose "resolve now" when offered.
