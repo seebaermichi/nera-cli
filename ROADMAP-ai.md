@@ -565,6 +565,23 @@ installer usage when `node_modules` is missing.
 Both agents marked invented business details as placeholders and flagged the
 legal pages as templates to be checked. Nothing to change there.
 
+### Fixed since the baseline (2026-10-10)
+
+The record above stays as measured. What the same issue fixed afterwards:
+
+-   **Finding 2:** `@nera-static/nera` 1.5.0 ships `nera new .`. It scaffolds
+    into the current folder when that holds nothing but dotfiles (`.git`,
+    editor folders), keeps an existing `.gitignore`, names the package after
+    the folder (normalised, `nera-site` as the fallback) and drops the `cd`
+    from "Next steps".
+-   **Core log noise:** `@nera-static/core` 4.15.1 logs `HTML created:` with
+    the written file (`/about.html`) instead of `/`, and runs dotenv with
+    `quiet: true`. The `glob@10.5.0` deprecation warning is untouched.
+-   **Harness:** Codex runs from a dedicated `CODEX_HOME` (never a copy of the
+    real login), `site/` lives in its own temp folder away from `out/`, and
+    `COLD_MODEL` pins a model when a comparison needs one (unset = the CLI's
+    default, which is what a user gets). See `test/cold-agent/README.md`.
+
 ### Inputs for `AGENTS.md` (slice 1)
 
 `AGENTS.md` is read only once a site exists, so findings 1 and 2 belong to
