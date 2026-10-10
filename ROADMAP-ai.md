@@ -1,6 +1,6 @@
 # ROADMAP — Nera for AI assistants, and a site online in one command
 
-> **Status: spec, written 2026-10-10; first round of decisions settled the same
+> **Status: spec, written 2026-10-10; decisions D1–D10 settled the same
 > day (see "Decisions"). Nothing implemented. The remaining open questions at
 > the end are small enough to settle during the slices they belong to.**
 >
@@ -240,11 +240,14 @@ plugins wired up, and a theme dependency.
 
 ### L6 — `nera publish`: from folder to URL
 
-The last mile, built into the CLI (decision D6). Default target: **GitHub
-Pages** — free, needs one account, and the source lands on GitHub, which every
-other path in this spec (and Nera Pro) builds on.
+The last mile, built into the CLI (decision D6). Two targets **from the first
+release** (decision D8): **GitHub Pages** and **Netlify**. The source always
+lands on GitHub, which every other path in this spec (and Nera Pro) builds on;
+only the host differs. `nera publish --target github-pages|netlify`; on a TTY
+without the flag the wizard asks (see "Choosing the target" below).
 
-`nera publish` (first run sets everything up; every later run publishes changes):
+`nera publish` (first run sets everything up; every later run publishes changes)
+— steps 1–3 are shared, 4–5 are per target:
 
 1. **Sign in** with the GitHub OAuth **device flow**: the CLI shows a code, opens
    github.com/login/device in the browser, and polls. Needs only a public client
@@ -259,15 +262,57 @@ other path in this spec (and Nera Pro) builds on.
    workflow (`.github/workflows/deploy.yml`, modelled on `nera-website`'s),
    push. Uses `git` if installed, else the GitHub API (trees/commits), so git is
    not a prerequisite.
-4. **Enable Pages** with the Actions build type via the REST API, set
-   `base_path` in `config/app.yaml` for a project page (`user.github.io/repo`),
-   leave it empty for a `user.github.io` repo or a custom domain.
+4. **Set up the host.**
+   - *GitHub Pages:* enable Pages with the Actions build type via the REST API;
+     set `base_path` in `config/app.yaml` for a project page
+     (`user.github.io/repo`), leave it empty for a `user.github.io` repo or a
+     custom domain.
+   - *Netlify:* sign in with Netlify's browser flow (the "ticket" flow
+     `netlify-cli` uses: create a ticket, open app.netlify.com to approve,
+     poll, exchange for a token — undocumented in the OpenAPI spec but stable in
+     Netlify's own js-client; verify in slice 6), offer Netlify's sign-up page if
+     there is no account (same rule as GitHub: guided, never automated), create
+     the site via the API, and store `NETLIFY_AUTH_TOKEN` + `NETLIFY_SITE_ID` as
+     encrypted repository secrets via the GitHub API. `base_path` stays empty
+     (Netlify serves from the root of `<name>.netlify.app`).
 5. **Wait and report**: poll the Actions run, print the live URL, or the failing
    step with its log excerpt and a fix hint.
 
+**One build path for both targets:** GitHub Actions always builds (`nera build`
+in the generated workflow); only the last step differs — `deploy-pages` or a
+deploy to Netlify's API with the stored secrets. So the hosted MCP server, a
+local edit and a push from any Git tool all publish the same way, and Netlify's
+own build minutes are never used.
+
+**Netlify's free-plan credits are a design constraint.** As of 2026-10 the free
+plan reportedly has a hard monthly credit budget (third-party sources: 300
+credits; a production deploy ~15 credits; bandwidth extra), and exhausting it
+pauses the team's sites until the next cycle. ~20 deploys a month is plenty for
+a person editing by hand, but **not** for an AI committing every change.
+Therefore, for the Netlify target:
+
+- the workflow deploys on `workflow_dispatch` and on pushes to `main` only, and
+  `nera publish` / the MCP `publish` tool are the deliberate "go live" moments;
+- the hosted MCP server batches its commits for a conversation and deploys
+  once, when the user says so;
+- `nera publish` reads the account's usage via the API where possible and warns
+  before a deploy would cross ~80 % of the budget.
+
+Verify the exact numbers and the commercial-use terms against Netlify's own
+pricing and terms pages in slice 6 and record them here.
+
 Later runs: commit + push the changes, report the URL. Options:
-`--domain example.com` (writes `CNAME`, prints the DNS records to set, checks
-them), `--private` (needs a paid GitHub plan; explained), `--json`.
+`--domain example.com` (GitHub Pages: writes `CNAME`; Netlify: sets the custom
+domain via the API; both print the DNS records to set and check them),
+`--private` (GitHub Pages needs a paid GitHub plan, explained; Netlify deploys
+from a private repo for free), `--json`.
+
+**Choosing the target.** The wizard asks "Is this a site for a business?" —
+yes → Netlify recommended (its terms allow commercial sites on the free plan;
+GitHub's do not, see below), no → GitHub Pages recommended (one account fewer).
+The user can pick either. `nera publish --target <other>` later moves a site
+(new host set up, workflow's deploy step swapped, old host left untouched with a
+hint how to remove it).
 
 **The GitHub identity:** a **GitHub App** "Nera" rather than an OAuth App —
 fine-grained permissions (contents, pages, actions, workflows on the
@@ -277,12 +322,10 @@ MCP server (L7) and Nera Pro. Device flow must be enabled on it.
 **Business sites and GitHub's terms:** GitHub Pages "is not intended for or
 allowed to be used as a free web-hosting service to run your online business,
 e-commerce site, …" (GitHub Pages limits, docs.github.com). A blog or portfolio
-is fine; a simple business presence is a grey zone; a shop is out. So `nera
-publish` gets a **target adapter** interface from the start, and a second
-adapter for a host whose free tier explicitly allows commercial sites
-(Cloudflare or Netlify — compare current terms in slice 8). The wizard asks
-"Is this a business site?" and recommends accordingly; the source still lives on
-GitHub either way. See open question O1.
+is fine; a simple business presence is a grey zone; a shop is out. That is why
+Netlify ships alongside GitHub Pages from the start, behind a **target adapter**
+interface (set up, deploy step for the workflow, custom domain, status) so a
+third host can be added later without touching the rest.
 
 ### L7 — MCP servers (`@nera-static/mcp`)
 
@@ -337,7 +380,7 @@ preview branch); there is no `--root`.
 | Token storage | GitHub user tokens, encrypted at rest; our own access/refresh tokens | a small database (SQLite or Postgres) |
 | Compute | Node 22 on a small VPS — `validate`/`build` need a real filesystem and Pug, so not an edge-function platform | Hetzner (Germany, DSGVO-friendly) via Forge — already the Nera Pro plan (`nera-platform/plans/03`); a few euros a month at first |
 | Builds & hosting of the sites | none on our side — the user's GitHub Actions build, GitHub Pages serves | keeps our cost near zero |
-| Domain + TLS | e.g. `mcp.<nera-domain>`; Let's Encrypt | js.org gives only `nera.js.org`, so this needs an own domain (open question O3) |
+| Domain + TLS | **`mcp.nera-pro.app`** (decision D9); Let's Encrypt | `.app` is HSTS-preloaded, so HTTPS-only from the first request — which MCP requires anyway |
 | Abuse & limits | rate limits per user; tools touch only repos the GitHub App is installed on; temporary checkouts deleted after each call | |
 | Operations | uptime monitoring, error tracking, logs without content, backups of the token DB, a status line in the docs | |
 | Legal (Germany) | imprint, privacy policy (GitHub identity + tokens are personal data; hosting in the EU), terms of use; no content stored beyond a call | |
@@ -377,6 +420,15 @@ The first round, settled with the maintainer:
   commercial-friendly second host.
 - **D7 — The MCP server is hosted too**, not only local, so claude.ai and
   ChatGPT users need no install; the user's GitHub repo is the working copy.
+- **D8 — Netlify is a publish target from the first release**, next to GitHub
+  Pages, and the recommended one for business sites. (Was O1.)
+- **D9 — The hosted service lives under the domain `nera-pro.app`**
+  (`mcp.nera-pro.app` for the MCP endpoint), which the maintainer has
+  checked is available. (Was O3.)
+- **D10 — The hosted MCP server is built in `nera-mcp` and runs on the Nera Pro
+  infrastructure** (Hetzner via Forge, `nera-platform/plans/03`), sharing the
+  GitHub App. Its plan stays here; `nera-platform/plans/` links to it rather
+  than copying it. (Was O2.)
 
 ## Semver
 
@@ -403,15 +455,18 @@ The first round, settled with the maintainer:
 5. **L5** — `--starter` in the CLI and the interactive picker, proven with a
    minimal `starter-blank`; then `starter-blog` (needs L8) and
    `starter-business` (needs a theme).
-6. **L6** — `nera publish` for GitHub Pages: GitHub App, device flow, keychain,
-   repo + workflow + Pages, `base_path`, status polling, `--domain`.
+6. **L6** — `nera publish` with both targets: the adapter interface, GitHub App,
+   device flow, keychain, repo + workflow; GitHub Pages (Pages API,
+   `base_path`); Netlify (ticket sign-in, site creation, repo secrets, credit
+   warning — verify Netlify's current terms and numbers first); status polling,
+   `--domain`, `--target`. Released only when both targets work.
 7. Re-run the cold agent test and a **no-AI test** (a non-developer, the
-   wizard only); record both here.
-8. **L6 second adapter** — compare Cloudflare/Netlify terms, implement one.
-9. **L7a** — local MCP server, the Desktop extension, the Claude Code plugin.
-10. **L7b** — hosted MCP server: OAuth server + GitHub delegation, API-backed
-    tools, deployment, legal pages; then directory submissions.
-11. **Field test** — a non-developer builds a real site through claude.ai with
+   wizard only), once per target; record both here.
+8. **L7a** — local MCP server, the Desktop extension, the Claude Code plugin.
+9. **L7b** — hosted MCP server on `mcp.nera-pro.app`: OAuth server + GitHub
+   delegation, API-backed tools, deployment, legal pages; then directory
+   submissions. Needs O4 settled first.
+10. **Field test** — a non-developer builds a real site through claude.ai with
     only the connector. Record what broke.
 
 Themes (for L5) and L8 run in parallel in their own repos.
@@ -446,17 +501,18 @@ ten minutes, without reading docs.
 
 ## Open questions
 
-- **O1 — Second host for business sites:** Cloudflare or Netlify (or another),
-  and should the wizard recommend it for every business site or only mention it?
-  Decide in slice 8 against the hosts' then-current free-tier terms.
-- **O2 — Hosted MCP under Nera Pro or separate?** It shares the GitHub App,
-  infrastructure and much of the code with `nera-platform`. Proposal: built in
-  `nera-mcp`, deployed on the Nera Pro infrastructure, with its plan cross-
-  referenced from `nera-platform/plans/` rather than duplicated.
-- **O3 — A domain for the hosted service** (js.org only covers `nera.js.org`).
-- **O4 — Who operates the hosted service** (support, the legal pages, the
-  accounts for the GitHub App and directory listings) — personal or a separate
-  legal entity, which matters for the imprint and liability.
+O1–O3 are settled (D8–D10). Remaining:
+
+- **O4 — The legal operator of the hosted service** — not the hosting company
+  (Hetzner is only a processor that runs the machine, under a data processing
+  agreement), but the person or company that *offers* the service to users and
+  is responsible for it: named in the imprint, the "controller" in the privacy
+  policy, party to the terms of use, owner of the GitHub App, the Netlify OAuth
+  app and the directory listings, and the one who is liable. Options: the
+  maintainer as a private person, as a sole trader (freelancer), or a company
+  (e.g. a UG/GmbH, which limits personal liability). Decide before slice 9,
+  ideally with advice from a lawyer or tax adviser — and in line with how Nera
+  Pro will be run, since it shares the service. Not needed for slices 0–8.
 
 ## Later
 
