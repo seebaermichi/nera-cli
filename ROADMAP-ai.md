@@ -482,6 +482,30 @@ The first round, settled with the maintainer:
 
 Themes (for L5) and L8 run in parallel in their own repos.
 
+## Where the work lands
+
+| Repo | Slices | What lands there |
+|---|---|---|
+| `nera-cli` (home; this spec lives here) | 0, 1, 3, 4, 5 (CLI part), 6, 7 | baseline test record, `AGENTS.md`, `--json`, the skill, `--starter`, `nera publish` with GitHub Pages and Netlify |
+| `nera-validate` | 3 (part) | the message review — the messages come from the validator |
+| `nera-website` | 2, 4 (zip) | `llms.txt`/`llms-full.txt`, raw Markdown pages, the "Using Nera with AI" page, the skill download |
+| `nera-mcp` (new, from slice 8) | 8–10 | local and hosted MCP server, Desktop extension, Claude Code plugin, `nera-pro.app` legal pages |
+| `nera-starter-*`, new `nera-theme-*` (new) | 5 (content) | the starter kits and the themes they need; theme specs in `generator/ROADMAP-themes.md` |
+| `nera-plugin-sitemap`, `nera-plugin-feed` (new) | L8 | each gets its own ROADMAP |
+| `nera-platform` | — | links to L7b, no copy (D10) |
+
+New repos are created only when their slice starts, not ahead of time.
+
+**Tracking:** the Snagio project **"Nera AI"** holds the whole backlog on one
+board — one group per slice (`S0 Baseline` … `S10 Field test`, plus `Parallel:
+themes and plugins`), ordered, each issue titled `[<repo>] …` with an
+`external_ref` of the form `roadmap-ai/<slice>/<key>` (imported 2026-10-10, 33
+issues). The step skills commit in the repo Claude runs in, so an issue is
+worked **from the repo its title names**: when a repo's turn comes, run
+`snagio install` there and put the same token in its git-ignored `.env`. Issues
+link to sections of this file; this file stays the spec, Snagio only tracks
+progress.
+
 ## Acceptance criteria
 
 **Cold agent test** — an empty folder, a fresh session with no Nera context,
