@@ -757,7 +757,13 @@ Verified on the local build: `npm test` 16/16 on Node 20 and 22;
 `npm run lint && npm run validate && npm run build -- --check` passes (0
 errors); `public/llms.txt` lists 7 docs, 9 tutorials, 16 plugins and 2 CLI
 links; `llms-full.txt` holds 16 pages, none from `/de/` or `/es/` (such paths
-appear only inside code examples of English pages).
+appear only inside code examples of English pages). Browser-tested the same
+day against the local build, 5/5 cases pass. Fixed along the way: the "Tags"
+link in `tutorials/build-a-blog` (en/de/es) pointed at `add-search.html`, a
+wrong target that also reached `llms-full.txt`. `nera serve` sends the files as
+`text/plain` without `charset=utf-8`, which is harmless (they are valid UTF-8).
+Check the live `Content-Type` after the deploy; if nera.js.org lacks the
+charset too, fix `nera serve`.
 
 **Still open in slice 2:** pushing and deploying `nera-website`; the "Using
 Nera with AI" page in en/de/es; the raw `/<page>.md` files next to each
