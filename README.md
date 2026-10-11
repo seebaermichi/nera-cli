@@ -1,5 +1,8 @@
 # @nera-static/nera
 
+[![Test](https://github.com/seebaermichi/nera-cli/actions/workflows/test.yml/badge.svg)](https://github.com/seebaermichi/nera-cli/actions/workflows/test.yml)
+[![npm version](https://img.shields.io/npm/v/@nera-static/nera)](https://www.npmjs.com/package/@nera-static/nera)
+
 The Nera CLI — scaffold, build, preview and update a [Nera](https://github.com/seebaermichi/nera)
 static site with a single command. It runs over the [`@nera-static/core`](https://github.com/seebaermichi/nera)
 engine and is the one package a Nera site depends on.
