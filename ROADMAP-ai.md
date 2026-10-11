@@ -6,9 +6,10 @@
 > (2026-10-11): the scaffold ships `AGENTS.md` and `CLAUDE.md` since
 > `@nera-static/nera` 1.6.0, `nera update` creates and refreshes them from
 > 1.7.0, and a test keeps the commands they name in step with the CLI (see
-> "Slice 1 — progress"). Slice 2 is under way: `nera-website` generates
-> `llms.txt` and `llms-full.txt` (2026-10-11, committed, not yet deployed;
-> see "Slice 2 — progress"). No open questions.**
+> "Slice 1 — progress"). Slice 2 is under way: `llms.txt` and
+> `llms-full.txt` are live on nera.js.org (2026-10-11) and the template's
+> `AGENTS.md` links them since `@nera-static/nera` 1.8.0 (see "Slice 2 —
+> progress"). No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -478,7 +479,8 @@ The first round, settled with the maintainer:
    release). **Slice 1 is complete**, see "Slice 1 — progress".
 2. **L2** — `llms.txt` + `llms-full.txt` in `nera-website`; the "Using Nera with
    AI" page in en/de/es. **`llms.txt` + `llms-full.txt` done 2026-10-11**
-   (committed in `nera-website`, not yet deployed), see "Slice 2 — progress".
+   (live on nera.js.org, linked from `AGENTS.md` since 1.8.0), see "Slice 2 —
+   progress".
 3. **L3** — `--json` and the message review. Slices 1 and 3 can share a release.
 4. **L4** — the skill and recipes, in both site folders, plus the zip.
 5. **L5** — `--starter` in the CLI and the interactive picker, proven with a
@@ -716,8 +718,8 @@ Settled on the way:
 
 ## Slice 2 — progress
 
-**Done 2026-10-11 (`nera-website`, committed, not yet pushed or deployed):
-`llms.txt` and `llms-full.txt`.** The local plugin
+**Done 2026-10-11 (`nera-website`, live on nera.js.org): `llms.txt` and
+`llms-full.txt`.** The local plugin
 `nera-website/plugins/llms-txt/index.js` builds both files on every
 `npm run build`, writes them to `.nera-cache/llms-txt/` and hands them to core
 through `getAssets` (`to: 'llms.txt'` and `'llms-full.txt'`), so they land in
@@ -760,15 +762,16 @@ links; `llms-full.txt` holds 16 pages, none from `/de/` or `/es/` (such paths
 appear only inside code examples of English pages). Browser-tested the same
 day against the local build, 5/5 cases pass. Fixed along the way: the "Tags"
 link in `tutorials/build-a-blog` (en/de/es) pointed at `add-search.html`, a
-wrong target that also reached `llms-full.txt`. `nera serve` sends the files as
-`text/plain` without `charset=utf-8`, which is harmless (they are valid UTF-8).
-Check the live `Content-Type` after the deploy; if nera.js.org lacks the
-charset too, fix `nera serve`.
+wrong target that also reached `llms-full.txt`. Deployed the same day:
+nera.js.org serves both files as `text/plain; charset=utf-8`.
 
-**Still open in slice 2:** pushing and deploying `nera-website`; the "Using
-Nera with AI" page in en/de/es; the raw `/<page>.md` files next to each
-English docs page (2b); the `llms.txt` link in the template's `AGENTS.md`
-(slice 1 deferred it until the file is live, so it follows the deploy).
+**Done 2026-10-11 (`@nera-static/nera` 1.8.0): the template's `AGENTS.md`
+links `llms.txt` and `llms-full.txt`** next to the docs link, which slice 1
+deferred until the files were live. `nera update` carries the line into
+existing sites, since it sits above the site-notes marker.
+
+**Still open in slice 2:** the "Using Nera with AI" page in en/de/es; the raw
+`/<page>.md` files next to each English docs page (2b).
 
 ## Where the work lands
 
