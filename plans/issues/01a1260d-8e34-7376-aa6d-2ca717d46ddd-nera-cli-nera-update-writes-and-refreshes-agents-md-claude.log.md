@@ -95,3 +95,69 @@ Goal (exports `SITE_NOTES_MARKER` + `syncAgentFiles`, created/updated/unchanged/
 ## Step 1 — approved (2026-10-11)
 
 snagio: ticked
+commit: aea9c1f
+
+## Step 2 — started (2026-10-11)
+
+base_sha: aea9c1f71797c8bd4c32b98172c72a9a1de7aa5a
+mode: fresh
+
+## Step 2 — implemented (2026-10-11)
+
+base_sha: aea9c1f
+
+### Changed
+- `src/commands/update.js` — `agentTemplateDir(cwd, fallbackDir)` (exported) prefers `node_modules/@nera-static/nera/template` when it has `AGENTS.md`, else the fallback; `syncAndReportAgentFiles` runs `syncAgentFiles` and prints one line per file plus the marker hint for `skipped`; called after `runNpm(['update', …])` (thin) and after `runNpm(['install'])` in `migrateLegacy`; new injectable `templateDir` option (default: the package's `templateDir()`), threaded into `migrateLegacy`
+- `test/update.test.js` — `agentTemplateDir` (installed preferred / nothing installed / pre-1.6.0 install without AGENTS.md) and `runUpdate agent files`: both created on a bare thin site; Nera part refreshed from a template that only appears *during* the fake `npm update` (proves lookup happens after npm), site notes + own CLAUDE.md byte-identical; marker-less AGENTS.md untouched + hint names the template path; legacy without `--migrate` → no files; `--migrate` → both files; runNpm throws → no files; default templateDir = package template
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none
+
+### Verification
+```
+npx vitest run → Test Files  7 passed (7) / Tests  92 passed (92)
+npm run lint → eslint . (no output, exit 0)
+```
+
+### Self-critique
+- The `unchanged` line reads "✓ <file> unchanged" rather than the plan's "up to date": an existing CLAUDE.md is never compared (D4), so "up to date" would claim something the code does not check. For AGENTS.md "unchanged" is still true.
+- Installed-template lookup checks only `AGENTS.md`; `CLAUDE.md` is copied from the same dir. Every published version with AGENTS.md (≥ 1.6.0) also ships CLAUDE.md, so I did not add a second existence check.
+- Path is joined directly (`cwd/node_modules/@nera-static/nera/template`) rather than resolved via `createRequire` — the package has no `exports` map to honour for a data file, and a hoisted install always lands there; a non-hoisted/pnpm layout would simply fall back to the running CLI's template.
+- Hint copies by reference ("copy the line from <path>") rather than printing the full marker line, to avoid a second marker parser in update.js.
+- `--json` is not in scope here; `syncAgentFiles` returns data so it can be added later without touching the sync.
+
+### Pressure-test questions for the reviewer
+1. Is the sync strictly after npm in both paths, and is nothing written when `runNpm` throws or on the legacy guidance path (tests 'writes nothing…')?
+2. Does the fallback hold when the installed `@nera-static/nera` predates 1.6.0 (template dir exists, no AGENTS.md)?
+3. Is the skipped-hint wording accurate about what happens once the user adds the marker (everything above is replaced)?
+
+## Step 2 — reviewed (2026-10-11)
+
+Verdict: approve
+
+### 🔴 Blocking
+- none
+
+### Fixed in review
+- `src/commands/update.js:76` — the skipped-hint named the template via `path.relative(cwd, …)` even when it lives outside the site (global or npx-cached `nera`, where the fallback applies), printing a long `../../..` path; it now prints the relative path inside the site and the absolute path otherwise (+5/−1). New test `names a template outside the site by its absolute path` in `test/update.test.js` — `npx vitest run && npm run lint` → 93 passed, eslint clean
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none
+
+### Checked
+goal (sync after `npm update` in the thin path and after `npm install` in `--migrate`, installed template preferred, one line per file + hint for skipped, legacy guidance and npm failure write nothing) · `npx vitest run` → 92 passed before, 93 after the fix; `npm run lint` → clean · Non-negotiables (marker-less AGENTS.md and existing CLAUDE.md never written, no publish/push), Framework correctness (ESM, no new dependency, no `process.exit`, no duplicated logic: sync lives in `agent-files.js`), Tests & hygiene (temp-dir sites, no network) · self-critique: "unchanged" instead of "up to date" is correct, since CLAUDE.md is never compared; the AGENTS.md-only existence check holds because `files` ships the whole `template/` and both files arrived together in 1.6.0; the direct `node_modules` join falls back safely on non-hoisted layouts; the hint copies by reference · walkthrough n/a (none)
+
+### Answers to the pressure-test questions
+1. Yes. `syncAndReportAgentFiles` is awaited on the line after `runNpm(['update', …])` (thin) and after `runNpm(['install'])` (migrate). `execFileSync` throws on a non-zero exit, so a failed npm run never reaches it. `printLegacyGuidance` returns without syncing. Pinned by 'writes nothing for a legacy site without --migrate' and 'writes nothing when npm update fails', and the refresh test creates the installed template only inside the fake `runNpm`, which proves the lookup happens after npm.
+2. Yes. `agentTemplateDir` checks for `template/AGENTS.md`, not for the directory, so a 1.5.x install (template present, no AGENTS.md) falls back. Pinned by 'falls back when the installed version predates AGENTS.md'.
+3. Yes. `spliceAgents` replaces `siteText.slice(0, at)` with the template head and keeps `siteText.slice(at)`, i.e. the marker line and everything below it, unchanged. That matches "Everything above that line is then Nera's and is replaced on update; the line and everything below it stay yours". It also warns honestly that the user's own text above the line would be lost.
+
+## Step 2 — approved (2026-10-11)
+
+snagio: ticked

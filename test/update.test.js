@@ -1,13 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import path from 'path'
 import fs from 'fs/promises'
 import fssync from 'fs'
 import os from 'os'
 import {
+    agentTemplateDir,
     classifyProject,
     neraDeps,
     runUpdate,
 } from '../src/commands/update.js'
+import { templateDir as packageTemplateDir } from '../src/scaffold.js'
 
 let cwd
 
@@ -130,5 +132,160 @@ describe('runUpdate', () => {
         await expect(
             runUpdate([], { cwd, runNpm: () => {} })
         ).rejects.toThrow(/does not look like a Nera site/)
+    })
+})
+
+const MARKER = '<!-- nera:site-notes — below is yours -->'
+
+// A scaffold template with AGENTS.md / CLAUDE.md, at `dir` under cwd.
+const writeTemplate = async (dir, nera) => {
+    await fs.mkdir(dir, { recursive: true })
+    await fs.writeFile(
+        path.join(dir, 'AGENTS.md'),
+        `${nera}\n${MARKER}\n## Notes for this site\n`
+    )
+    await fs.writeFile(path.join(dir, 'CLAUDE.md'), '@AGENTS.md\n')
+}
+
+const installedTemplate = () =>
+    path.join(cwd, 'node_modules', '@nera-static', 'nera', 'template')
+
+const read = (file) => fs.readFile(path.join(cwd, file), 'utf-8')
+
+const exists = (file) => fssync.existsSync(path.join(cwd, file))
+
+const thinPkg = { dependencies: { '@nera-static/nera': '^1.0.0' } }
+
+describe('agentTemplateDir', () => {
+    it('prefers the site\'s installed @nera-static/nera template', async () => {
+        await writeTemplate(installedTemplate(), '# Installed')
+        expect(agentTemplateDir(cwd, '/fallback')).toBe(installedTemplate())
+    })
+
+    it('falls back when nothing is installed', () => {
+        expect(agentTemplateDir(cwd, '/fallback')).toBe('/fallback')
+    })
+
+    it('falls back when the installed version predates AGENTS.md', async () => {
+        // 1.5.x: the package and its template exist, AGENTS.md does not.
+        await fs.mkdir(installedTemplate(), { recursive: true })
+        await fs.writeFile(path.join(installedTemplate(), 'package.json'), '{}')
+        expect(agentTemplateDir(cwd, '/fallback')).toBe('/fallback')
+    })
+})
+
+describe('runUpdate agent files', () => {
+    let fallback
+    let log
+
+    beforeEach(async () => {
+        fallback = path.join(cwd, 'fallback-template')
+        await writeTemplate(fallback, '# Fallback')
+        log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+        log.mockRestore()
+    })
+
+    const output = () => log.mock.calls.map((c) => c.join(' ')).join('\n')
+
+    it('creates AGENTS.md and CLAUDE.md on a thin site that has neither', async () => {
+        await writePkg(thinPkg)
+        await runUpdate([], { cwd, runNpm: () => {}, templateDir: fallback })
+
+        expect(await read('AGENTS.md')).toBe(
+            `# Fallback\n${MARKER}\n## Notes for this site\n`
+        )
+        expect(await read('CLAUDE.md')).toBe('@AGENTS.md\n')
+        expect(output()).toContain('✓ Created AGENTS.md')
+        expect(output()).toContain('✓ Created CLAUDE.md')
+    })
+
+    it('refreshes the Nera part from the installed template, after npm ran', async () => {
+        await writePkg(thinPkg)
+        const siteNotes = `${MARKER}\n## Notes for this site\n\nMine, untouched.\n`
+        await fs.writeFile(path.join(cwd, 'AGENTS.md'), `# Old Nera text\n${siteNotes}`)
+        await fs.writeFile(path.join(cwd, 'CLAUDE.md'), 'my own CLAUDE.md\n')
+
+        // The installed template appears only during `npm update` (which is
+        // synchronous, like the real execFileSync), so the lookup must
+        // happen after it.
+        const runNpm = () => {
+            fssync.mkdirSync(installedTemplate(), { recursive: true })
+            fssync.writeFileSync(
+                path.join(installedTemplate(), 'AGENTS.md'),
+                `# Installed\n${MARKER}\n`
+            )
+        }
+        await runUpdate([], { cwd, runNpm, templateDir: fallback })
+
+        expect(await read('AGENTS.md')).toBe(`# Installed\n${siteNotes}`)
+        expect(await read('CLAUDE.md')).toBe('my own CLAUDE.md\n')
+        expect(output()).toContain('✓ Refreshed the Nera part of AGENTS.md')
+        expect(output()).toContain('✓ CLAUDE.md unchanged')
+    })
+
+    it('leaves a marker-less AGENTS.md alone and prints a hint', async () => {
+        await writePkg(thinPkg)
+        await fs.writeFile(path.join(cwd, 'AGENTS.md'), 'All mine.\n')
+        await runUpdate([], { cwd, runNpm: () => {}, templateDir: fallback })
+
+        expect(await read('AGENTS.md')).toBe('All mine.\n')
+        expect(output()).toContain('Left AGENTS.md alone')
+        expect(output()).toContain(
+            `line from ${path.join('fallback-template', 'AGENTS.md')} directly above your own notes`
+        )
+    })
+
+    it('names a template outside the site by its absolute path', async () => {
+        await writePkg(thinPkg)
+        await fs.writeFile(path.join(cwd, 'AGENTS.md'), 'All mine.\n')
+        const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'nera-tpl-'))
+        await writeTemplate(outside, '# Outside')
+        await runUpdate([], { cwd, runNpm: () => {}, templateDir: outside })
+
+        expect(output()).toContain(`line from ${path.join(outside, 'AGENTS.md')} directly`)
+        await fs.rm(outside, { recursive: true, force: true })
+    })
+
+    it('writes nothing for a legacy site without --migrate', async () => {
+        await writePkg({ dependencies: {} })
+        await writeVendoredEngine()
+        await runUpdate([], { cwd, runNpm: () => {}, templateDir: fallback })
+
+        expect(exists('AGENTS.md')).toBe(false)
+        expect(exists('CLAUDE.md')).toBe(false)
+    })
+
+    it('creates both files after --migrate', async () => {
+        await writePkg({ dependencies: {} })
+        await writeVendoredEngine()
+        await runUpdate(['--migrate'], { cwd, runNpm: () => {}, templateDir: fallback })
+
+        expect(exists('AGENTS.md')).toBe(true)
+        expect(exists('CLAUDE.md')).toBe(true)
+    })
+
+    it('writes nothing when npm update fails', async () => {
+        await writePkg(thinPkg)
+        const runNpm = () => {
+            throw new Error('npm failed')
+        }
+        await expect(
+            runUpdate([], { cwd, runNpm, templateDir: fallback })
+        ).rejects.toThrow('npm failed')
+
+        expect(exists('AGENTS.md')).toBe(false)
+        expect(exists('CLAUDE.md')).toBe(false)
+    })
+
+    it('defaults to the package\'s own template', async () => {
+        await writePkg(thinPkg)
+        await runUpdate([], { cwd, runNpm: () => {} })
+
+        expect(await read('AGENTS.md')).toBe(
+            await fs.readFile(path.join(packageTemplateDir(), 'AGENTS.md'), 'utf-8')
+        )
     })
 })

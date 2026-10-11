@@ -51,7 +51,7 @@ marker-less `AGENTS.md` alone with a hint. Temp-dir tests cover all three cases.
 - **Risks:** a marker match that is too loose (e.g. inside a code fence in the Nera part) would cut the user's notes; the match is "line starts with", first occurrence
 - **Walkthrough:** none
 
-### Step 2 — nera update runs the sync and reports it — ⬜ todo
+### Step 2 — nera update runs the sync and reports it — ✅ done
 
 - **Goal:** `runUpdate` calls `syncAgentFiles` after a successful `npm update` (thin) and after `--migrate`, with the template from the site's installed `@nera-static/nera` when that template has `AGENTS.md`, otherwise from the running package's `templateDir()`. It prints one line per file (created / refreshed Nera part / up to date) and, for `skipped` AGENTS.md, a hint on adding the marker line above the site's own notes. Legacy guidance and failed npm runs write nothing.
 - **Files:** `src/commands/update.js` — call + output + template resolution (an injectable `templateDir` option for tests); `test/update.test.js` — temp-site tests: thin site without files → both created; with marker → Nera part refreshed from a fake installed `node_modules/@nera-static/nera/template/AGENTS.md`; marker-less → untouched + hint on stdout; legacy without `--migrate` → no files; runNpm throwing → no files

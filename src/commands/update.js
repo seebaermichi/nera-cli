@@ -2,6 +2,8 @@ import { execFileSync } from 'child_process'
 import fs from 'fs/promises'
 import fssync from 'fs'
 import path from 'path'
+import { syncAgentFiles, SITE_NOTES_MARKER } from '../agent-files.js'
+import { templateDir as packageTemplateDir } from '../scaffold.js'
 
 const defaultRunNpm = (npmArgs, cwd) =>
     execFileSync('npm', npmArgs, { cwd, stdio: 'inherit' })
@@ -45,7 +47,46 @@ function printLegacyGuidance() {
     console.log('\n👉 Run `nera update --migrate` to do it.')
 }
 
-async function migrateLegacy(cwd, pkg, runNpm) {
+// The scaffold template whose AGENTS.md / CLAUDE.md the site is synced to:
+// the one in the site's installed @nera-static/nera (read after npm has
+// updated it), so the instructions match the Nera version the site runs even
+// when a global or older `nera` performs the update. Falls back to the
+// running package's template when nothing is installed there or the installed
+// version predates 1.6.0, which shipped no AGENTS.md.
+export function agentTemplateDir(cwd, fallbackDir) {
+    const installed = path.join(cwd, 'node_modules', '@nera-static', 'nera', 'template')
+    return fssync.existsSync(path.join(installed, 'AGENTS.md')) ? installed : fallbackDir
+}
+
+const AGENT_FILE_MESSAGES = {
+    created: (file) => `  ✓ Created ${file}`,
+    updated: (file) => `  ✓ Refreshed the Nera part of ${file}`,
+    // Neutral on purpose: an existing CLAUDE.md is kept without comparing it.
+    unchanged: (file) => `  ✓ ${file} unchanged`,
+    skipped: (file) => `  ⚠️  Left ${file} alone: it has no \`${SITE_NOTES_MARKER}\` line`,
+}
+
+async function syncAndReportAgentFiles(cwd, fallbackDir) {
+    const dir = agentTemplateDir(cwd, fallbackDir)
+    const results = await syncAgentFiles({ cwd, templateDir: dir })
+    for (const { file, action } of results) {
+        console.log(AGENT_FILE_MESSAGES[action](file))
+    }
+    if (results.some(({ action }) => action === 'skipped')) {
+        // Relative inside the site, absolute for a global or npx-cached CLI,
+        // where a relative path would be a long run of `../`.
+        const template = path.join(dir, 'AGENTS.md')
+        const relative = path.relative(cwd, template)
+        const source = relative.startsWith('..') ? template : relative
+        console.log(
+            `   To let \`nera update\` keep Nera's instructions current, copy the \`${SITE_NOTES_MARKER}\`` +
+                ` line from ${source} directly above your own notes. Everything above that` +
+                ' line is then Nera\'s and is replaced on update; the line and everything below it stay yours.'
+        )
+    }
+}
+
+async function migrateLegacy(cwd, pkg, runNpm, templateDir) {
     console.log('🔧 Migrating this cloned site to the thin @nera-static/nera model...')
 
     pkg.dependencies = {
@@ -89,6 +130,7 @@ async function migrateLegacy(cwd, pkg, runNpm) {
 
     console.log('📦 Installing...')
     runNpm(['install'], cwd)
+    await syncAndReportAgentFiles(cwd, templateDir)
 
     console.log('✅ Migrated. Run `nera dev` to start.')
     if (movedPlugins) {
@@ -100,7 +142,13 @@ async function migrateLegacy(cwd, pkg, runNpm) {
 }
 
 export async function runUpdate(args = [], options = {}) {
-    const { cwd = process.cwd(), runNpm = defaultRunNpm } = options
+    // templateDir: the fallback scaffold template for AGENTS.md / CLAUDE.md
+    // (see agentTemplateDir); injectable so tests need no installed package.
+    const {
+        cwd = process.cwd(),
+        runNpm = defaultRunNpm,
+        templateDir = packageTemplateDir(),
+    } = options
 
     const pkg = JSON.parse(
         await fs.readFile(path.join(cwd, 'package.json'), 'utf-8')
@@ -109,7 +157,7 @@ export async function runUpdate(args = [], options = {}) {
 
     if (kind === 'legacy') {
         if (args.includes('--migrate') || args.includes('--yes')) {
-            await migrateLegacy(cwd, pkg, runNpm)
+            await migrateLegacy(cwd, pkg, runNpm, templateDir)
         } else {
             printLegacyGuidance()
         }
@@ -126,5 +174,6 @@ export async function runUpdate(args = [], options = {}) {
     const targets = neraDeps(pkg)
     console.log(`🔄 Updating Nera packages: ${targets.join(', ')}`)
     runNpm(['update', ...targets], cwd)
+    await syncAndReportAgentFiles(cwd, templateDir)
     console.log('✅ Up to date.')
 }
