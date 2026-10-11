@@ -407,6 +407,10 @@ manual setup for users.
 ### L8 — Missing plugins
 
 - **`@nera-static/plugin-sitemap`** — `sitemap.xml` (+ `robots.txt` pointer).
+  Spec and record: `nera-plugin-sitemap/ROADMAP.md`. Built 2026-10-11 (Snagio
+  issue `01a1260d-9038-71ac-85ef-772486490e43`, hreflang alternates included);
+  1.0.0 prepared, not yet published — the release handover is in that
+  ROADMAP's slice 7.
 - **`@nera-static/plugin-feed`** — RSS/Atom for blogs, per language.
 
 Each gets its own ROADMAP in its own repo; the `blog` starter needs both.
