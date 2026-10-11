@@ -90,3 +90,68 @@ goal (extraction from `template/AGENTS.md` via `templateDir()`, usage from `node
 ## Step 1 — approved (2026-10-11)
 
 snagio: ticked
+commit: d50221c
+
+## Step 2 — started (2026-10-11)
+
+base_sha: d50221c25f3f1ef7acce6cdaa77b803c5448c766
+mode: fresh
+
+## Step 2 — implemented (2026-10-11)
+
+base_sha: d50221c
+
+### Changed
+- `ROADMAP-ai.md` status header — slice 1 done 2026-10-11 (scaffold 1.6.0, update 1.7.0, consistency test), "Next is slice 2"; the "still open" clause removed
+- `ROADMAP-ai.md` L1 section — names `test/agents-commands.test.js` and that a `--flag` written right after the command is checked too
+- `ROADMAP-ai.md` "Slice plan" item 1 — "consistency test done 2026-10-11 (test-only, no release). Slice 1 is complete"
+- `ROADMAP-ai.md` "Slice 1 — progress" — "Still open" paragraph replaced by a "Done 2026-10-11 (no release)" entry: how the test reads the usage, what it matches, why no release (D4), the two settled points (D2 matching, D3 non-vacuous), and "Slice 1 is complete."
+
+### Fixed alongside
+- none
+
+### Carry forward
+- debt · S · `../CLAUDE.md` (workspace root, untracked, outside this repo) — its "Nera for AI assistants" paragraph still says "slice 1 under way … the command-consistency test still open" — not this repo's file; update it when the issue is resolved
+
+### Verification
+```
+grep -n 'still open\|is open\|consistency test' ROADMAP-ai.md → 473, 475, 629, 692 — none calls the test open (473 = item's scope list, 475 = "done", 629 = slice-0 rationale, 692 = "Done" heading)
+npx vitest run → Test Files  8 passed (8) / Tests  100 passed (100)
+npm run lint → eslint . (no output, exit 0)
+```
+
+### Self-critique
+- First draft said naming `--json` in AGENTS.md fails the suite; the test only checks a flag written right after `nera <command>`, so the sentence now says `nera validate --json` and states that a detached flag is not checked.
+- Line 629 ("`AGENTS.md` cannot name it, because the command-consistency test (L1) would fail") is slice-0 rationale and stays true, so it was left as is.
+- "Next is slice 2" in the header follows the slice-plan order; least sure whether the header should name the next slice at all (the previous header did not).
+
+### Pressure-test questions for the reviewer
+1. Does any of the four places still read as if slice 1 or the test were open (header, L1, slice-plan item 1, "Slice 1 — progress")?
+2. Does every claim in the new "Done" paragraph match `test/agents-commands.test.js` (usage line `  nera <command>`, flag on that command's lines, run from no-arg `bin/nera.js`, `files` = bin/src/template)?
+
+## Step 2 — reviewed (2026-10-11)
+
+Verdict: approve
+
+### 🔴 Blocking
+- none
+
+### Fixed in review
+- none
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none (the implementer's `../CLAUDE.md` debt entry is already carried in the Step 2 implemented section; not logged again)
+
+### Checked
+goal (all four places: header l.5–9, L1 l.144–146, slice-plan item 1 l.472–476, "Slice 1 — progress" l.692–708) · `grep -n 'still open\|is open\|consistency test' ROADMAP-ai.md` → 473, 475, 629, 692, none calls the test open; extra `grep -i 'slice 1\|under way'` → no stale "under way" · `npx vitest run` → 100 passed · `npm run lint` → exit 0, no output · conventions: Non-negotiables (decision written back into ROADMAP "Done" note ✓, no version bump needed: test-only, `files` = bin/src/template ✓), Framework correctness n/a (doc only), Tests & hygiene ✓ · self-critique claims verified (l.629 still true; `--json` wording now matches the adjacent-flag-only check) · scope: ROADMAP-ai.md plus issue bookkeeping files only · walkthrough n/a (none)
+
+### Answers to the pressure-test questions
+1. No. Header says "Slice 1 is done (2026-10-11)" + "Next is slice 2"; L1 names the test file with no open wording; item 1 says "consistency test done 2026-10-11 … Slice 1 is complete"; the progress section's "Still open" paragraph is gone and ends "**Slice 1 is complete.**". "Next is slice 2" matches slice-plan item 2 (L2), so naming it is accurate.
+2. Yes, every claim matches `test/agents-commands.test.js`: `execFileSync(process.execPath, [CLI])` with no args (cwd = os.tmpdir()); `findMissing` matches `^ {2}nera <command>(?![\w-])` usage lines and checks the flag only on those lines; `COMMAND_PATTERN` is case-sensitive with lookbehind `(?<![\w.-])` (skips `nera.js.org`, `nera-navigation`); flag captured only when written right after the command; non-vacuity tests: `arrayContaining(['validate','build','check','update'])` and the `nera publish` fixture → `['nera publish']`. `package.json` `files` = `['bin','src','template']`, so `test/` is not shipped, no release is owed.
+
+## Step 2 — approved (2026-10-11)
+
+snagio: ticked

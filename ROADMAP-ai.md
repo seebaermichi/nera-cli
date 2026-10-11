@@ -2,11 +2,11 @@
 
 > **Status: spec, written 2026-10-10; decisions D1–D12 settled the same
 > day (see "Decisions"). Slice 0, the baseline cold agent test, is done
-> (2026-10-10, see "Slice 0 — baseline record"). Slice 1 is under way: the
-> scaffold ships `AGENTS.md` and `CLAUDE.md` since `@nera-static/nera` 1.6.0,
-> and `nera update` creates and refreshes them from 1.7.0 (see "Slice 1 —
-> progress"); the command-consistency test is still open. No open
-> questions.**
+> (2026-10-10, see "Slice 0 — baseline record"). Slice 1 is done
+> (2026-10-11): the scaffold ships `AGENTS.md` and `CLAUDE.md` since
+> `@nera-static/nera` 1.6.0, `nera update` creates and refreshes them from
+> 1.7.0, and a test keeps the commands they name in step with the CLI (see
+> "Slice 1 — progress"). Next is slice 2. No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -141,8 +141,9 @@ replaces only the Nera-owned part above the "Notes for this site" marker, so
 instructions follow the installed Nera version and the user's notes survive. A
 file without the marker is the user's own and is left alone (with a hint).
 
-A test asserts that every `nera <command>` the template's `AGENTS.md` mentions
-exists in the CLI's usage text, so the instructions cannot go stale silently.
+A test (`test/agents-commands.test.js`) asserts that every `nera <command>` the
+template's `AGENTS.md` mentions, and a `--flag` written right after it, exists
+in the CLI's usage text, so the instructions cannot go stale silently.
 
 ### L2 — AI-readable docs on nera.js.org
 
@@ -471,8 +472,8 @@ The first round, settled with the maintainer:
 1. **L1** — `AGENTS.md` + `CLAUDE.md` in the template and via `nera update`, the
    marker logic, the command-consistency test. **Template part done
    2026-10-10** (`@nera-static/nera` 1.6.0), **`nera update` part done
-   2026-10-11** (1.7.0), see "Slice 1 — progress"; the consistency test is
-   open.
+   2026-10-11** (1.7.0), **consistency test done 2026-10-11** (test-only, no
+   release). **Slice 1 is complete**, see "Slice 1 — progress".
 2. **L2** — `llms.txt` + `llms-full.txt` in `nera-website`; the "Using Nera with
    AI" page in en/de/es.
 3. **L3** — `--json` and the message review. Slices 1 and 3 can share a release.
@@ -688,8 +689,23 @@ missing `AGENTS.md` or `CLAUDE.md` and refreshes the Nera part of an existing
   leaves timestamps alone. Nothing is prompted. The sync does not run on the
   legacy-guidance path (which changes nothing) or when `npm update` fails.
 
-**Still open in slice 1**, its own issue: the test that every
-`nera <command>` in `AGENTS.md` exists in the CLI's usage text.
+**Done 2026-10-11 (no release): the command-consistency test.**
+`test/agents-commands.test.js` runs `node bin/nera.js` with no arguments and
+asserts that every `nera <command>` in `template/AGENTS.md` is a usage line
+(`  nera <command>`), and that a `--flag` written right after it appears on
+one of that command's usage lines. `test/` is not in the package's `files`,
+so consumers receive nothing new: no version bump, no CHANGELOG entry.
+Settled on the way:
+
+- **Matching is case-sensitive and anchored:** `Nera` in prose, `nera.js.org`
+  and binaries such as `nera-navigation` do not count as commands.
+- **The test proves it is not vacuous:** the extraction must find the
+  commands the template is known to name, and a fixture naming
+  `nera publish` must be reported missing. Naming `nera publish` (slice 6) or
+  `nera validate --json` (slice 3) in `AGENTS.md` before the CLI has them
+  fails the suite; a flag written apart from its command is not checked.
+
+**Slice 1 is complete.**
 
 ## Where the work lands
 

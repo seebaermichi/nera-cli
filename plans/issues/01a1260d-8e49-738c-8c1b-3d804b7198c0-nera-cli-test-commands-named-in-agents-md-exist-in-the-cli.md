@@ -43,7 +43,7 @@ code changes.
 - **Risks:** spawning the CLI from a cwd-relative path; resolve `bin/nera.js` from the test file's URL so vitest's cwd does not matter.
 - **Walkthrough:** none
 
-### Step 2 — ROADMAP-ai.md records the consistency test and slice 1 as done — ⬜ todo
+### Step 2 — ROADMAP-ai.md records the consistency test and slice 1 as done — ✅ done
 
 - **Goal:** the status header, slice list item 1 and "Slice 1 — progress" say the command-consistency test is done (2026-10-11, no release, test-only) and slice 1 is complete; the L1 section names the test file.
 - **Files:** `ROADMAP-ai.md` — status header, L1 paragraph, "Order of slices" item 1, "Slice 1 — progress"
