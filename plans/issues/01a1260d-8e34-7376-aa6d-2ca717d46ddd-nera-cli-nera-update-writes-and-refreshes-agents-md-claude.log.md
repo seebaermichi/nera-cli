@@ -229,3 +229,8 @@ Goal (README row + AI section, CHANGELOG 1.7.0/Added, version 1.7.0 in package.j
 ## Step 3 — approved (2026-10-11)
 
 snagio: ticked
+commit: 5d38278
+
+## Browser test (2026-10-11)
+
+- **Result:** SKIPPED — CLI command (`nera update` writing AGENTS.md/CLAUDE.md), no browser surface
