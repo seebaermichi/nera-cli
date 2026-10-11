@@ -776,7 +776,7 @@ links `llms.txt` and `llms-full.txt`** next to the docs link, which slice 1
 deferred until the files were live. `nera update` carries the line into
 existing sites, since it sits above the site-notes marker.
 
-**Done 2026-10-11 (`nera-website` `665ca57`, `8ebd359`): the raw Markdown
+**Done 2026-10-11 (`nera-website` `665ca57`, `8ebd359`, `178d22a`): the raw Markdown
 next to each English docs and tutorials page (2b).** The same plugin writes
 every page it renders for `llms-full.txt` to
 `.nera-cache/llms-txt/pages/<dirname>/<name>.md` and returns it from
