@@ -7,9 +7,11 @@
 > `@nera-static/nera` 1.6.0, `nera update` creates and refreshes them from
 > 1.7.0, and a test keeps the commands they name in step with the CLI (see
 > "Slice 1 — progress"). Slice 2 is under way: `llms.txt` and
-> `llms-full.txt` are live on nera.js.org (2026-10-11) and the template's
-> `AGENTS.md` links them since `@nera-static/nera` 1.8.0 (see "Slice 2 —
-> progress"). No open questions.**
+> `llms-full.txt` are live on nera.js.org (2026-10-11), the template's
+> `AGENTS.md` links them since `@nera-static/nera` 1.8.0, and each English
+> docs and tutorials page has its raw Markdown next to it (`/docs/cli.md`,
+> 2b, done 2026-10-11), which `llms.txt` links (see "Slice 2 — progress").
+> Still open in slice 2: the "Using Nera with AI" page. No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -157,7 +159,9 @@ in the CLI's usage text, so the instructions cannot go stale silently.
   Starters, CLI), each link with a one-line description.
 - **`/llms-full.txt`** — the complete English docs and tutorials as one Markdown
   file, frontmatter stripped, pages in navigation order.
-- **`/<page>.md`** next to each English docs page — the raw Markdown (slice 2b).
+- **`/<page>.md`** next to each English docs and tutorials page — the raw
+  Markdown, e.g. `/docs/cli.md` beside `/docs/cli.html` (slice 2b). `llms.txt`
+  links these files, so an assistant fetches one page as Markdown.
 
 Generated at build time by a local plugin in `nera-website/plugins/llms-txt/`
 that reads the Markdown sources from `pages/docs/` and `pages/tutorials/`
@@ -479,8 +483,8 @@ The first round, settled with the maintainer:
    release). **Slice 1 is complete**, see "Slice 1 — progress".
 2. **L2** — `llms.txt` + `llms-full.txt` in `nera-website`; the "Using Nera with
    AI" page in en/de/es. **`llms.txt` + `llms-full.txt` done 2026-10-11**
-   (live on nera.js.org, linked from `AGENTS.md` since 1.8.0), see "Slice 2 —
-   progress".
+   (live on nera.js.org, linked from `AGENTS.md` since 1.8.0), **raw `.md`
+   pages (2b) done 2026-10-11**, see "Slice 2 — progress".
 3. **L3** — `--json` and the message review. Slices 1 and 3 can share a release.
 4. **L4** — the skill and recipes, in both site folders, plus the zip.
 5. **L5** — `--starter` in the CLI and the interactive picker, proven with a
@@ -738,7 +742,9 @@ way:
   (gitignored), never into `public/`, which core deletes after plugins run.
 - **D3 — Root-relative Markdown links (`](/…)`) become absolute** against
   `origin` (fallback `https://nera.js.org`), so the text works out of
-  context. Links keep the `.html` paths the site serves.
+  context. Links keep the `.html` paths the site serves. (Since 2b,
+  `llms.txt` links each page's `.md` file instead; the `Source:` lines and
+  the links inside page bodies still name the `.html` pages.)
 - **D4 — `llms.txt` sections:** an H1 and a one-line `>` summary, then Docs
   and Tutorials (title + `description` per page, in `pagination_order`),
   Plugins (from the English plugins page's `plugins:` frontmatter; the
@@ -770,8 +776,37 @@ links `llms.txt` and `llms-full.txt`** next to the docs link, which slice 1
 deferred until the files were live. `nera update` carries the line into
 existing sites, since it sits above the site-notes marker.
 
-**Still open in slice 2:** the "Using Nera with AI" page in en/de/es; the raw
-`/<page>.md` files next to each English docs page (2b).
+**Done 2026-10-11 (`nera-website` `665ca57`, `8ebd359`): the raw Markdown
+next to each English docs and tutorials page (2b).** The same plugin writes
+every page it renders for `llms-full.txt` to
+`.nera-cache/llms-txt/pages/<dirname>/<name>.md` and returns it from
+`getAssets` as `<dirname>/<name>.md`, so `public/docs/cli.md` sits beside
+`public/docs/cli.html`. The cache folder is emptied first, so a removed page
+leaves no stale file. Settled on the way:
+
+- **D6 — The URL is `/<dirname>/<name>.md`** (`/docs/cli.md`), not the
+  llmstxt.org `.html.md` form.
+- **D7 — The same page set as `llms-full.txt`:** the 16 English docs and
+  tutorials pages D1 above selects, so the two outputs cannot drift; nothing
+  under `/de/` or `/es/`.
+- **D8 — Each `.md` is exactly the page's section of `llms-full.txt`:**
+  frontmatter stripped, root-relative links absolute, one H1, a `Source:`
+  line with the page's `.html` URL. "Raw" means the author's Markdown body,
+  not the frontmatter (layout, pagination keys) only Nera needs.
+- **D9 — `llms.txt` links the `.md` files** for every page item (Docs,
+  Tutorials and the CLI reference under `## CLI`), built by the same helper
+  as the asset path, so a link can only name a file that was written. The
+  plugin catalog, the npm link and `## Optional`'s `llms-full.txt` are
+  unchanged.
+
+Verified on the local build: `npm test` 21/21; `npm run lint && npm run
+validate && npm run build -- --check` passes (0 errors; the 3 warnings are the
+pre-existing `a11y-form-label` on the search pages); `public/` holds 16 `.md`
+files under `docs/` and `tutorials/`, none under `de/` or `es/`; `llms.txt`
+has 17 `.md` links, no `.html` page link, and every one resolves to a file in
+`public/`. Goes live on nera.js.org with the next `nera-website` push.
+
+**Still open in slice 2:** the "Using Nera with AI" page in en/de/es.
 
 ## Where the work lands
 
