@@ -161,3 +161,71 @@ goal (sync after `npm update` in the thin path and after `npm install` in `--mig
 ## Step 2 — approved (2026-10-11)
 
 snagio: ticked
+commit: e5e951f
+
+## Step 3 — started (2026-10-11)
+
+base_sha: e5e951f6936beb0ee3e3e6d1372287b06c852dee
+mode: fresh
+
+## Step 3 — implemented (2026-10-11)
+
+base_sha: e5e951f6936beb0ee3e3e6d1372287b06c852dee
+
+### Changed
+- `README.md` — `nera update` table row names the AGENTS.md/CLAUDE.md sync (links the AI section); "Instructions for AI assistants" gains a paragraph + list: create when missing, replace only above the first `<!-- nera:site-notes` line from the installed template, marker-less file left alone with hint, CLAUDE.md never touched, writes only on change
+- `CHANGELOG.md` — `## [1.7.0] - 2026-10-11` / `### Added` entry for the sync
+- `package.json`, `package-lock.json` — `npm version minor --no-git-tag-version` → 1.7.0
+- `ROADMAP-ai.md` — status header, slice plan item 1 and "Slice 1 — progress" mark the `nera update` part done (1.7.0) and record the split rule, installed-template source with fallback, untouched CLAUDE.md, marker-less skip, write-on-change; the command-consistency test stays the one open slice 1 item
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none
+
+### Verification
+```
+npx vitest run → Tests  93 passed (93)
+npm run lint → eslint . (no output, exit 0)
+node -p "require('./package.json').version" → 1.7.0
+```
+
+### Self-critique
+- CHANGELOG date is 2026-10-11 (today), not the plan's 2026-10-10: the plan was written a day earlier and the work landed today; the date gets corrected again if the tag goes out later.
+- "Ships in 1.7.0" wording: ROADMAP says "Done 2026-10-11 (`@nera-static/nera` 1.7.0)", the same form the 1.6.0 entry uses; nothing says "released" or "on npm". npm still has 1.6.0, no v1.7.0 tag exists.
+- README had no separate update section, only "Migrating a cloned (legacy) site"; I put the sync description in "Instructions for AI assistants", where the marker is already explained, rather than a new section, and linked it from the table row.
+- The ROADMAP's spec text (L1, D2) already matched the behaviour, so I left it alone and wrote the details into "Slice 1 — progress" only.
+
+### Pressure-test questions for the reviewer
+1. Does every claim in README/CHANGELOG/ROADMAP match `src/agent-files.js` and `src/commands/update.js` (no sync on the legacy-guidance path or on npm failure; `--migrate` does sync)?
+2. Is anything phrased as if 1.7.0 were already published?
+3. Is the command-consistency test still named as the only open slice 1 item in all three places (status header, slice plan, progress)?
+
+## Step 3 — reviewed (2026-10-11)
+
+Verdict: approve
+
+### 🔴 Blocking
+- none
+
+### Fixed in review
+- none
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none
+
+### Checked
+Goal (README row + AI section, CHANGELOG 1.7.0/Added, version 1.7.0 in package.json + lockfile, ROADMAP status header/slice plan/progress) · `npx vitest run` → 93 passed, `npm run lint` → exit 0, version → 1.7.0 · Non-negotiables (ROADMAP written back in same change, semver+CHANGELOG via npm version, no publish/push — no v1.7.0 tag), Framework correctness, Tests & hygiene (docs-only step, no new behaviour) · self-critique: date 2026-10-11 = today, acceptable; README placement in "Instructions for AI assistants" with anchor link from the table row is sound; ROADMAP spec text left alone, details in progress section · walkthrough n/a (none)
+
+### Answers to the pressure-test questions
+1. Yes. `src/commands/update.js`: thin path runs `runNpm(['update', …])` then `syncAndReportAgentFiles` (a failing npm throws first, so no sync); legacy path without `--migrate`/`--yes` calls `printLegacyGuidance()` and returns (no sync); `migrateLegacy` syncs after `npm install`. `src/agent-files.js`: split on first line starting with `<!-- nera:site-notes` (`markerOffset`), marker line onward kept via `siteText.slice(at)`, CRLF follows the site, marker-less → `skipped` + hint, existing CLAUDE.md never read beyond existence, writes only when `next !== agents`. `agentTemplateDir` prefers installed `node_modules/@nera-static/nera/template` with fallback — all as documented.
+2. No. ROADMAP says "from 1.7.0" / "Done 2026-10-11 (`@nera-static/nera` 1.7.0)", matching the 1.6.0 entry form; nothing says released or on npm; `git tag -l 'v1.7*'` is empty.
+3. Yes, in all three: status header ("the command-consistency test is still open"), slice plan item 1 ("the consistency test is open"), progress ("Still open in slice 1, its own issue: the test that every `nera <command>` …").
+
+## Step 3 — approved (2026-10-11)
+
+snagio: ticked

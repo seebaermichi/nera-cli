@@ -28,7 +28,7 @@ package is named after the folder (`My Bakery` → `my-bakery`).
 | `nera build` | Render `pages/` → `public/`. With `--check`, then run `nera check` on the result — one command for CI. |
 | `nera dev` | Build, serve `public/`, and rebuild on change with live reload. Watches `pages/`, `config/`, `theme/` and a local theme (`theme: ./themes/<name>`). |
 | `nera serve` | Serve the already-built `public/` folder. |
-| `nera update` | Update the site's Nera packages. On a legacy cloned site, `nera update --migrate` converts it to the thin model. |
+| `nera update` | Update the site's Nera packages, then create a missing `AGENTS.md`/`CLAUDE.md` and refresh the Nera part of `AGENTS.md` (see [Instructions for AI assistants](#instructions-for-ai-assistants)). On a legacy cloned site, `nera update --migrate` converts it to the thin model. |
 | `nera validate` | Check the site's sources (layouts, includes, YAML) before publishing; exits non-zero on any error. |
 | `nera check` | Check the built `public/` for accessibility, privacy and legal-notice problems (see below). Build first. |
 
@@ -55,6 +55,22 @@ brand voice, pages not to touch, where the site is deployed. It starts below
 the marker line `<!-- nera:site-notes … -->`; keep that line in place. The
 part above it is Nera's and may be replaced by a later Nera version; your
 notes below it are yours.
+
+`nera update` keeps both files current, with no extra flag. After the
+packages are updated (and after `nera update --migrate`) it:
+
+- creates `AGENTS.md` and `CLAUDE.md` when they are missing, so a site made
+  before 1.6.0 gets them too;
+- replaces only the part of `AGENTS.md` above the first line starting with
+  `<!-- nera:site-notes`, taking the new text from the installed
+  `@nera-static/nera`'s template; the marker line and everything below it
+  stay byte for byte as they are;
+- leaves an `AGENTS.md` without that line alone and prints a hint: copy the
+  marker line from the template directly above your own notes to opt in;
+- never touches an existing `CLAUDE.md`.
+
+A file is written only when its content changes, so running `nera update`
+again changes nothing.
 
 ## Starting from a theme
 

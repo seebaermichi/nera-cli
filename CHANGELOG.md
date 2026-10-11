@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-10-11
+
+### Added
+
+-   `nera update` now also keeps a site's `AGENTS.md` and `CLAUDE.md`
+    current, with no extra flag. After a successful package update (and
+    after `nera update --migrate`) it creates either file when it is
+    missing, so sites made before 1.6.0 get them too. In an existing
+    `AGENTS.md` it replaces only the part above the first line starting
+    with `<!-- nera:site-notes`, taken from the installed
+    `@nera-static/nera`'s template; that line and everything below it are
+    kept byte for byte. An `AGENTS.md` without the line is left alone with
+    a hint on how to opt in, and an existing `CLAUDE.md` is never touched.
+    Files are written only when their content changes, so a repeated
+    `nera update` changes nothing.
+
 ## [1.6.0] - 2026-10-10
 
 ### Added

@@ -60,7 +60,7 @@ marker-less `AGENTS.md` alone with a hint. Temp-dir tests cover all three cases.
 - **Risks:** the existing update/migrate tests asserting exact console output or file lists; a migrated site now also gains the two files
 - **Walkthrough:** none
 
-### Step 3 — Docs and release bookkeeping for 1.7.0 — ⬜ todo
+### Step 3 — Docs and release bookkeeping for 1.7.0 — ✅ done
 
 - **Goal:** README's `nera update` row and update section explain the AGENTS.md/CLAUDE.md sync and the marker. CHANGELOG has `## [1.7.0] - 2026-10-10` / `### Added`. `npm version minor --no-git-tag-version` brings 1.7.0. ROADMAP-ai.md "Slice 1 — progress" and the slice plan mark the `nera update` part done and record D2–D5 of this plan (installed-template source, untouched CLAUDE.md, split rule).
 - **Files:** `README.md`, `CHANGELOG.md`, `package.json`, `package-lock.json`, `ROADMAP-ai.md`

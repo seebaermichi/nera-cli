@@ -3,9 +3,10 @@
 > **Status: spec, written 2026-10-10; decisions D1–D12 settled the same
 > day (see "Decisions"). Slice 0, the baseline cold agent test, is done
 > (2026-10-10, see "Slice 0 — baseline record"). Slice 1 is under way: the
-> scaffold ships `AGENTS.md` and `CLAUDE.md` since `@nera-static/nera` 1.6.0
-> (see "Slice 1 — progress"); `nera update` writing them and the
-> command-consistency test are still open. No open questions.**
+> scaffold ships `AGENTS.md` and `CLAUDE.md` since `@nera-static/nera` 1.6.0,
+> and `nera update` creates and refreshes them from 1.7.0 (see "Slice 1 —
+> progress"); the command-consistency test is still open. No open
+> questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -469,8 +470,9 @@ The first round, settled with the maintainer:
    "Slice 0 — baseline record".
 1. **L1** — `AGENTS.md` + `CLAUDE.md` in the template and via `nera update`, the
    marker logic, the command-consistency test. **Template part done
-   2026-10-10** (`@nera-static/nera` 1.6.0), see "Slice 1 — progress";
-   `nera update` and the consistency test are open.
+   2026-10-10** (`@nera-static/nera` 1.6.0), **`nera update` part done
+   2026-10-11** (1.7.0), see "Slice 1 — progress"; the consistency test is
+   open.
 2. **L2** — `llms.txt` + `llms-full.txt` in `nera-website`; the "Using Nera with
    AI" page in en/de/es.
 3. **L3** — `--json` and the message review. Slices 1 and 3 can share a release.
@@ -660,9 +662,34 @@ change; it copies `template/` as it is. Settled on the way:
   them before scaffolding; the user's copies are kept untouched. Merging the
   Nera part into them is `nera update`'s job (D2).
 
-**Still open in slice 1**, each its own issue: `nera update` creating the two
-files and replacing only the part above the marker (D2), and the test that
-every `nera <command>` in `AGENTS.md` exists in the CLI's usage text.
+**Done 2026-10-11 (`@nera-static/nera` 1.7.0): `nera update` writes them
+(D2).** After a successful `npm update` on a thin site, and after
+`nera update --migrate`, `syncAgentFiles()` (`src/agent-files.js`) creates a
+missing `AGENTS.md` or `CLAUDE.md` and refreshes the Nera part of an existing
+`AGENTS.md`. It returns one `{ file, action }` per file (`created`,
+`updated`, `unchanged`, `skipped`) and `runUpdate` only prints it, so
+`--json` and the MCP tools can reuse it (principle 4). Settled on the way:
+
+- **Split rule:** the split is on the first line that *starts with*
+  `<!-- nera:site-notes`; the marker quoted inside a line does not count.
+  The new file is the template's text above its marker followed by the
+  site's file from its own marker line to the end, so the site keeps its
+  marker line and everything below it byte for byte. The template part takes
+  the site's line endings (a CRLF checkout stays CRLF).
+- **Source of the Nera part:** the site's installed
+  `node_modules/@nera-static/nera/template/AGENTS.md`, read after
+  `npm update`, falling back to the running CLI's own `template/`. The
+  instructions thus follow the installed Nera version even when a global or
+  older `nera` runs the update.
+- **An existing `CLAUDE.md` is never touched,** whatever it contains; only a
+  missing one is created. **A marker-less `AGENTS.md` is left alone** with a
+  hint naming the template file to copy the marker line from.
+- **Writes only on change,** so a repeated `nera update` is a no-op and
+  leaves timestamps alone. Nothing is prompted. The sync does not run on the
+  legacy-guidance path (which changes nothing) or when `npm update` fails.
+
+**Still open in slice 1**, its own issue: the test that every
+`nera <command>` in `AGENTS.md` exists in the CLI's usage text.
 
 ## Where the work lands
 
