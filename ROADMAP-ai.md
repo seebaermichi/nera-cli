@@ -704,6 +704,10 @@ Settled on the way:
   `nera publish` must be reported missing. Naming `nera publish` (slice 6) or
   `nera validate --json` (slice 3) in `AGENTS.md` before the CLI has them
   fails the suite; a flag written apart from its command is not checked.
+- **`npm run` scripts are checked too:** the same test asserts that every
+  `npm run <script>` in `template/AGENTS.md` is a key of
+  `template/package.json` `scripts` — the second command form the file
+  names, which can drift the same way.
 
 **Slice 1 is complete.**
 
