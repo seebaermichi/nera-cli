@@ -8,7 +8,9 @@ read them too.
 This site is built with [Nera](https://nera.js.org), a static site generator:
 Markdown pages plus Pug templates in, plain HTML out. Nera is not Eleventy,
 Hugo, Astro or Jekyll, so do not apply their conventions here. The docs are
-at https://nera.js.org.
+at https://nera.js.org; https://nera.js.org/llms.txt indexes them for AI
+assistants, and https://nera.js.org/llms-full.txt holds all of them in one
+Markdown file.
 
 ## Folder map
 

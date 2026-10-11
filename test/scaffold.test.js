@@ -383,11 +383,11 @@ describe('scaffoldProject agent instructions (AGENTS.md, CLAUDE.md)', () => {
         expect(lines.length - 1).toBeLessThanOrEqual(120)
     })
 
-    // https://nera.js.org/llms.txt is linked once it exists (slice 2, L2).
-    it('links the docs, not llms.txt before it exists', async () => {
+    it('links the docs, llms.txt and llms-full.txt', async () => {
         const text = await read(templateDir(), 'AGENTS.md')
         expect(text).toContain('https://nera.js.org')
-        expect(text).not.toContain('llms.txt')
+        expect(text).toContain('https://nera.js.org/llms.txt')
+        expect(text).toContain('https://nera.js.org/llms-full.txt')
     })
 
     it('ends with the owner\'s section, the marker directly above it', async () => {
