@@ -798,13 +798,21 @@ leaves no stale file. Settled on the way:
   as the asset path, so a link can only name a file that was written. The
   plugin catalog, the npm link and `## Optional`'s `llms-full.txt` are
   unchanged.
+- **D10 — Each of those pages advertises its `.md`** with
+  `<link rel="alternate" type="text/markdown">` in `head`: the plugin's
+  `getMetaData` sets `meta.markdown_href` from the same selection and
+  `markdownPath` as the asset, and the layout renders the link only when it
+  is set, so `/de/`, `/es/` and non-docs pages carry none. Core's
+  `asset_hashing` appends `?v=<hash>` to the href (`/docs/cli.md?v=…`);
+  accepted, since it resolves to the same file and busts caches on change.
 
-Verified on the local build: `npm test` 21/21; `npm run lint && npm run
+Verified on the local build: `npm test` 23/23; `npm run lint && npm run
 validate && npm run build -- --check` passes (0 errors; the 3 warnings are the
-pre-existing `a11y-form-label` on the search pages); `public/` holds 16 `.md`
-files under `docs/` and `tutorials/`, none under `de/` or `es/`; `llms.txt`
-has 17 `.md` links, no `.html` page link, and every one resolves to a file in
-`public/`. Goes live on nera.js.org with the next `nera-website` push.
+pre-existing `a11y-skip-link`, `a11y-nav-name` and `a11y-form-label`);
+`public/` holds 16 `.md` files under `docs/` and `tutorials/`, none under `de/`
+or `es/`; `llms.txt` has 17 `.md` links, no `.html` page link, and every one
+resolves to a file in `public/`; the same 16 English pages carry the
+`text/markdown` head link (D10), each to an existing `.md`. Goes live on nera.js.org with the next `nera-website` push.
 
 **Still open in slice 2:** the "Using Nera with AI" page in en/de/es.
 
