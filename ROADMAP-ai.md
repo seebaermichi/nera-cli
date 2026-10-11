@@ -6,7 +6,9 @@
 > (2026-10-11): the scaffold ships `AGENTS.md` and `CLAUDE.md` since
 > `@nera-static/nera` 1.6.0, `nera update` creates and refreshes them from
 > 1.7.0, and a test keeps the commands they name in step with the CLI (see
-> "Slice 1 — progress"). Next is slice 2. No open questions.**
+> "Slice 1 — progress"). Slice 2 is under way: `nera-website` generates
+> `llms.txt` and `llms-full.txt` (2026-10-11, committed, not yet deployed;
+> see "Slice 2 — progress"). No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -475,7 +477,8 @@ The first round, settled with the maintainer:
    2026-10-11** (1.7.0), **consistency test done 2026-10-11** (test-only, no
    release). **Slice 1 is complete**, see "Slice 1 — progress".
 2. **L2** — `llms.txt` + `llms-full.txt` in `nera-website`; the "Using Nera with
-   AI" page in en/de/es.
+   AI" page in en/de/es. **`llms.txt` + `llms-full.txt` done 2026-10-11**
+   (committed in `nera-website`, not yet deployed), see "Slice 2 — progress".
 3. **L3** — `--json` and the message review. Slices 1 and 3 can share a release.
 4. **L4** — the skill and recipes, in both site folders, plus the zip.
 5. **L5** — `--starter` in the CLI and the interactive picker, proven with a
@@ -710,6 +713,56 @@ Settled on the way:
   names, which can drift the same way.
 
 **Slice 1 is complete.**
+
+## Slice 2 — progress
+
+**Done 2026-10-11 (`nera-website`, committed, not yet pushed or deployed):
+`llms.txt` and `llms-full.txt`.** The local plugin
+`nera-website/plugins/llms-txt/index.js` builds both files on every
+`npm run build`, writes them to `.nera-cache/llms-txt/` and hands them to core
+through `getAssets` (`to: 'llms.txt'` and `'llms-full.txt'`), so they land in
+`public/` like any asset. Config lives in `nera-website/config/llms-txt.yaml`
+(`origin`, `title`, `summary`), each key with a JS fallback. Settled on the
+way:
+
+- **D1 — Page selection from `pagesData`, body from the source file.**
+  English pages (`meta.lang` `en`) whose `meta.dirname` is exactly `/docs` or
+  `/tutorials` and which carry `pagination_order`; `pagesData` holds rendered
+  HTML, so the Markdown body is read from the page's source under `pages/`.
+  The frontmatter is cut by a line-based split that only counts a `---`
+  block opening on line 1, so a `---` rule in a body survives; no YAML
+  parse, no new dependency.
+- **D2 — Files written to `.nera-cache/llms-txt/` inside `getAssets`**
+  (gitignored), never into `public/`, which core deletes after plugins run.
+- **D3 — Root-relative Markdown links (`](/…)`) become absolute** against
+  `origin` (fallback `https://nera.js.org`), so the text works out of
+  context. Links keep the `.html` paths the site serves.
+- **D4 — `llms.txt` sections:** an H1 and a one-line `>` summary, then Docs
+  and Tutorials (title + `description` per page, in `pagination_order`),
+  Plugins (from the English plugins page's `plugins:` frontmatter; the
+  package name is the link text, since that is what an assistant installs),
+  CLI (the CLI reference and the `@nera-static/nera` npm page), and
+  `Optional` linking `llms-full.txt`. **Starters is omitted** until a starter
+  exists (slice 5).
+- **D5 — Tests with `node:test`** in `plugins/llms-txt/index.test.js`, no new
+  dependency. `npm test` is `node --test plugins/*/*.test.js`, not
+  `node --test plugins/`: Node 22 treats `--test` arguments as globs and a
+  bare directory finds nothing, while the shell-expanded glob behaves the same
+  on Node 20 and 22. `test.yml` runs `npm test` after lint, before validate.
+- **`llms-full.txt` gives each page a heading and a `Source:` line** with the
+  page's URL, docs first, then tutorials. Tutorials get their `title` as H1;
+  docs keep their own H1, so no page has two.
+
+Verified on the local build: `npm test` 16/16 on Node 20 and 22;
+`npm run lint && npm run validate && npm run build -- --check` passes (0
+errors); `public/llms.txt` lists 7 docs, 9 tutorials, 16 plugins and 2 CLI
+links; `llms-full.txt` holds 16 pages, none from `/de/` or `/es/` (such paths
+appear only inside code examples of English pages).
+
+**Still open in slice 2:** pushing and deploying `nera-website`; the "Using
+Nera with AI" page in en/de/es; the raw `/<page>.md` files next to each
+English docs page (2b); the `llms.txt` link in the template's `AGENTS.md`
+(slice 1 deferred it until the file is live, so it follows the deploy).
 
 ## Where the work lands
 
