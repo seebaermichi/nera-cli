@@ -51,3 +51,12 @@ code changes.
 - **Review hardest:** stale "open" wording left in one of the four places.
 - **Risks:** none beyond the document.
 - **Walkthrough:** none
+
+### Step 3 — The npm scripts AGENTS.md names exist in the template's package.json — ✅ done
+
+- **Goal:** `test/agents-commands.test.js` also extracts every `npm run <script>` from `template/AGENTS.md` and asserts each is a key of `template/package.json`'s `scripts` (triage #1); a helper-level test shows a fixture naming `npm run deploy` is reported missing, and the real extraction contains at least `dev` and `build`.
+- **Files:** `test/agents-commands.test.js`
+- **Verify:** `npx vitest run && npm run lint` — all green
+- **Review hardest:** the regex — it must catch `npm run dev` inside backticks and prose, and stop at the script name (no trailing punctuation or backtick).
+- **Risks:** reading `template/package.json` cwd-relative; resolve it from the test file's URL like `bin/nera.js`.
+- **Walkthrough:** none

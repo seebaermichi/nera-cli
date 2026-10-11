@@ -44,8 +44,30 @@ function findMissing(commands, usage) {
     return [...new Set(missing)]
 }
 
+// `npm run <script>`. A script name may contain `:`, `.` and `-` (`build:css`)
+// but ends on a word character, so a trailing period, colon or backtick is
+// not part of it.
+const SCRIPT_PATTERN = /(?<![\w.-])npm run (\w(?:[\w:.-]*\w)?)/g
+
+/**
+ * Every script name an instructions text runs with `npm run <script>`.
+ */
+function extractScripts(text) {
+    return [...text.matchAll(SCRIPT_PATTERN)].map(([, script]) => script)
+}
+
+/**
+ * The `npm run <script>` names from `extractScripts` that are not keys of
+ * a package.json `scripts` object.
+ */
+function findMissingScripts(scripts, packageScripts) {
+    const missing = scripts.filter((script) => !Object.hasOwn(packageScripts, script))
+    return [...new Set(missing)].map((script) => `npm run ${script}`)
+}
+
 let usage
 let agents
+let templateScripts
 
 beforeAll(async () => {
     // Run outside the repo so no `.env` or site config influences the output.
@@ -54,6 +76,8 @@ beforeAll(async () => {
         encoding: 'utf-8',
     })
     agents = await fs.readFile(path.join(templateDir(), 'AGENTS.md'), 'utf-8')
+    const pkg = JSON.parse(await fs.readFile(path.join(templateDir(), 'package.json'), 'utf-8'))
+    templateScripts = pkg.scripts ?? {}
 })
 
 describe('extractCommands', () => {
@@ -92,8 +116,38 @@ describe('findMissing', () => {
     })
 })
 
+describe('extractScripts', () => {
+    it('finds scripts in backticks and prose and stops at the name', () => {
+        const text = '- `npm run dev` — serve. Then npm run build. Or npm run build:css, and `npm run lint`'
+        expect(extractScripts(text)).toEqual(['dev', 'build', 'build:css', 'lint'])
+    })
+
+    it('ignores npm commands that are not npm run', () => {
+        expect(extractScripts('Use `npm install` and `npm test`; see snpm run x.')).toEqual([])
+    })
+
+    it('finds the scripts the template AGENTS.md names', () => {
+        expect(extractScripts(agents)).toEqual(expect.arrayContaining(['dev', 'build']))
+    })
+})
+
+describe('findMissingScripts', () => {
+    it('reports a script package.json lacks', () => {
+        const fixture = 'Run `npm run build`, then `npm run deploy`.'
+        expect(findMissingScripts(extractScripts(fixture), templateScripts)).toEqual(['npm run deploy'])
+    })
+
+    it('does not treat inherited object keys as scripts', () => {
+        expect(findMissingScripts(['toString'], {})).toEqual(['npm run toString'])
+    })
+})
+
 describe('template AGENTS.md', () => {
     it('names only commands and flags the CLI usage lists', () => {
         expect(findMissing(extractCommands(agents), usage)).toEqual([])
+    })
+
+    it('names only npm scripts the template package.json defines', () => {
+        expect(findMissingScripts(extractScripts(agents), templateScripts)).toEqual([])
     })
 })

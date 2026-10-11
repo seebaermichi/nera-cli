@@ -155,3 +155,80 @@ goal (all four places: header l.5–9, L1 l.144–146, slice-plan item 1 l.472�
 ## Step 2 — approved (2026-10-11)
 
 snagio: ticked
+commit: 8840ae6
+
+## Browser test (2026-10-11)
+
+- **Result:** SKIPPED — no browser surface (a vitest and roadmap docs only)
+
+## Triage (2026-10-11)
+
+| # | item | from | disposition | why |
+|---|---|---|---|---|
+| 1 | debt · `test/agents-commands.test.js` — the `npm run <script>` names in `template/AGENTS.md` are not checked against `template/package.json` scripts | Carry forward | fix | same drift class, file this issue added; one test |
+| 2 | debt · `../CLAUDE.md` (workspace root, untracked) — "Nera for AI assistants" still says slice 1 under way, consistency test open | Step 2 — implemented | fix | outside the repo: done in reconciliation, no plan step |
+
+Already done / elsewhere: none
+Planning signal: the plan checked `nera` commands only, not every command form AGENTS.md names (`npm run` scripts)
+
+## Step 3 — started (2026-10-11)
+
+base_sha: 8840ae68073745f6902cdd2c8935babd8e374e35
+mode: fresh
+
+## Step 3 — implemented (2026-10-11)
+
+base_sha: 8840ae6
+
+### Changed
+- `test/agents-commands.test.js` — adds `SCRIPT_PATTERN`, `extractScripts` and `findMissingScripts`; reads `template/package.json` via `templateDir()` (module-relative, not cwd); new describes `extractScripts` (backticks + prose, stops before trailing `.`/backtick, keeps `build:css`; ignores `npm install`/`npm test`/`snpm run`; real AGENTS.md contains `dev` and `build`), `findMissingScripts` (fixture `npm run deploy` reported missing; inherited keys like `toString` are not scripts), and a template-level assertion that AGENTS.md names only scripts `package.json` defines. +54 lines, test-only.
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none
+
+### Verification
+```
+npx vitest run → Test Files  8 passed (8) / Tests  106 passed (106)
+npm run lint → eslint . (no output, exit 0)
+real extraction of template/AGENTS.md → [ 'dev', 'build', 'dev', 'build' ]
+```
+
+### Self-critique
+- Script names end on a word character, so `npm run build.` yields `build`; a script legitimately ending in `-`/`:` would be cut — no such script exists in npm conventions worth supporting.
+- `Object.hasOwn` instead of `in`, otherwise `npm run toString` would pass; covered by its own test.
+- `npm start`/`npm test` (no `run`) are deliberately out of scope: the step names `npm run <script>` only, and the template AGENTS.md uses none of them.
+- Kept the helpers test-local like `extractCommands`; no production code, so D4 (no release) still holds.
+
+### Pressure-test questions for the reviewer
+1. Does the regex stop correctly at the backtick in `` `npm run dev` `` and at the period in prose? (asserted in the first `extractScripts` test)
+2. Is `templateDir()` a module-relative path so the read is cwd-independent? (same helper the step-1 test uses for AGENTS.md)
+
+## Step 3 — reviewed (2026-10-11)
+
+Verdict: approve
+
+### 🔴 Blocking
+- none
+
+### Fixed in review
+- none
+
+### Fixed alongside
+- none
+
+### Carry forward
+- none
+
+### Checked
+goal (extractScripts/findMissingScripts + template-level assertion, fixture `npm run deploy` reported missing, real extraction contains dev+build) · `npx vitest run` → 8 files / 106 tests passed; `npm run lint` → exit 0 · Non-negotiables, Framework correctness, Tests & hygiene (test-only, ESM/eslint style, no release per D4, no new dependency) · self-critique: word-char ending verified against regex `(\w(?:[\w:.-]*\w)?)`; `Object.hasOwn` pinned by the `toString` test; `npm start`/`npm test` out of scope and absent from template AGENTS.md (grep: only `npm run dev`/`npm run build`/`npm install`) · scope: only test/agents-commands.test.js plus plan/log bookkeeping · walkthrough n/a (none)
+
+### Answers to the pressure-test questions
+1. Yes. The name group must end on `\w`, so a backtick or period cannot be captured; the test `'- `npm run dev` — serve. Then npm run build. Or npm run build:css, and `npm run lint`'` → `['dev','build','build:css','lint']` passes. Lookbehind `(?<![\w.-])` rejects `snpm run x` (asserted).
+2. Yes. `templateDir()` (src/scaffold.js:130) resolves from `fileURLToPath(import.meta.url)` of scaffold.js, so the read of `template/package.json` is cwd-independent; template scripts are `{ dev, build, serve }`, covering both names AGENTS.md uses.
+
+## Step 3 — approved (2026-10-11)
+
+snagio: ticked
