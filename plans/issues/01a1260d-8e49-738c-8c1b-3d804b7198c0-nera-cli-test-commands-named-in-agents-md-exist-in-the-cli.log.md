@@ -232,3 +232,4 @@ goal (extractScripts/findMissingScripts + template-level assertion, fixture `npm
 ## Step 3 — approved (2026-10-11)
 
 snagio: ticked
+commit: ded35fe
