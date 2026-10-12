@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-10-12
+
+### Added
+
+-   `nera validate --json`, `nera check --json` and
+    `nera build --check --json` print one JSON object on stdout and
+    nothing else, for AI agents and scripts: `{ "ok", "results" }`, where
+    `results` is the validator's list of `{ file, line, severity, rule,
+    message }` and `ok` is `true` exactly when the exit code is `0`. When
+    the command cannot run (no `public/`, a failed build) the object is
+    `{ "ok": false, "error", "results": [] }` with exit code `1`. The
+    build log and plugin output go to stderr; exit codes are the same as
+    without `--json`. `nera build --json` alone prints
+    `{ "ok": true, "results": [] }` after a successful build.
+-   The scaffold's `AGENTS.md` names the `--json` commands and their shape.
+    `nera update` adds the line to existing sites too, since it sits in
+    the Nera-owned part above the site-notes marker.
+
 ## [1.8.0] - 2026-10-11
 
 ### Added
