@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-10-12
+
+### Added
+
+-   The `nera` Agent Skill for AI assistants, shipped in the package under `skills/nera/`: a `SKILL.md` with the workflow (scaffold, content, plugins, `nera validate`, `nera build --check`, deploy `public/`) and eight short recipes (business site, blog, portfolio, contact form, search, images, multilingual site, custom domain) that link the docs on nera.js.org.
+-   `nera new` copies the skill into `.agents/skills/nera/` (Codex, Cursor, Copilot, Gemini CLI) and `.claude/skills/nera/` (Claude Code), with or without `--theme` and for `nera new .`.
+
+### Changed
+
+-   `nera update` (and `nera update --migrate`) also keeps both skill folders an exact copy of the installed `@nera-static/nera`'s skill: it adds missing files, rewrites changed ones and removes stale ones, only inside the two `nera/` folders. It writes nothing when they are current.
+-   The usage text and README list `--no-install` for `nera new`, which already skipped `npm install` but was undocumented.
+
 ## [1.9.0] - 2026-10-12
 
 ### Added
