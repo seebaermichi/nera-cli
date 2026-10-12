@@ -28,12 +28,12 @@ package is named after the folder (`My Bakery` → `my-bakery`).
 | Command | What it does |
 |---|---|
 | `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--theme <name>` to start from a theme. `nera new .` scaffolds into the current, empty folder (dotfiles, `AGENTS.md` and `CLAUDE.md` allowed). |
-| `nera build` | Render `pages/` → `public/`. With `--check`, then run `nera check` on the result — one command for CI. |
+| `nera build` | Render `pages/` → `public/`. With `--check`, then run `nera check` on the result — one command for CI. `--json` prints the result as one JSON object (see [Machine-readable output](#machine-readable-output)). |
 | `nera dev` | Build, serve `public/`, and rebuild on change with live reload. Watches `pages/`, `config/`, `theme/` and a local theme (`theme: ./themes/<name>`). |
 | `nera serve` | Serve the already-built `public/` folder. |
 | `nera update` | Update the site's Nera packages, then create a missing `AGENTS.md`/`CLAUDE.md` and refresh the Nera part of `AGENTS.md` (see [Instructions for AI assistants](#instructions-for-ai-assistants)). On a legacy cloned site, `nera update --migrate` converts it to the thin model. |
-| `nera validate` | Check the site's sources (layouts, includes, YAML) before publishing; exits non-zero on any error. |
-| `nera check` | Check the built `public/` for accessibility, privacy and legal-notice problems (see below). Build first. |
+| `nera validate` | Check the site's sources (layouts, includes, YAML) before publishing; exits non-zero on any error. `--json` for machine-readable output. |
+| `nera check` | Check the built `public/` for accessibility, privacy and legal-notice problems (see below). Build first. `--json` for machine-readable output. |
 
 A scaffolded site is a thin project — no vendored engine, no clone. It lists one
 dependency and its scripts call the CLI:
@@ -160,6 +160,36 @@ links are found by their text in German and English only (*Impressum*,
 `legal.imprint.<lang>` / `legal.privacy.<lang>`. The full rule tables, with the
 WCAG criterion or law behind each rule, are in the
 [`@nera-static/validate` README](https://github.com/seebaermichi/nera-validate#checking-the-built-output).
+
+## Machine-readable output
+
+`nera validate --json`, `nera check --json` and `nera build --check --json`
+print exactly one JSON object on stdout and nothing else, for an AI agent or a
+script to parse:
+
+```json
+{
+  "ok": true,
+  "results": [
+    {
+      "file": "public/index.html",
+      "line": 26,
+      "severity": "warning",
+      "rule": "a11y-skip-link",
+      "message": "the first focusable element is not a skip link — …"
+    }
+  ]
+}
+```
+
+`results` is the validator's list as it is, in the same order (`severity` is
+`error` or `warning`); `ok` is `true` exactly when the exit code is `0`, so
+warnings alone keep it `true`. When the command cannot run — no `public/` for
+`nera check`, a failed build, a config the validator cannot read — stdout holds
+`{ "ok": false, "error": "<message>", "results": [] }` and the exit code is `1`.
+Every log line (the build log, plugin output) goes to stderr, and the exit code
+is the same as without `--json`. `nera build --json` without `--check` prints
+`{ "ok": true, "results": [] }` after a successful build.
 
 ## Migrating a cloned (legacy) site
 

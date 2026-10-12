@@ -35,6 +35,10 @@ Markdown file.
 - `npx nera build --check` — build, then check the built `public/` for
   accessibility, privacy and legal issues (`npx nera check` checks without
   building)
+- `npx nera validate --json`, `npx nera check --json` and
+  `npx nera build --check --json` print one JSON object on stdout,
+  `{ "ok", "results": [{ file, line, severity, rule, message }] }`, with
+  the same exit code; the build log goes to stderr
 
 ## After every change
 
