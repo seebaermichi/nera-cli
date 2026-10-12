@@ -27,7 +27,7 @@ package is named after the folder (`My Bakery` → `my-bakery`).
 
 | Command | What it does |
 |---|---|
-| `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--theme <name>` to start from a theme. `nera new .` scaffolds into the current, empty folder (dotfiles, `AGENTS.md` and `CLAUDE.md` allowed). Every new site also gets the `nera` skill for AI assistants. |
+| `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--theme <name>` to start from a theme, `--no-install` to skip `npm install`. `nera new .` scaffolds into the current, empty folder (dotfiles, `AGENTS.md` and `CLAUDE.md` allowed). Every new site also gets the `nera` skill for AI assistants. |
 | `nera build` | Render `pages/` → `public/`. With `--check`, then run `nera check` on the result — one command for CI. `--json` prints the result as one JSON object (see [Machine-readable output](#machine-readable-output)). |
 | `nera dev` | Build, serve `public/`, and rebuild on change with live reload. Watches `pages/`, `config/`, `theme/` and a local theme (`theme: ./themes/<name>`). |
 | `nera serve` | Serve the already-built `public/` folder. |
