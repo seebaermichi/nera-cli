@@ -14,8 +14,8 @@
 > AI" page is written in en/de/es (2026-10-12, see "Slice 2 — progress").
 > Slice 3 is under way: `--json` for `nera validate`, `nera check` and
 > `nera build` ships in `@nera-static/nera` 1.9.0 (2026-10-12, see
-> "Slice 3 — progress"); the message review and `--yes` are next. No open
-> questions.**
+> "Slice 3 — progress"), the message review in `@nera-static/validate`
+> 1.4.2 (2026-10-12); `--yes` is next. No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -498,8 +498,9 @@ The first round, settled with the maintainer:
    **Slice 2 is complete**, see "Slice 2 — progress".
 3. **L3** — `--json` and the message review. Slices 1 and 3 can share a release.
    **`--json` for validate, check and build done 2026-10-12**
-   (`@nera-static/nera` 1.9.0), see "Slice 3 — progress"; the message review
-   and `--yes` are open.
+   (`@nera-static/nera` 1.9.0), **the message review done 2026-10-12**
+   (`@nera-static/validate` 1.4.2), see "Slice 3 — progress"; `--yes` is
+   open.
 4. **L4** — the skill and recipes, in both site folders, plus the zip.
 5. **L5** — `--starter` in the CLI and the interactive picker, proven with a
    minimal `starter-blank`; then `starter-blog` (needs L8) and
@@ -885,9 +886,40 @@ validate 1.4.1 in the lockfile), and a scripted run in a scaffolded site of
 eight cases (check without `public/`, validate clean/error, build --check
 with warnings/with an error, check with warnings/with an error, plain build):
 the whole stdout parses as JSON every time, the exit code with `--json` equals
-text mode in each, the build log is on stderr. Still open in slice 3: the
-message review and `--yes`/flags for every prompt; `nera publish --json`
-comes with slice 6.
+text mode in each, the build log is on stderr.
+
+**Done 2026-10-12 (`@nera-static/validate` 1.4.2): the message review.**
+Worked in a Claude Code cloud session, verified and extended locally. Every
+message validate and check can emit was inventoried (52 rows, in
+`nera-validate`'s `plans/cloud/01a1260d-…-result.md`) and now reads
+`<what> — <why>; <what to do> (<ref>)`: one line, opening words unchanged, so
+`does not resolve` and other grepped phrases still match; rule ids,
+severities, levels, `file` and `line` are untouched (patch).
+
+- **Source pass:** messages name the offending value and the site-relative
+  files looked for (`layout-unresolved`, `include-unresolved`), an example
+  `layout:` (the site's most-used one) and the exact `ignore` entry
+  (`layout-missing`), and one shared YAML fix (`yaml-parse`, frontmatter
+  positions as file lines). A table test in `test/validate.test.js` fails if
+  a source-pass message lacks an imperative fix after ` — ` or `; `.
+- **Output pass:** the `a11y-*`, `privacy-*` and `legal-*` messages gained a
+  fix but stay page-independent, so collapsing is unchanged; legal and
+  privacy fixes stay hints.
+- **Core's theme errors** are passed through; validate adds a fix only where
+  core has none (the "views does not exist" variant).
+- **Found on the way, fixed in the same release:** validate disagreed with
+  the build on extensionless targets (checked against core 4.15.0). Pug
+  appends `.pug` to an extensionless `include`, so a theme-only partial
+  builds but was reported unresolved; the build hands `layout` to Pug as is,
+  so `layout: pages/default` crashes the build but validate accepted it. Both
+  now match the build; the layout message names the missing extension.
+
+Verified: lint, `npx vitest run` 158/158 on Node 20 and 22, a broken demo
+site whose every finding names value, place and fix (and whose suggested
+`ignore` entry silences its warning), an extensionless demo site built with
+core before and after following the messages, and `nera-website` still
+clean. Still open in slice 3: `--yes`/flags for every prompt;
+`nera publish --json` comes with slice 6.
 
 ## Where the work lands
 
