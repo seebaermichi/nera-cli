@@ -6,12 +6,13 @@
 > (2026-10-11): the scaffold ships `AGENTS.md` and `CLAUDE.md` since
 > `@nera-static/nera` 1.6.0, `nera update` creates and refreshes them from
 > 1.7.0, and a test keeps the commands they name in step with the CLI (see
-> "Slice 1 — progress"). Slice 2 is under way: `llms.txt` and
+> "Slice 1 — progress"). Slice 2 is done (2026-10-12): `llms.txt` and
 > `llms-full.txt` are live on nera.js.org (2026-10-11), the template's
-> `AGENTS.md` links them since `@nera-static/nera` 1.8.0, and each English
+> `AGENTS.md` links them since `@nera-static/nera` 1.8.0, each English
 > docs and tutorials page has its raw Markdown next to it (`/docs/cli.md`,
-> 2b, done 2026-10-11), which `llms.txt` links (see "Slice 2 — progress").
-> Still open in slice 2: the "Using Nera with AI" page. No open questions.**
+> 2b, done 2026-10-11), which `llms.txt` links, and the "Using Nera with
+> AI" page is written in en/de/es (2026-10-12, see "Slice 2 — progress").
+> Next is slice 3. No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -489,7 +490,8 @@ The first round, settled with the maintainer:
 2. **L2** — `llms.txt` + `llms-full.txt` in `nera-website`; the "Using Nera with
    AI" page in en/de/es. **`llms.txt` + `llms-full.txt` done 2026-10-11**
    (live on nera.js.org, linked from `AGENTS.md` since 1.8.0), **raw `.md`
-   pages (2b) done 2026-10-11**, see "Slice 2 — progress".
+   pages (2b) done 2026-10-11**, **"Using Nera with AI" done 2026-10-12**.
+   **Slice 2 is complete**, see "Slice 2 — progress".
 3. **L3** — `--json` and the message review. Slices 1 and 3 can share a release.
 4. **L4** — the skill and recipes, in both site folders, plus the zip.
 5. **L5** — `--starter` in the CLI and the interactive picker, proven with a
@@ -819,7 +821,26 @@ or `es/`; `llms.txt` has 17 `.md` links, no `.html` page link, and every one
 resolves to a file in `public/`; the same 16 English pages carry the
 `text/markdown` head link (D10), each to an existing `.md`. Goes live on nera.js.org with the next `nera-website` push.
 
-**Still open in slice 2:** the "Using Nera with AI" page in en/de/es.
+**Done 2026-10-12 (`nera-website`): the "Using Nera with AI" page** at
+`/docs/using-ai.html` in en/de/es ("Nera mit KI nutzen", "Usar Nera con IA"),
+worked in a Claude Code cloud session and verified locally. `pagination_order:
+8`, last in the docs sidebar after the CLI reference (translation key
+`docs_nav_ai`), linked from the docs intro and getting started in all three
+languages. It covers `AGENTS.md`/`CLAUDE.md` and the "Notes for this site"
+section, the `llms.txt` link in `AGENTS.md` (1.8.0), `nera update` for existing
+sites, Claude Code / Codex / Cursor / Copilot and chat assistants without file
+access (one list, no vendor setup steps), `llms.txt` / `llms-full.txt` / the
+per-page `.md` (English only, stated on de/es), the validate → build --check →
+dev → diff loop, six example prompts (the second-language one localized; the
+add-a-page one installs `plugin-navigation`, since the scaffold has no menu)
+and a "planned" list — skill, `--json`, `nera publish`, MCP server — without
+dates, versions or URLs. Headings carry no `id`, so the link into the CLI
+reference names the section in text. The page appears in `llms.txt` and
+`llms-full.txt` and as `/docs/using-ai.md` with no plugin change. Verified:
+lint, `npm test` 23/23, `nera validate` clean, `build --check` 0 errors (the 3
+known warnings), a scripted check of all 103 internal links on the three pages.
+Goes live on nera.js.org with the next `nera-website` push. **Slice 2 is
+complete.**
 
 ## Where the work lands
 
