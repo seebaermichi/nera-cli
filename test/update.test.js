@@ -10,6 +10,7 @@ import {
     runUpdate,
 } from '../src/commands/update.js'
 import { templateDir as packageTemplateDir } from '../src/scaffold.js'
+import { skillSourceDir } from '../src/skill.js'
 
 let cwd
 
@@ -286,6 +287,137 @@ describe('runUpdate agent files', () => {
 
         expect(await read('AGENTS.md')).toBe(
             await fs.readFile(path.join(packageTemplateDir(), 'AGENTS.md'), 'utf-8')
+        )
+    })
+})
+
+// A minimal Nera skill at `dir`, its SKILL.md naming `marker`.
+const writeSkill = async (dir, marker) => {
+    await fs.mkdir(path.join(dir, 'recipes'), { recursive: true })
+    await fs.writeFile(path.join(dir, 'SKILL.md'), `---\nname: nera\n---\n# ${marker}\n`)
+    await fs.writeFile(path.join(dir, 'recipes', 'blog.md'), `# Blog (${marker})\n`)
+}
+
+const installedSkill = () =>
+    path.join(cwd, 'node_modules', '@nera-static', 'nera', 'skills', 'nera')
+
+const SKILL_FOLDERS = ['.agents/skills/nera', '.claude/skills/nera']
+
+describe('runUpdate Nera skill', () => {
+    let fallbackTemplate
+    let fallbackSkill
+    let log
+
+    beforeEach(async () => {
+        fallbackTemplate = path.join(cwd, 'fallback-template')
+        await writeTemplate(fallbackTemplate, '# Fallback')
+        fallbackSkill = path.join(cwd, 'fallback-skill')
+        await writeSkill(fallbackSkill, 'Fallback')
+        log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+        log.mockRestore()
+    })
+
+    const output = () => log.mock.calls.map((c) => c.join(' ')).join('\n')
+    const update = (args = [], runNpm = () => {}) =>
+        runUpdate(args, {
+            cwd,
+            runNpm,
+            templateDir: fallbackTemplate,
+            skillDir: fallbackSkill,
+        })
+
+    it('adds both folders from the fallback when nothing is installed', async () => {
+        await writePkg(thinPkg)
+        await update()
+
+        for (const folder of SKILL_FOLDERS) {
+            expect(await read(`${folder}/SKILL.md`)).toContain('# Fallback')
+            expect(await read(`${folder}/recipes/blog.md`)).toBe('# Blog (Fallback)\n')
+            expect(output()).toContain(`✓ Added the Nera skill in ${folder}`)
+        }
+    })
+
+    it('syncs from the installed package, read after npm ran', async () => {
+        await writePkg(thinPkg)
+        await writeSkill(path.join(cwd, '.claude/skills/nera'), 'Old')
+        await fs.writeFile(path.join(cwd, '.claude/skills/nera/recipes/gone.md'), 'stale\n')
+
+        const runNpm = () => {
+            fssync.mkdirSync(path.join(installedSkill(), 'recipes'), { recursive: true })
+            fssync.writeFileSync(path.join(installedSkill(), 'SKILL.md'), '# Installed\n')
+            fssync.writeFileSync(path.join(installedSkill(), 'recipes', 'blog.md'), '# Blog\n')
+        }
+        await update([], runNpm)
+
+        for (const folder of SKILL_FOLDERS) {
+            expect(await read(`${folder}/SKILL.md`)).toBe('# Installed\n')
+        }
+        expect(exists('.claude/skills/nera/recipes/gone.md')).toBe(false)
+        expect(output()).toContain('✓ Added the Nera skill in .agents/skills/nera')
+        expect(output()).toContain('✓ Refreshed the Nera skill in .claude/skills/nera')
+    })
+
+    it('reports both folders unchanged on a second run', async () => {
+        await writePkg(thinPkg)
+        await update()
+        log.mockClear()
+        await update()
+
+        for (const folder of SKILL_FOLDERS) {
+            expect(output()).toContain(`✓ ${folder} unchanged`)
+        }
+    })
+
+    it('leaves other skills and settings alone', async () => {
+        await writePkg(thinPkg)
+        await fs.mkdir(path.join(cwd, '.claude/skills/other'), { recursive: true })
+        await fs.writeFile(path.join(cwd, '.claude/skills/other/SKILL.md'), 'other\n')
+        await fs.writeFile(path.join(cwd, '.claude/settings.json'), '{}\n')
+        await update()
+
+        expect(await read('.claude/skills/other/SKILL.md')).toBe('other\n')
+        expect(await read('.claude/settings.json')).toBe('{}\n')
+    })
+
+    it('adds the skill after --migrate', async () => {
+        await writePkg({ dependencies: {} })
+        await writeVendoredEngine()
+        await update(['--migrate'])
+
+        for (const folder of SKILL_FOLDERS) {
+            expect(exists(`${folder}/SKILL.md`)).toBe(true)
+        }
+    })
+
+    it('writes nothing for a legacy site without --migrate', async () => {
+        await writePkg({ dependencies: {} })
+        await writeVendoredEngine()
+        await update()
+
+        expect(exists('.agents')).toBe(false)
+        expect(exists('.claude')).toBe(false)
+    })
+
+    it('writes nothing when npm update fails', async () => {
+        await writePkg(thinPkg)
+        const runNpm = () => {
+            throw new Error('npm failed')
+        }
+        await expect(update([], runNpm)).rejects.toThrow('npm failed')
+
+        expect(exists('.agents')).toBe(false)
+        expect(exists('.claude')).toBe(false)
+    })
+
+    it('defaults to the package\'s own skill', async () => {
+        await writePkg(thinPkg)
+        await runUpdate([], { cwd, runNpm: () => {}, templateDir: fallbackTemplate })
+
+        expect(await read('.agents/skills/nera/SKILL.md')).toBe(
+            await fs.readFile(path.join(skillSourceDir(), 'SKILL.md'), 'utf-8')
         )
     })
 })

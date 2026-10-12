@@ -4,6 +4,7 @@ import fssync from 'fs'
 import path from 'path'
 import { syncAgentFiles, SITE_NOTES_MARKER } from '../agent-files.js'
 import { templateDir as packageTemplateDir } from '../scaffold.js'
+import { installedSkillDir, skillSourceDir, syncSkill } from '../skill.js'
 
 const defaultRunNpm = (npmArgs, cwd) =>
     execFileSync('npm', npmArgs, { cwd, stdio: 'inherit' })
@@ -86,7 +87,22 @@ async function syncAndReportAgentFiles(cwd, fallbackDir) {
     }
 }
 
-async function migrateLegacy(cwd, pkg, runNpm, templateDir) {
+const SKILL_MESSAGES = {
+    created: (dir) => `  ✓ Added the Nera skill in ${dir}`,
+    updated: (dir) => `  ✓ Refreshed the Nera skill in ${dir}`,
+    unchanged: (dir) => `  ✓ ${dir} unchanged`,
+}
+
+// The skill folders are wholly Nera's, so they always follow the installed
+// version (see installedSkillDir).
+async function syncAndReportSkill(cwd, fallbackDir) {
+    const results = await syncSkill({ cwd, sourceDir: installedSkillDir(cwd, fallbackDir) })
+    for (const { path: dir, action } of results) {
+        console.log(SKILL_MESSAGES[action](dir))
+    }
+}
+
+async function migrateLegacy(cwd, pkg, runNpm, templateDir, skillDir) {
     console.log('🔧 Migrating this cloned site to the thin @nera-static/nera model...')
 
     pkg.dependencies = {
@@ -131,6 +147,7 @@ async function migrateLegacy(cwd, pkg, runNpm, templateDir) {
     console.log('📦 Installing...')
     runNpm(['install'], cwd)
     await syncAndReportAgentFiles(cwd, templateDir)
+    await syncAndReportSkill(cwd, skillDir)
 
     console.log('✅ Migrated. Run `nera dev` to start.')
     if (movedPlugins) {
@@ -143,11 +160,13 @@ async function migrateLegacy(cwd, pkg, runNpm, templateDir) {
 
 export async function runUpdate(args = [], options = {}) {
     // templateDir: the fallback scaffold template for AGENTS.md / CLAUDE.md
-    // (see agentTemplateDir); injectable so tests need no installed package.
+    // (see agentTemplateDir); skillDir: the fallback Nera skill (see
+    // installedSkillDir). Both injectable so tests need no installed package.
     const {
         cwd = process.cwd(),
         runNpm = defaultRunNpm,
         templateDir = packageTemplateDir(),
+        skillDir = skillSourceDir(),
     } = options
 
     const pkg = JSON.parse(
@@ -157,7 +176,7 @@ export async function runUpdate(args = [], options = {}) {
 
     if (kind === 'legacy') {
         if (args.includes('--migrate') || args.includes('--yes')) {
-            await migrateLegacy(cwd, pkg, runNpm, templateDir)
+            await migrateLegacy(cwd, pkg, runNpm, templateDir, skillDir)
         } else {
             printLegacyGuidance()
         }
@@ -175,5 +194,6 @@ export async function runUpdate(args = [], options = {}) {
     console.log(`🔄 Updating Nera packages: ${targets.join(', ')}`)
     runNpm(['update', ...targets], cwd)
     await syncAndReportAgentFiles(cwd, templateDir)
+    await syncAndReportSkill(cwd, skillDir)
     console.log('✅ Up to date.')
 }
