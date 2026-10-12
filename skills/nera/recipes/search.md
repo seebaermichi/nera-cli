@@ -22,14 +22,18 @@ JSON index, a small script searches it in the browser. No backend.
        include /vendor/plugin-search/search.pug
    ```
 
-4. `pages/search.md` with `layout: pages/search.pug` and a `title`. Link it
-   from the menu.
-5. The index is written to `theme/assets/search-index.json` on every build
+4. `pages/search.md` with `layout: pages/search.pug` and a `title`, and no
+   `#` heading: the copied template brings its own `h1`. Link the page from
+   the menu.
+5. The copy is the site's own: give its search input a label
+   (`aria-label="Search"`), or `nera build --check` warns
+   (`a11y-form-label`).
+6. The index is written to `theme/assets/search-index.json` on every build
    and served as `/search-index.json`. It is generated: add
    `theme/assets/search-index*.json` to `.gitignore`.
-6. Only pages with a `layout` are indexed. If other plugins add pages (tags),
+7. Only pages with a `layout` are indexed. If other plugins add pages (tags),
    run search last with `config/plugin-order.yaml` as the README shows.
-7. `npx nera validate`, then `npx nera build --check`; try a query with
+8. `npx nera validate`, then `npx nera build --check`; try a query with
    `npm run dev`.
 
 ## Files touched

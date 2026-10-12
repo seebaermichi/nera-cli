@@ -27,11 +27,11 @@ package is named after the folder (`My Bakery` → `my-bakery`).
 
 | Command | What it does |
 |---|---|
-| `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--theme <name>` to start from a theme. `nera new .` scaffolds into the current, empty folder (dotfiles, `AGENTS.md` and `CLAUDE.md` allowed). |
+| `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--theme <name>` to start from a theme. `nera new .` scaffolds into the current, empty folder (dotfiles, `AGENTS.md` and `CLAUDE.md` allowed). Every new site also gets the `nera` skill for AI assistants. |
 | `nera build` | Render `pages/` → `public/`. With `--check`, then run `nera check` on the result — one command for CI. `--json` prints the result as one JSON object (see [Machine-readable output](#machine-readable-output)). |
 | `nera dev` | Build, serve `public/`, and rebuild on change with live reload. Watches `pages/`, `config/`, `theme/` and a local theme (`theme: ./themes/<name>`). |
 | `nera serve` | Serve the already-built `public/` folder. |
-| `nera update` | Update the site's Nera packages, then create a missing `AGENTS.md`/`CLAUDE.md` and refresh the Nera part of `AGENTS.md` (see [Instructions for AI assistants](#instructions-for-ai-assistants)). On a legacy cloned site, `nera update --migrate` converts it to the thin model. |
+| `nera update` | Update the site's Nera packages, then create a missing `AGENTS.md`/`CLAUDE.md` and refresh the Nera part of `AGENTS.md` and the `nera` skill (see [Instructions for AI assistants](#instructions-for-ai-assistants)). On a legacy cloned site, `nera update --migrate` converts it to the thin model. |
 | `nera validate` | Check the site's sources (layouts, includes, YAML) before publishing; exits non-zero on any error. `--json` for machine-readable output. |
 | `nera check` | Check the built `public/` for accessibility, privacy and legal-notice problems (see below). Build first. `--json` for machine-readable output. |
 
@@ -74,6 +74,23 @@ packages are updated (and after `nera update --migrate`) it:
 
 A file is written only when its content changes, so running `nera update`
 again changes nothing.
+
+### The `nera` skill
+
+Every site also gets the `nera` [Agent Skill](https://agentskills.io): a
+`SKILL.md` with the workflow (scaffold, content, plugins, `nera validate`,
+`nera build --check`, deploy `public/`) and short recipes — business site,
+blog, portfolio, contact form, search, images, multilingual site, custom
+domain — that assistants load when a task matches. It lives in two folders,
+`.agents/skills/nera/` (Codex, Cursor, Copilot, Gemini CLI) and
+`.claude/skills/nera/` (Claude Code); commit them with the site.
+
+Both folders are Nera's: `nera new` writes them, and `nera update` (also after
+`--migrate`) replaces them with the skill of the installed `@nera-static/nera`,
+removing files the new version no longer has. Put your own instructions in
+`AGENTS.md`'s notes section or in a skill folder of your own; other folders
+under `.agents/skills/` and `.claude/skills/` are never touched. The source is
+[`skills/nera/`](skills/nera/) in this repository.
 
 ## Starting from a theme
 
