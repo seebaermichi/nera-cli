@@ -15,7 +15,10 @@
 > Slice 3 is under way: `--json` for `nera validate`, `nera check` and
 > `nera build` ships in `@nera-static/nera` 1.9.0 (2026-10-12, see
 > "Slice 3 — progress"), the message review in `@nera-static/validate`
-> 1.4.2 (2026-10-12); `--yes` is next. No open questions.**
+> 1.4.2 (2026-10-12); `--yes` is next. Slice 4 is under way: the skill
+> with eight recipes ships in both site folders since `@nera-static/nera`
+> 1.10.0 (2026-10-12, see "Slice 4 — progress"); the zip on nera.js.org is
+> next. No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -502,6 +505,8 @@ The first round, settled with the maintainer:
    (`@nera-static/validate` 1.4.2), see "Slice 3 — progress"; `--yes` is
    open.
 4. **L4** — the skill and recipes, in both site folders, plus the zip.
+   **The skill in both site folders done 2026-10-12** (`@nera-static/nera`
+   1.10.0), see "Slice 4 — progress"; the zip is open.
 5. **L5** — `--starter` in the CLI and the interactive picker, proven with a
    minimal `starter-blank`; then `starter-blog` (needs L8) and
    `starter-business` (needs a theme).
@@ -920,6 +925,54 @@ site whose every finding names value, place and fix (and whose suggested
 core before and after following the messages, and `nera-website` still
 clean. Still open in slice 3: `--yes`/flags for every prompt;
 `nera publish --json` comes with slice 6.
+
+## Slice 4 — progress
+
+**Done 2026-10-12 (`@nera-static/nera` 1.10.0): the skill in every site.**
+Worked in a Claude Code cloud session, verified and merged locally. The
+source lives in `nera-cli/skills/nera/`: a `SKILL.md` of 105 lines with only
+`name` and `description` in its frontmatter, and eight recipes under
+`recipes/` (38–63 lines each). The package ships it (`files`). `syncSkill()`
+(`src/skill.js`) mirrors it into `.agents/skills/nera/` and
+`.claude/skills/nera/`. `nera new` calls it with the package's own copy.
+`nera update` calls it after `npm update` and after `--migrate`, with the
+site's installed copy, falling back to the running CLI's. It returns
+`{ path, action }` per folder, and the commands print it. Settled on the way:
+
+- **Two folders, no third** (vendor docs re-checked 2026-10-12: Claude Code
+  `.claude/skills`; Codex `.agents/skills`; Cursor `.agents/skills` +
+  `.cursor/skills`, also reads `.claude/skills`; Copilot/VS Code
+  `.github/skills`, `.claude/skills`, `.agents/skills`; Gemini CLI
+  `.gemini/skills` + alias `.agents/skills`). Cursor and Copilot read both
+  and may list `nera` twice: same name, same content.
+- **Both folders are wholly Nera's:** they are exact mirrors, so files the
+  source dropped are deleted. Writes happen only on change. Nothing outside
+  `…/skills/nera/` is touched, so other skills and `.claude/settings.json`
+  survive. A symlinked `nera/` folder is replaced by a copy.
+- **Only today's commands:** the L4 workflow becomes `nera new` → content →
+  plugins → `nera validate` → `nera build --check` → deploy `public/`.
+  `test/agents-commands.test.js` now checks every `nera <command>` and
+  `npm run <script>` in `skills/nera/**/*.md` against the CLI, as it does
+  for `AGENTS.md`. `--starter` and `nera publish` go into the skill with
+  slices 5 and 6.
+- **Recipes link, never copy** (principle 2). Each recipe gives its steps,
+  the files it touches, and the docs page or plugin README to read next.
+  The plugin facts were checked against the plugins' READMEs and code
+  (simple-page-list items carry the page's `meta`; tags and search both have
+  `group_by_lang`; navigation's `linkListNav(elements, className, rootPath)`).
+  The contact-form and search recipes were built in a scaffolded site; all
+  18 nera.js.org links resolve.
+- **The skill does not repeat `AGENTS.md`:** it says to read it first and
+  adds the workflow and the recipe index.
+- **Found on the way:** `nera new --no-install` worked but was missing from
+  the usage text and README; both list it since 1.10.0.
+
+Verified locally: lint, `npx vitest run` 159/159 on Node 22, a throwaway site
+from the checkout (build and validate clean, both folders identical to the
+source, a second `nera update` reports all four files/folders unchanged).
+Still open in slice 4: the downloadable zip on nera.js.org (`nera-website`).
+The search plugin's published template still draws `a11y-h1` and
+`a11y-form-label` warnings; the search recipe works around them.
 
 ## Where the work lands
 
