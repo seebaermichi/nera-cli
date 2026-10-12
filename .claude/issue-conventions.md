@@ -68,8 +68,10 @@ releases, plugin contract); this file only adds what a reviewer checks per diff.
   `mcp__playwright__browser_click`, `mcp__playwright__browser_snapshot`,
   `mcp__playwright__browser_console_messages`).
 - Boot (a throwaway site from the *local* checkout, never from npm):
-  `R=$PWD; T=$(mktemp -d) && cd "$T" && node "$R/bin/nera.js" new site --no-install && cd site && npm install "$R" && npx nera build && npx nera serve --port 3123`
-  (`nera new` takes a plain name, not a path; `nera serve` opens a browser tab on
+  `R=$PWD; T=$(mktemp -d) && cd "$T" && node "$R/bin/nera.js" new site --no-install && cd site && npm install --install-links "$R" && npx nera build && npx nera serve --port 3123`
+  (`--install-links` copies the checkout instead of symlinking it, else core
+  resolves plugins from the checkout's `node_modules` and the site's own fail to
+  load; `nera new` takes a plain name, not a path; `nera serve` opens a browser tab on
   its own; Node 22 for the install if npm crashes:
   `PATH=~/.nvm/versions/node/v22.22.0/bin:$PATH`). Verified 2026-10-10: a fresh
   site builds, validates clean and has 3 `nera check` warnings. Delete `$T`
