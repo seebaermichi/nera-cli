@@ -5,6 +5,7 @@ import os from 'os'
 import { execFileSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { templateDir } from '../src/scaffold.js'
+import { skillSourceDir } from '../src/skill.js'
 
 // Resolved from this file, so the test passes whatever vitest's cwd is.
 const CLI = fileURLToPath(new URL('../bin/nera.js', import.meta.url))
@@ -68,6 +69,7 @@ function findMissingScripts(scripts, packageScripts) {
 let usage
 let agents
 let templateScripts
+let skillFiles
 
 beforeAll(async () => {
     // Run outside the repo so no `.env` or site config influences the output.
@@ -78,6 +80,16 @@ beforeAll(async () => {
     agents = await fs.readFile(path.join(templateDir(), 'AGENTS.md'), 'utf-8')
     const pkg = JSON.parse(await fs.readFile(path.join(templateDir(), 'package.json'), 'utf-8'))
     templateScripts = pkg.scripts ?? {}
+    // Every Markdown file of the Nera skill, as [relative path, text].
+    const entries = await fs.readdir(skillSourceDir(), { recursive: true, withFileTypes: true })
+    skillFiles = await Promise.all(
+        entries
+            .filter((e) => e.isFile() && e.name.endsWith('.md'))
+            .map(async (e) => {
+                const file = path.join(e.parentPath, e.name)
+                return [path.relative(skillSourceDir(), file), await fs.readFile(file, 'utf-8')]
+            })
+    )
 })
 
 describe('extractCommands', () => {
@@ -149,5 +161,29 @@ describe('template AGENTS.md', () => {
 
     it('names only npm scripts the template package.json defines', () => {
         expect(findMissingScripts(extractScripts(agents), templateScripts)).toEqual([])
+    })
+})
+
+describe('the Nera skill (skills/nera)', () => {
+    it('is not vacuous: the extraction finds the commands SKILL.md is known to name', () => {
+        const [, text] = skillFiles.find(([file]) => file === 'SKILL.md')
+        const names = extractCommands(text).map(({ command }) => command)
+        expect(names).toEqual(expect.arrayContaining(['new', 'validate', 'build', 'check', 'update']))
+        expect(extractScripts(text)).toEqual(expect.arrayContaining(['dev', 'build']))
+        expect(skillFiles.length).toBeGreaterThan(1)
+    })
+
+    it('names only commands and flags the CLI usage lists', () => {
+        const missing = skillFiles.flatMap(([file, text]) =>
+            findMissing(extractCommands(text), usage).map((m) => `${file}: ${m}`)
+        )
+        expect(missing).toEqual([])
+    })
+
+    it('names only npm scripts the template package.json defines', () => {
+        const missing = skillFiles.flatMap(([file, text]) =>
+            findMissingScripts(extractScripts(text), templateScripts).map((m) => `${file}: ${m}`)
+        )
+        expect(missing).toEqual([])
     })
 })
