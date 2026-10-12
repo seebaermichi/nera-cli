@@ -12,7 +12,10 @@
 > docs and tutorials page has its raw Markdown next to it (`/docs/cli.md`,
 > 2b, done 2026-10-11), which `llms.txt` links, and the "Using Nera with
 > AI" page is written in en/de/es (2026-10-12, see "Slice 2 — progress").
-> Next is slice 3. No open questions.**
+> Slice 3 is under way: `--json` for `nera validate`, `nera check` and
+> `nera build` ships in `@nera-static/nera` 1.9.0 (2026-10-12, see
+> "Slice 3 — progress"); the message review and `--yes` are next. No open
+> questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -123,7 +126,8 @@ says "make me a website for my bakery" (L7).
 `nera new` writes, by default (decision D1):
 
 - **`AGENTS.md`** — the cross-tool convention read by Codex, Cursor, Copilot,
-  Gemini CLI and others. At most ~120 lines:
+  Gemini CLI and others. At most ~125 lines (was ~120; the `--json` bullet,
+  slice 3, took it to 124):
   - what Nera is, in two sentences, and the link to https://nera.js.org/llms.txt
   - the folder map: `pages/` (Markdown + frontmatter), `theme/views/` (Pug),
     `theme/assets/`, `config/*.yaml`, `src/plugins/` (local plugins — core's
@@ -493,6 +497,9 @@ The first round, settled with the maintainer:
    pages (2b) done 2026-10-11**, **"Using Nera with AI" done 2026-10-12**.
    **Slice 2 is complete**, see "Slice 2 — progress".
 3. **L3** — `--json` and the message review. Slices 1 and 3 can share a release.
+   **`--json` for validate, check and build done 2026-10-12**
+   (`@nera-static/nera` 1.9.0), see "Slice 3 — progress"; the message review
+   and `--yes` are open.
 4. **L4** — the skill and recipes, in both site folders, plus the zip.
 5. **L5** — `--starter` in the CLI and the interactive picker, proven with a
    minimal `starter-blank`; then `starter-blog` (needs L8) and
@@ -841,6 +848,46 @@ lint, `npm test` 23/23, `nera validate` clean, `build --check` 0 errors (the 3
 known warnings), a scripted check of all 103 internal links on the three pages.
 Goes live on nera.js.org with the next `nera-website` push. **Slice 2 is
 complete.**
+
+## Slice 3 — progress
+
+**Done 2026-10-12 (`@nera-static/nera` 1.9.0): `--json` for validate, check
+and build.** Worked in a Claude Code cloud session, verified locally.
+`nera validate --json`, `nera check --json` and `nera build --check --json`
+print exactly one object on stdout, `JSON.stringify(value, null, 2)` plus a
+newline: `{ "ok", "results" }` with `@nera-static/validate`'s results
+unchanged (same objects, same order, including any extra field the installed
+validator adds, such as `source` on check findings), `ok` true exactly when
+the exit code is 0 (warnings alone keep it true). A command that throws (no
+`public/`, a failed build, an unreadable config) prints
+`{ "ok": false, "error": "<message>", "results": [] }` and exits 1, with no
+`❌` line. `nera build --json` without `--check` prints
+`{ "ok": true, "results": [] }`; with `--check` only the check's object, no
+build section. Settled on the way:
+
+- **Logs to stderr:** while the command runs, `console.log`/`info`/`debug`
+  **and raw `process.stdout.write`** go to stderr, so plugin output that
+  bypasses `console` cannot break the object; the object is written through
+  the restored stdout afterwards.
+- **One code path:** `src/json-output.js` (`runJson`) serves all three
+  commands; it stays synchronous for a synchronous body, so `runValidate` and
+  `runCheck` still return a number. The bin now sets `process.exitCode` for
+  `validate` and `check` instead of calling `process.exit()`, so a large
+  object written to a pipe is never cut off.
+- **`template/AGENTS.md` names the three commands and the shape** (124
+  lines; L1's cap moved to ~125). `nera update` brings the line to existing
+  sites.
+- **For slice 8:** the MCP server calling the `run*` functions in-process will
+  want the `{ ok, results }` value returned rather than printed to stdout.
+
+Verified: lint, `npx vitest run` 123/123 on Node 22 (with core 4.15.2 and
+validate 1.4.1 in the lockfile), and a scripted run in a scaffolded site of
+eight cases (check without `public/`, validate clean/error, build --check
+with warnings/with an error, check with warnings/with an error, plain build):
+the whole stdout parses as JSON every time, the exit code with `--json` equals
+text mode in each, the build log is on stderr. Still open in slice 3: the
+message review and `--yes`/flags for every prompt; `nera publish --json`
+comes with slice 6.
 
 ## Where the work lands
 
