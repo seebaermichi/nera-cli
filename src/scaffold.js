@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import fssync from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { skillSourceDir, syncSkill } from './skill.js'
 
 // Directory-safe and npm-safe: no separators, no traversal, no leading dot or
 // dash, nothing the shell could reinterpret. Deliberately stricter than npm's
@@ -182,6 +183,16 @@ async function applyTheme(targetDir, theme) {
     console.log(`  ✓ Using theme "${theme}"${pkgName ? ` (${pkgName})` : ''}`)
 }
 
+// The Nera skill for AI assistants, in both folders the clients read
+// (.agents/skills/nera, .claude/skills/nera). Meant to be committed, and
+// refreshed by `nera update`.
+async function addSkill(targetDir) {
+    const results = await syncSkill({ cwd: targetDir, sourceDir: skillSourceDir() })
+    console.log(
+        `  ✓ Added the Nera skill for AI assistants (${results.map((r) => r.path).join(', ')})`
+    )
+}
+
 // Scaffold a thin Nera site: copy the template, name it, and (by default)
 // install its single dependency, @nera-static/nera. No git clone, no vendored
 // engine — the opposite of the old installer's clone-and-strip flow.
@@ -204,6 +215,7 @@ export async function scaffoldProject(projectName, options = {}) {
     await copyDir(templateDir(), targetDir, { skipStarters: Boolean(theme) })
     await personalize(targetDir, packageName)
     if (theme) await applyTheme(targetDir, theme)
+    await addSkill(targetDir)
 
     if (install) {
         console.log('📦 Installing dependencies...')

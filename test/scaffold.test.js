@@ -11,6 +11,7 @@ import {
     projectNameFromDir,
     templateDir,
 } from '../src/scaffold.js'
+import { skillSourceDir } from '../src/skill.js'
 import { parseNewArgs } from '../src/commands/new.js'
 
 let workdir
@@ -408,6 +409,71 @@ describe('scaffoldProject agent instructions (AGENTS.md, CLAUDE.md)', () => {
         const text = await read(templateDir(), 'AGENTS.md')
         expect(text).not.toMatch(/nera publish/)
         expect(text).not.toMatch(/(^|[^/])\bplugins\/<name>/m)
+    })
+})
+
+describe('scaffoldProject Nera skill (.agents/skills/nera, .claude/skills/nera)', () => {
+    // Every file under dir, relative to it.
+    const listFiles = async (dir) =>
+        (await fs.readdir(dir, { recursive: true, withFileTypes: true }))
+            .filter((e) => e.isFile())
+            .map((e) => path.relative(dir, path.join(e.parentPath, e.name)))
+            .sort()
+
+    const modes = {
+        'a new folder': () =>
+            scaffoldProject('plain', { cwd: workdir, install: false }),
+        'a new folder with --theme': () =>
+            scaffoldProject('themed', {
+                cwd: workdir,
+                install: false,
+                theme: 'example',
+            }),
+        'the current folder': async () => {
+            const dir = path.join(workdir, 'here')
+            await fs.mkdir(dir)
+            return scaffoldProject('.', { cwd: dir, install: false })
+        },
+    }
+
+    for (const [mode, scaffold] of Object.entries(modes)) {
+        it(`copies the skill into both folders of ${mode}`, async () => {
+            const target = await scaffold()
+            const expected = await listFiles(skillSourceDir())
+            expect(expected).toContain('SKILL.md')
+            for (const folder of ['.agents/skills/nera', '.claude/skills/nera']) {
+                const dir = path.join(target, folder)
+                expect(await listFiles(dir)).toEqual(expected)
+                for (const file of expected) {
+                    expect(await read(dir, file)).toBe(await read(skillSourceDir(), file))
+                }
+            }
+        })
+    }
+
+    it('keeps the user\'s .claude settings when scaffolding in place', async () => {
+        const dir = path.join(workdir, 'here')
+        await fs.mkdir(path.join(dir, '.claude'), { recursive: true })
+        await fs.writeFile(path.join(dir, '.claude', 'settings.json'), '{}\n')
+        await scaffoldProject('.', { cwd: dir, install: false })
+
+        expect(await read(dir, '.claude/settings.json')).toBe('{}\n')
+        expect(fssync.existsSync(path.join(dir, '.claude/skills/nera/SKILL.md'))).toBe(true)
+    })
+
+    it('says so, and the .gitignore does not hide the skill', async () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+        const target = await scaffoldProject('said', { cwd: workdir, install: false })
+        const output = log.mock.calls.map((c) => c.join(' ')).join('\n')
+        log.mockRestore()
+
+        expect(output).toContain(
+            '✓ Added the Nera skill for AI assistants (.agents/skills/nera, .claude/skills/nera)'
+        )
+        const ignored = (await read(target, '.gitignore')).split('\n').map((l) => l.trim())
+        for (const line of ignored) {
+            expect(line).not.toMatch(/^\/?\.(agents|claude)\b|^skills\b|^\.\*/)
+        }
     })
 })
 
