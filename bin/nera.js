@@ -8,18 +8,19 @@ import { runValidate } from '../src/commands/validate.js'
 import { runCheck } from '../src/commands/check.js'
 
 const [, , command, ...rest] = process.argv
+const json = rest.includes('--json')
 
 const usage = `Nera — the static site generator CLI
 
 Usage:
   nera new <name>    scaffold a new Nera site (--theme <name> to start from a theme)
   nera new .         scaffold into the current, empty folder
-  nera build         render pages/ → public/ (--check to check the output after)
+  nera build         render pages/ → public/ (--check to check the output after, --json for machine-readable output)
   nera dev           build, serve and live-reload
   nera serve         serve the built public/ folder
   nera update        update Nera packages (or migrate a cloned site with --migrate)
-  nera validate      check the site (layouts, includes, YAML) before publish
-  nera check         check the built public/ (accessibility, privacy, legal hints)
+  nera validate      check the site (layouts, includes, YAML) before publish (--json for machine-readable output)
+  nera check         check the built public/ (accessibility, privacy, legal hints) (--json for machine-readable output)
 `
 
 try {
@@ -40,10 +41,10 @@ try {
         await runUpdate(rest)
         break
     case 'validate':
-        process.exit(runValidate())
+        process.exitCode = runValidate({ json })
         break
     case 'check':
-        process.exit(runCheck())
+        process.exitCode = runCheck({ json })
         break
     default:
         console.log(usage)
