@@ -262,6 +262,27 @@ plugins wired up, and a theme dependency.
   imprint, privacy), `blog` (tags, pagination, feed, sitemap), `portfolio`
   (images). Each needs a real theme — at least two new themes beyond
   `theme-example`; theme specs live in `generator/ROADMAP-themes.md`.
+- **Theme specs done 2026-10-13** (`generator/ROADMAP-themes.md`, section
+  "Starter-ready themes", S1–S9): `@nera-static/theme-business` (repo
+  `nera-theme-business`, `theme: business`) carries the business **and**
+  portfolio starters (hero, cards, opening hours from `app.business`, a
+  contact page with a seam for plugin-contact-form, list and gallery views for
+  projects); `@nera-static/theme-blog` (`nera-theme-blog`, `theme: blog`)
+  carries the blog starter (post list, post, archive, tag page for plugin-tags
+  3.x, prev/next via plugin-page-pagination, code blocks via `--nera-code-*`,
+  a reserved seam for the planned plugin-feed). The blank starter uses no
+  theme. Both: `nera.generator >=4.15.0`, optional plugin peers, plugin output
+  only through seam partials the starter overrides, tokens in
+  `config/theme.yaml` as `--theme-*` custom properties, no JS, no third-party
+  requests, zero `nera check` findings on the starter's sample pages. S6 lists
+  what each starter must do. Open questions T1, T3–T5 (paged lists,
+  translations shipped with a theme, `--starter` skipping the scaffold
+  defaults, inline tokens under a strict CSP); T2 (a themed site without its
+  own views folder) was fixed in core 4.16.0 the same day, along with the
+  plugin gaps the spec found (page-pagination 2.4.0, navigation 3.1.0,
+  page-navigation 2.5.0, social-media-links 2.3.0, tags 3.3.0). **T4 belongs
+  to `--starter`:** it must leave out the `nera:scaffold-default` files as
+  `--theme` does.
 
 ### L6 — `nera publish`: from folder to URL
 
