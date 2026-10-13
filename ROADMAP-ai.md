@@ -19,7 +19,10 @@
 > with eight recipes ships in both site folders since `@nera-static/nera`
 > 1.10.0 (2026-10-12, see "Slice 4 — progress"), and nera.js.org offers it
 > as `/downloads/nera-skill.zip` (2026-10-13, live with the deploy that
-> takes 1.10.0). No open questions.**
+> takes 1.10.0). Slice 5 is under way: `nera new --starter`, `--name`,
+> `--lang`, `--yes` and the picker ship in `@nera-static/nera` 1.11.0
+> (2026-10-13, see "Slice 5 — progress"); `starter-blank` is next. No open
+> questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -992,6 +995,48 @@ unpacked zip identical to `skills/nera/`, and `nera validate` + `nera build
 Slice 4 is complete apart from the Claude Code plugin and the OpenAI
 equivalent, which L4 lists as later. The search plugin's published template still draws `a11y-h1` and
 `a11y-form-label` warnings; the search recipe works around them.
+
+## Slice 5 — progress
+
+**Done 2026-10-13 (`@nera-static/nera` 1.11.0): `nera new --starter` and the
+picker.** Worked in a Claude Code cloud session, verified and merged locally.
+`src/starter.js` validates the four spec forms (plus absolute paths), maps
+them to `npm pack` specs (`blank` → `@nera-static/starter-blank`, GitHub URLs
+→ `github:o/r#ref`), downloads with `npm pack --ignore-scripts` + `tar`, and
+refuses anything without `nera.starter` before the site folder exists. Only
+`pages/`, `config/`, `theme/`, `assets/`, `plugins/` and `.neraignore` are
+copied (starter wins); `dependencies` are merged, the site's
+`@nera-static/nera` entry is kept; the README is printed, not copied. A
+starter that sets `theme:` drops the `nera:scaffold-default` views.
+`--name`/`--lang` edit `config/app.yaml` line by line (name as a JSON
+string). The picker (`src/prompt.js`, `node:readline`) runs only on a TTY
+without `--yes` or `--starter` and only collects options for
+`scaffoldProject`, the one code path the MCP tool `create_site` will call.
+The offline list (`src/starters.js`) is hand-kept and holds only `blank`.
+Proven with `test/fixtures/starter-minimal`; no starter is on npm yet.
+Settled on the way:
+
+- **Spec forms:** unscoped packages only as `nera-starter-<x>`; any other
+  lowercase name is a bare name (`my-blog` → `@nera-static/starter-my-blog`).
+  Local paths use `LOCAL_THEME`'s characters (no spaces, no Windows drive
+  paths). `http://`, other hosts and `git+ssh:` are refused.
+- **Picker:** lists only registry results whose shown name leads back to the
+  same package; an empty registry result offers only "Empty" (the bundled list
+  is the offline fallback, not merged). It takes a number or a shown name,
+  asks again on an invalid answer, and takes the defaults at the end of input;
+  Ctrl+C exits 1 with nothing created. Enter at "Site name"/"Language" leaves
+  `app.yaml` as the template or starter has it. With `--theme` the starter
+  question is skipped. Bad flags are rejected before the first question.
+- **Failure:** a failure after the folder exists removes it (`nera new
+  <name>`) or lists the files written (`nera new .`); a failing `npm install`
+  keeps the complete site. Symlinks in a starter are not copied.
+- **A new `--lang` gets its own `translations:` entry**, copied from the
+  current language (found in local review): core's `t(key)` falls back to the
+  key, so `--lang de` with only `en` translations rendered
+  `content="app_description"` on any page without its own description.
+- Still to do in slice 5: mention `--starter` in the template's `AGENTS.md`
+  and the skill once `@nera-static/starter-blank` is published, and the new
+  flags on the CLI docs page of nera.js.org.
 
 ## Where the work lands
 
