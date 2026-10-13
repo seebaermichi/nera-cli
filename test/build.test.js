@@ -5,6 +5,9 @@ import fssync from 'fs'
 import os from 'os'
 import { scaffoldProject } from '../src/scaffold.js'
 import { runBuild } from '../src/commands/build.js'
+import { fileURLToPath } from 'url'
+
+const STARTER_FIXTURE = fileURLToPath(new URL('./fixtures/starter-minimal', import.meta.url))
 
 // End-to-end proof of the developer loop: `nera new` then `nera build` produces
 // a rendered page. Requires @nera-static/core to be resolvable (linked locally
@@ -41,6 +44,42 @@ describe('new → build', () => {
         // AGENTS.md / CLAUDE.md sit at the site root, outside pages/.
         const built = await fs.readdir(path.join(target, 'public'))
         expect(built.filter((n) => /^(AGENTS|CLAUDE)\./.test(n))).toEqual([])
+    })
+
+    it('builds a site scaffolded from a starter, with --name and --lang', async () => {
+        // A copy without the plugin dependency: it cannot be installed offline.
+        const starter = path.join(workdir, 'starter')
+        await fs.cp(STARTER_FIXTURE, starter, { recursive: true })
+        const pkgPath = path.join(starter, 'package.json')
+        const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf-8'))
+        delete pkg.dependencies['@nera-static/plugin-navigation']
+        await fs.writeFile(pkgPath, JSON.stringify(pkg))
+
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+        let target
+        try {
+            target = await scaffoldProject('site', {
+                cwd: workdir,
+                install: false,
+                starter,
+                name: 'Brot & Zeit',
+                lang: 'de',
+            })
+            process.chdir(target)
+            expect(await runBuild()).toBe(0)
+        } finally {
+            log.mockRestore()
+        }
+
+        const index = await fs.readFile(path.join(target, 'public', 'index.html'), 'utf-8')
+        expect(index).toContain('Hello from the minimal starter')
+        expect(index).toContain('<html lang="de">')
+        expect(index).toMatch(/<title>Start \| Brot &amp; Zeit<\/title>/)
+        const built = await fs.readdir(path.join(target, 'public'), { recursive: true })
+        const about = built.find((f) => /^about(\/index)?\.html$/.test(f))
+        expect(about).toBeDefined()
+        const aboutHtml = await fs.readFile(path.join(target, 'public', about), 'utf-8')
+        expect(aboutHtml).toContain('<main class="about">')
     })
 
     describe('--check', () => {
