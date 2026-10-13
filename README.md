@@ -27,7 +27,7 @@ package is named after the folder (`My Bakery` → `my-bakery`).
 
 | Command | What it does |
 |---|---|
-| `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--theme <name>` to start from a theme, `--no-install` to skip `npm install`. `nera new .` scaffolds into the current, empty folder (dotfiles, `AGENTS.md` and `CLAUDE.md` allowed). Every new site also gets the `nera` skill for AI assistants. |
+| `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--starter <spec>` to start from a starter kit or `--theme <name>` to start from a theme (not both), `--name "<site name>"` and `--lang <code>` to set `name:` and `lang:` in `config/app.yaml`, `--no-install` to skip `npm install`. On a terminal, without `--starter` or `--yes`, it asks what you are building, the site name and the language; without a terminal it never asks. `nera new .` scaffolds into the current, empty folder (dotfiles, `AGENTS.md` and `CLAUDE.md` allowed). Every new site also gets the `nera` skill for AI assistants. |
 | `nera build` | Render `pages/` → `public/`. With `--check`, then run `nera check` on the result — one command for CI. `--json` prints the result as one JSON object (see [Machine-readable output](#machine-readable-output)). |
 | `nera dev` | Build, serve `public/`, and rebuild on change with live reload. Watches `pages/`, `config/`, `theme/` and a local theme (`theme: ./themes/<name>`). |
 | `nera serve` | Serve the already-built `public/` folder. |
@@ -111,6 +111,56 @@ later stays hidden behind them. Each starter file carries a
 `//- nera:scaffold-default` first line, and `nera validate` warns
 (`theme-shadowed`) while such a file hides a theme's. Delete it to use the
 theme's version, or delete the marker line to keep yours.
+
+## Starter kits
+
+```bash
+npx @nera-static/nera new my-site --starter blank --name "Brot & Zeit" --lang de
+```
+
+A starter kit is a whole ready-to-edit site: sample pages, config, optional
+site-level `theme/` overrides, assets and the theme and plugins it depends on.
+`nera new` copies its `pages/`, `config/`, `theme/`, `assets/`, `plugins/` and
+`.neraignore` over the base template, adds its `dependencies` to the site's
+`package.json`, applies `--name` / `--lang`, installs, and prints the starter's
+README. After that the site owns the files; a starter has no update path (the
+theme it depends on still updates through npm).
+
+`--starter` takes:
+
+- a starter name: `blank` → `@nera-static/starter-blank`;
+- a package name: `@acme/starter-shop`, or unscoped `nera-starter-shop`;
+- a GitHub URL: `https://github.com/owner/repo` (optionally `.git`, `#ref`),
+  or `github:owner/repo#ref`;
+- a local path: `./my-starter`, `../my-starter` or an absolute path.
+
+Packages and GitHub repositories are downloaded with
+`npm pack --ignore-scripts`, so no script of the starter runs. A starter is a
+package whose `package.json` has a `nera.starter` field
+(`{ "label": "…", "description": "…" }`); anything else is refused. One that
+sets `theme:` in its `config/app.yaml` leaves out the scaffold's starter
+templates, as `--theme` does.
+
+Run `nera new my-site` on a terminal and it asks instead:
+
+```text
+What are you building?
+  1) Empty — the base template, no starter
+  2) …
+Choose 1–2 [1]:
+Site name [My Nera Site]:
+Language [en]:
+```
+
+The list comes from the npm registry (packages with the keyword
+`nera-starter`, official `@nera-static/` ones first), or from a short list
+bundled with the CLI when the registry cannot be reached. Enter accepts the
+default. Every question has a flag (`--starter`, `--name`, `--lang`); with
+`--yes`, or without a terminal (scripts, CI, AI agents), nothing is asked and
+`nera new` scaffolds the base template.
+
+The official starters are coming: `@nera-static/starter-blank` is the first,
+more will follow. Until they are on npm, use a local path or your own package.
 
 ## Checking the built site
 
