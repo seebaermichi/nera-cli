@@ -125,7 +125,7 @@ describe('packStarter', () => {
             throw err
         }
         await expect(packStarter('@nera-static/starter-nope', { spec: 'nope', exec })).rejects.toThrow(
-            /Could not download the starter "nope" \(npm pack @nera-static\/starter-nope failed: code E404\)\. Check the starter name for typos and your network/
+            /Could not download the starter "nope" \(npm pack @nera-static\/starter-nope failed: 404 Not Found - GET https:\/\/registry\.npmjs\.org\/@nera-static%2fstarter-nope\)\. Check the starter name for typos and your network/
         )
         const after = await fs.readdir(os.tmpdir())
         expect(after.filter((n) => n.startsWith('nera-starter-') && !before.includes(n))).toEqual([])

@@ -68,7 +68,7 @@ export function starterSource(spec) {
 const downloadError = (spec, npmSpec, err) => {
     const said = String(err?.stderr ?? '')
         .split('\n')
-        .find((l) => /npm (error|ERR!)/.test(l) && !/A complete log/.test(l))
+        .find((l) => /^npm (error|ERR!) /.test(l) && !/ (code|errno) |A complete log/.test(l))
     return new Error(
         `Could not download the starter "${spec}" (npm pack ${npmSpec} failed` +
             `${said ? `: ${said.replace(/^npm (error|ERR!)\s*/, '')}` : ''}). ` +
