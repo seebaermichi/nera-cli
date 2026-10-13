@@ -82,6 +82,7 @@ const downloadError = (spec, npmSpec, err) => {
 // npm tarballs unpack to `package/`. The temp folder is gone on failure, and
 // `cleanup()` removes it after use. `exec` is injectable for tests.
 export async function packStarter(npmSpec, { spec = npmSpec, exec = execFileSync } = {}) {
+    console.log(`📦 Downloading the starter "${spec}"...`)
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'nera-starter-'))
     const cleanup = () => fs.rm(tmp, { recursive: true, force: true })
     try {
@@ -119,7 +120,7 @@ export async function fetchStarter(spec, { cwd = process.cwd(), pack = packStart
         if (!fssync.existsSync(dir)) {
             throw new Error(
                 `Starter folder "${spec}" not found (looked in ${dir}). ` +
-                    'Check the path, or use a starter name such as blank.'
+                    'Check the path; a local starter is a folder with a package.json.'
             )
         }
         return { dir, cleanup: async () => {} }

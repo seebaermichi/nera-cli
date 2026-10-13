@@ -88,6 +88,12 @@ describe('starterSource', () => {
 })
 
 describe('packStarter', () => {
+    let log
+    beforeEach(() => {
+        log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    })
+    afterEach(() => log.mockRestore())
+
     // Stands in for `npm pack` + `tar`: writes a tarball name, then
     // "extracts" the fixture to <out>/package.
     const fakeExec = (calls) => (cmd, args) => {
@@ -107,6 +113,7 @@ describe('packStarter', () => {
 
         expect(calls[0].slice(0, 4)).toEqual(['npm', 'pack', 'github:o/r#v1', '--ignore-scripts'])
         expect(calls[1][0]).toBe('tar')
+        expect(log).toHaveBeenCalledWith('📦 Downloading the starter "github:o/r#v1"...')
         expect(calls[1]).toContain('-xzf')
         expect(path.basename(dir)).toBe('package')
         expect((await readStarterManifest(dir)).nera.starter.label).toBe('Minimal')
