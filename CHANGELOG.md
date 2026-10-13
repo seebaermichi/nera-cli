@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-10-13
+
+### Added
+
+-   `nera new --starter <spec>` starts a site from a starter kit: a bare name (`blank` → `@nera-static/starter-blank`), a package name (`@acme/starter-x`, `nera-starter-x`), a GitHub URL (`https://github.com/owner/repo#ref`, `github:owner/repo`) or a local path. The starter's `pages/`, `config/`, `theme/`, `assets/`, `plugins/` and `.neraignore` are copied over the base template, its `dependencies` are added to the site's `package.json`, and its README is printed. Packages and repositories are downloaded with `npm pack --ignore-scripts`. A package without a `nera.starter` field in its `package.json` is refused before anything is written. `--starter` and `--theme` together are an error.
+-   `nera new --name "<site name>"` and `--lang <code>` set `name:` and `lang:` in `config/app.yaml`, with or without a starter. A new language gets a copy of the current language's `translations:` entry, ready to translate, so no page shows a raw translation key.
+-   On a terminal, `nera new` without `--starter` asks what you are building (starters from the npm registry with the keyword `nera-starter`, official ones first, or a bundled list when offline), the site name and the language; Enter keeps each default. `--yes` skips every question; without a terminal nothing is ever asked and `nera new` behaves as before.
+
 ## [1.10.1] - 2026-10-13
 
 ### Changed
