@@ -8,6 +8,7 @@ import YAML from 'yaml'
 import {
     scaffoldProject,
     setAppValue,
+    addLangTranslations,
     validateSiteName,
     validateLang,
     validateProjectName,
@@ -576,6 +577,35 @@ describe('setAppValue', () => {
     })
 })
 
+describe('addLangTranslations', () => {
+    const yaml =
+        'lang: de\n\ntranslations:\n  en:\n    a: A # note\n\n    b: B\n  fr:\n    a: Ah\n\nrobots: none\n'
+
+    it('copies the old language entry to the end of the block', () => {
+        expect(addLangTranslations(yaml, 'en', 'de')).toBe(
+            'lang: de\n\ntranslations:\n  en:\n    a: A # note\n\n    b: B\n  fr:\n    a: Ah\n' +
+                '  de:\n    a: A # note\n\n    b: B\n\nrobots: none\n'
+        )
+        expect(YAML.parse(addLangTranslations(yaml, 'fr', 'pt-BR')).translations['pt-BR']).toEqual({
+            a: 'Ah',
+        })
+    })
+
+    it('changes nothing when there is nothing to copy or the entry exists', () => {
+        expect(addLangTranslations(yaml, 'en', 'fr')).toBe(yaml)
+        expect(addLangTranslations(yaml, 'es', 'de')).toBe(yaml)
+        expect(addLangTranslations(yaml, undefined, 'de')).toBe(yaml)
+        expect(addLangTranslations('lang: de\n', 'en', 'de')).toBe('lang: de\n')
+        const flow = 'translations: { en: { a: A } }\n'
+        expect(addLangTranslations(flow, 'en', 'de')).toBe(flow)
+    })
+
+    it('handles a block at the end of the file', () => {
+        const out = addLangTranslations('translations:\n  en:\n    a: A\n', 'en', 'de')
+        expect(YAML.parse(out).translations).toEqual({ en: { a: 'A' }, de: { a: 'A' } })
+    })
+})
+
 describe('validateSiteName / validateLang', () => {
     it('accepts names and language codes', () => {
         expect(validateSiteName('Brot & Zeit: "Bäckerei" #1')).toBe('Brot & Zeit: "Bäckerei" #1')
@@ -618,8 +648,20 @@ describe('scaffoldProject with --name / --lang, no starter', () => {
         const parsed = YAML.parse(yaml)
         expect(parsed.name).toBe(name)
         expect(parsed.lang).toBe('de')
-        // The translations block is left alone.
+        // The new language gets a copy of the template's `en` translations,
+        // so `t('app_description')` never renders the raw key.
         expect(parsed.translations.en.app_description).toBe('A static site built with Nera')
+        expect(parsed.translations.de).toEqual(parsed.translations.en)
+    })
+
+    it('leaves translations alone when only the name changes', async () => {
+        const target = await scaffoldProject('named', {
+            cwd: workdir,
+            install: false,
+            name: 'Brot & Zeit',
+        })
+        const yaml = await read(target, 'config/app.yaml')
+        expect(Object.keys(YAML.parse(yaml).translations)).toEqual(['en'])
         expect(yaml.split('\n').length).toBe(
             (await read(templateDir(), 'config/app.yaml')).split('\n').length
         )
@@ -708,8 +750,10 @@ describe('scaffoldProject with a starter', () => {
         expect(yaml).toMatch(/^name: "Brot & Zeit"$/m)
         expect(yaml).toMatch(/^lang: de$/m)
         expect(yaml).toMatch(/^# The minimal starter's site settings\.$/m)
+        // The starter's own language (fr) is copied to the new one.
         const parsed = YAML.parse(yaml)
-        expect(Object.keys(parsed.translations)).toEqual(['fr', 'en'])
+        expect(Object.keys(parsed.translations)).toEqual(['fr', 'en', 'de'])
+        expect(parsed.translations.de).toEqual(parsed.translations.fr)
     })
 
     it('reads a relative local path from cwd', async () => {

@@ -221,18 +221,66 @@ export function setAppValue(yaml, key, value) {
     return `${yaml.replace(/\n*$/, '\n')}${key}: ${value}\n`
 }
 
+// Give a new language its own entry in the block-style `translations:` of an
+// app.yaml text, copied from language `from`: core's `t(key)` falls back to
+// the key itself, so a site switched to `de` with only an `en` block would
+// render `app_description` on every page without its own description.
+// Line-based like setAppValue; returns the text unchanged when there is no
+// such block, `from` has no entry, or `to` already has one.
+export function addLangTranslations(yaml, from, to) {
+    const lines = yaml.split('\n')
+    const start = lines.findIndex((l) => /^translations:[ \t]*(#.*)?$/.test(l))
+    if (start === -1 || !from || from === to) return yaml
+    let end = start + 1
+    while (end < lines.length && (lines[end].trim() === '' || /^[ \t]/.test(lines[end]))) end++
+    while (end > start + 1 && lines[end - 1].trim() === '') end--
+
+    // The line `  <lang>:` inside the block, or -1. Codes are validated
+    // (letters, digits, dashes), so they are safe in a RegExp.
+    const entry = (lang) => {
+        const re = new RegExp(`^[ \\t]+${lang}:[ \\t]*(#.*)?$`)
+        for (let i = start + 1; i < end; i++) if (re.test(lines[i])) return i
+        return -1
+    }
+    if (entry(to) !== -1) return yaml
+    const fromStart = entry(from)
+    if (fromStart === -1) return yaml
+
+    const indent = lines[fromStart].match(/^[ \t]+/)[0]
+    let fromEnd = fromStart + 1
+    while (
+        fromEnd < end &&
+        (lines[fromEnd].trim() === '' || lines[fromEnd].match(/^[ \t]*/)[0].length > indent.length)
+    ) fromEnd++
+    while (lines[fromEnd - 1].trim() === '') fromEnd--
+    const copy = [`${indent}${to}:`, ...lines.slice(fromStart + 1, fromEnd)]
+    return [...lines.slice(0, end), ...copy, ...lines.slice(end)].join('\n')
+}
+
 async function applyNameAndLang(targetDir, { name, lang }) {
     if (name === undefined && lang === undefined) return
     const appYaml = path.join(targetDir, 'config', 'app.yaml')
     let yaml = await fs.readFile(appYaml, 'utf-8')
+    const oldLang = yaml.match(/^lang:[ \t]*["']?([A-Za-z0-9-]+)["']?[ \t]*(#.*)?$/m)?.[1]
     if (name !== undefined) yaml = setAppValue(yaml, 'name', JSON.stringify(name))
-    if (lang !== undefined) yaml = setAppValue(yaml, 'lang', lang)
+    let copied = false
+    if (lang !== undefined) {
+        yaml = setAppValue(yaml, 'lang', lang)
+        const withLang = addLangTranslations(yaml, oldLang, lang)
+        copied = withLang !== yaml
+        yaml = withLang
+    }
     await fs.writeFile(appYaml, yaml)
     const set = [
         ...(name !== undefined ? [`name ${JSON.stringify(name)}`] : []),
         ...(lang !== undefined ? [`language "${lang}"`] : []),
     ]
     console.log(`  ✓ Set the site's ${set.join(' and ')} in config/app.yaml`)
+    if (copied) {
+        console.log(
+            `  ✓ Copied the "${oldLang}" translations to "${lang}" in config/app.yaml — translate them there`
+        )
+    }
 }
 
 // The Nera skill for AI assistants, in both folders the clients read
