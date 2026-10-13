@@ -17,8 +17,9 @@
 > "Slice 3 — progress"), the message review in `@nera-static/validate`
 > 1.4.2 (2026-10-12); `--yes` is next. Slice 4 is under way: the skill
 > with eight recipes ships in both site folders since `@nera-static/nera`
-> 1.10.0 (2026-10-12, see "Slice 4 — progress"); the zip on nera.js.org is
-> next. No open questions.**
+> 1.10.0 (2026-10-12, see "Slice 4 — progress"), and nera.js.org offers it
+> as `/downloads/nera-skill.zip` (2026-10-13, live with the deploy that
+> takes 1.10.0). No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -506,7 +507,8 @@ The first round, settled with the maintainer:
    open.
 4. **L4** — the skill and recipes, in both site folders, plus the zip.
    **The skill in both site folders done 2026-10-12** (`@nera-static/nera`
-   1.10.0), see "Slice 4 — progress"; the zip is open.
+   1.10.0), **the zip on nera.js.org done 2026-10-13**, see "Slice 4 —
+   progress".
 5. **L5** — `--starter` in the CLI and the interactive picker, proven with a
    minimal `starter-blank`; then `starter-blog` (needs L8) and
    `starter-business` (needs a theme).
@@ -970,8 +972,25 @@ site's installed copy, falling back to the running CLI's. It returns
 Verified locally: lint, `npx vitest run` 159/159 on Node 22, a throwaway site
 from the checkout (build and validate clean, both folders identical to the
 source, a second `nera update` reports all four files/folders unchanged).
-Still open in slice 4: the downloadable zip on nera.js.org (`nera-website`).
-The search plugin's published template still draws `a11y-h1` and
+**Done 2026-10-13 (`nera-website`): the zip.** A local plugin,
+`nera-website/plugins/skill-zip/`, zips the skill shipped in the site's
+installed `@nera-static/nera` (`node_modules/@nera-static/nera/skills/nera`)
+into `/downloads/nera-skill.zip` via `getAssets`, so the download is never a
+second copy to keep in step: `npm update` in the site refreshes it. The zip
+holds one folder, `nera/`, with `SKILL.md` at its top (the upload layout),
+and is written without a dependency (zlib deflate + a CRC-32 table) and
+deterministically (sorted entries, 1980-01-01 timestamps). A missing skill
+throws and fails the build rather than publishing a page that links a 404,
+so the site needs `@nera-static/nera` ≥ 1.10.0. The "Using Nera with AI"
+page (en/de/es) gained a "Nera skill" section with the two folders, the
+ownership rule and the download, and its "planned" list lost the skill and
+`--json`, both shipped. Verified: the plugin's tests (CRC check value,
+content, determinism, the missing-skill error), `unzip -t` clean, the
+unpacked zip identical to `skills/nera/`, and `nera validate` + `nera build
+--check` clean of errors with the skill in place.
+
+Slice 4 is complete apart from the Claude Code plugin and the OpenAI
+equivalent, which L4 lists as later. The search plugin's published template still draws `a11y-h1` and
 `a11y-form-label` warnings; the search recipe works around them.
 
 ## Where the work lands
