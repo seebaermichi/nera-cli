@@ -3,8 +3,13 @@ import path from 'path'
 import fs from 'fs/promises'
 import fssync from 'fs'
 import os from 'os'
+import { fileURLToPath } from 'url'
+import YAML from 'yaml'
 import {
     scaffoldProject,
+    setAppValue,
+    validateSiteName,
+    validateLang,
     validateProjectName,
     validateThemeSpec,
     themePackageName,
@@ -502,6 +507,7 @@ describe('parseNewArgs', () => {
         expect(parseNewArgs(['--theme', 'example', 'site'])).toEqual({
             projectName: 'site',
             theme: 'example',
+            yes: false,
             install: true,
         })
     })
@@ -510,6 +516,7 @@ describe('parseNewArgs', () => {
         expect(parseNewArgs(['site', '--theme=example', '--no-install'])).toEqual({
             projectName: 'site',
             theme: 'example',
+            yes: false,
             install: false,
         })
     })
@@ -517,5 +524,307 @@ describe('parseNewArgs', () => {
     it('leaves theme undefined when not given', () => {
         expect(parseNewArgs(['site']).theme).toBeUndefined()
     })
+
+    it('reads --starter, --name and --lang in both forms, and --yes', () => {
+        expect(
+            parseNewArgs(['site', '--starter', 'blank', '--name', 'Brot & Zeit', '--lang', 'de', '--yes'])
+        ).toEqual({
+            projectName: 'site',
+            starter: 'blank',
+            name: 'Brot & Zeit',
+            lang: 'de',
+            yes: true,
+            install: true,
+        })
+        expect(
+            parseNewArgs(['--starter=./s', '--name=A=B', '--lang=pt-BR', 'site'])
+        ).toEqual({
+            projectName: 'site',
+            starter: './s',
+            name: 'A=B',
+            lang: 'pt-BR',
+            yes: false,
+            install: true,
+        })
+    })
+
+    it('leaves the new options undefined when not given', () => {
+        const parsed = parseNewArgs(['site'])
+        expect(parsed.starter).toBeUndefined()
+        expect(parsed.name).toBeUndefined()
+        expect(parsed.lang).toBeUndefined()
+    })
 })
 
+describe('setAppValue', () => {
+    const yaml = '# top\nlang: en\nname: My Nera Site\n\ntranslations:\n  en:\n    name: nested\n'
+
+    it('replaces the top-level line and keeps everything else', () => {
+        expect(setAppValue(yaml, 'name', '"Brot & Zeit"')).toBe(
+            '# top\nlang: en\nname: "Brot & Zeit"\n\ntranslations:\n  en:\n    name: nested\n'
+        )
+        expect(setAppValue(yaml, 'lang', 'de')).toBe(yaml.replace('lang: en', 'lang: de'))
+    })
+
+    it('appends the line when there is none', () => {
+        expect(setAppValue('robots: none', 'lang', 'de')).toBe('robots: none\nlang: de\n')
+        expect(setAppValue('', 'lang', 'de')).toBe('\nlang: de\n')
+    })
+
+    it('treats $ in the value literally', () => {
+        expect(setAppValue('name: x\n', 'name', '"$& $1"')).toBe('name: "$& $1"\n')
+    })
+})
+
+describe('validateSiteName / validateLang', () => {
+    it('accepts names and language codes', () => {
+        expect(validateSiteName('Brot & Zeit: "Bäckerei" #1')).toBe('Brot & Zeit: "Bäckerei" #1')
+        for (const lang of ['en', 'de', 'gsw', 'pt-BR', 'zh-Hant-TW']) {
+            expect(validateLang(lang)).toBe(lang)
+        }
+    })
+
+    it('refuses empty names, line breaks and bad codes', () => {
+        for (const name of ['', '  ', 'a\nb', undefined]) {
+            expect(() => validateSiteName(name)).toThrow(/Invalid site name/)
+        }
+        for (const lang of ['', 'DE', 'deutsch', 'de_DE', 'e', 'de-', undefined]) {
+            expect(() => validateLang(lang)).toThrow(/Invalid language/)
+        }
+    })
+})
+
+const FIXTURE = fileURLToPath(new URL('./fixtures/starter-minimal', import.meta.url))
+
+// Every file under dir, relative to it.
+const filesUnder = async (dir) =>
+    (await fs.readdir(dir, { recursive: true, withFileTypes: true }))
+        .filter((e) => e.isFile())
+        .map((e) => path.relative(dir, path.join(e.parentPath, e.name)))
+        .sort()
+
+describe('scaffoldProject with --name / --lang, no starter', () => {
+    it('sets name and lang, and both round-trip through a YAML parser', async () => {
+        const name = 'Brot & Zeit: "Bäckerei" #1'
+        const target = await scaffoldProject('named', {
+            cwd: workdir,
+            install: false,
+            name,
+            lang: 'de',
+        })
+        const yaml = await read(target, 'config/app.yaml')
+        expect(yaml).toMatch(/^name: "Brot & Zeit: \\"Bäckerei\\" #1"$/m)
+        expect(yaml).toMatch(/^lang: de$/m)
+        const parsed = YAML.parse(yaml)
+        expect(parsed.name).toBe(name)
+        expect(parsed.lang).toBe('de')
+        // The translations block is left alone.
+        expect(parsed.translations.en.app_description).toBe('A static site built with Nera')
+        expect(yaml.split('\n').length).toBe(
+            (await read(templateDir(), 'config/app.yaml')).split('\n').length
+        )
+    })
+
+    it('rejects a bad --lang or --name before creating anything', async () => {
+        await expect(
+            scaffoldProject('bad', { cwd: workdir, install: false, lang: 'Deutsch' })
+        ).rejects.toThrow(/Invalid language "Deutsch"/)
+        await expect(
+            scaffoldProject('bad', { cwd: workdir, install: false, name: '' })
+        ).rejects.toThrow(/Invalid site name/)
+        expect(await fs.readdir(workdir)).toEqual([])
+    })
+})
+
+describe('scaffoldProject with a starter', () => {
+    const scaffoldQuiet = async (name, options) => {
+        const logs = []
+        const spy = vi.spyOn(console, 'log').mockImplementation((...m) => logs.push(m.join(' ')))
+        try {
+            const target = await scaffoldProject(name, { cwd: workdir, install: false, ...options })
+            return { target, logs }
+        } finally {
+            spy.mockRestore()
+        }
+    }
+
+    it('lays the starter over the template, starter files winning', async () => {
+        const { target } = await scaffoldQuiet('s', { starter: FIXTURE })
+        expect(await read(target, 'pages/index.md')).toBe(await read(FIXTURE, 'pages/index.md'))
+        expect(await read(target, 'pages/about.md')).toBe(await read(FIXTURE, 'pages/about.md'))
+        expect(await read(target, 'config/app.yaml')).toBe(await read(FIXTURE, 'config/app.yaml'))
+        expect(await read(target, 'theme/views/pages/about.pug')).toBe(
+            await read(FIXTURE, 'theme/views/pages/about.pug')
+        )
+        expect(fssync.existsSync(path.join(target, 'theme/assets/css/starter.css'))).toBe(true)
+        // The base template's views stay: the starter sets no theme.
+        for (const rel of STARTERS) {
+            expect(fssync.existsSync(path.join(target, rel))).toBe(true)
+        }
+    })
+
+    it('copies none of the decoys, and keeps the template\'s AGENTS.md', async () => {
+        const { target } = await scaffoldQuiet('s', { starter: FIXTURE })
+        expect(fssync.existsSync(path.join(target, 'scripts'))).toBe(false)
+        expect(fssync.existsSync(path.join(target, 'README.md'))).toBe(false)
+        expect(fssync.existsSync(path.join(target, '.claude/settings.json'))).toBe(false)
+        expect(await read(target, 'AGENTS.md')).toBe(await read(templateDir(), 'AGENTS.md'))
+        // The skill is still there.
+        expect(fssync.existsSync(path.join(target, '.claude/skills/nera/SKILL.md'))).toBe(true)
+    })
+
+    it('merges the starter\'s dependencies, never its own nera entry or anything else', async () => {
+        const { target } = await scaffoldQuiet('s', { starter: FIXTURE })
+        const pkg = JSON.parse(await read(target, 'package.json'))
+        const template = JSON.parse(await read(templateDir(), 'package.json'))
+        expect(pkg.name).toBe('s')
+        expect(pkg.dependencies).toEqual({
+            '@nera-static/nera': template.dependencies['@nera-static/nera'],
+            '@nera-static/plugin-navigation': '^1.0.0',
+        })
+        expect(pkg.devDependencies).toBeUndefined()
+        expect(pkg.scripts).toEqual(template.scripts)
+    })
+
+    it('prints the starter README after Done, before the next steps', async () => {
+        const { logs } = await scaffoldQuiet('s', { starter: FIXTURE })
+        const done = logs.indexOf('✅ Done!')
+        const readme = logs.findIndex((l) => l.includes('# Minimal starter'))
+        const next = logs.findIndex((l) => l.startsWith('👉 Next steps:'))
+        expect(done).toBeGreaterThan(-1)
+        expect(readme).toBe(done + 1)
+        expect(next).toBe(readme + 1)
+        expect(logs[readme]).toContain('Edit `pages/about.md`')
+        expect(logs).toContain('  ✓ Applied the "Minimal" starter (nera-starter-minimal)')
+    })
+
+    it('applies --name and --lang over the starter\'s config', async () => {
+        const { target } = await scaffoldQuiet('s', {
+            starter: FIXTURE,
+            name: 'Brot & Zeit',
+            lang: 'de',
+        })
+        const yaml = await read(target, 'config/app.yaml')
+        expect(yaml).toMatch(/^name: "Brot & Zeit"$/m)
+        expect(yaml).toMatch(/^lang: de$/m)
+        expect(yaml).toMatch(/^# The minimal starter's site settings\.$/m)
+        const parsed = YAML.parse(yaml)
+        expect(Object.keys(parsed.translations)).toEqual(['fr', 'en'])
+    })
+
+    it('reads a relative local path from cwd', async () => {
+        const rel = path.relative(workdir, FIXTURE)
+        const spec = rel.startsWith('.') ? rel : `./${rel}`
+        const { target } = await scaffoldQuiet('rel', { starter: spec })
+        expect(fssync.existsSync(path.join(target, 'pages/about.md'))).toBe(true)
+    })
+
+    it('leaves out the scaffold-default views when the starter sets a theme', async () => {
+        const themed = path.join(workdir, 'themed-starter')
+        await fs.cp(FIXTURE, themed, { recursive: true })
+        await fs.appendFile(path.join(themed, 'config/app.yaml'), '\ntheme: example\n')
+        const { target } = await scaffoldQuiet('t', { starter: themed })
+        for (const rel of STARTERS) {
+            expect(fssync.existsSync(path.join(target, rel))).toBe(false)
+        }
+        // The starter's own view override is copied.
+        expect(fssync.existsSync(path.join(target, 'theme/views/pages/about.pug'))).toBe(true)
+    })
+
+    it('refuses --starter together with --theme before creating anything', async () => {
+        await expect(
+            scaffoldProject('x', { cwd: workdir, install: false, starter: FIXTURE, theme: 'example' })
+        ).rejects.toThrow('A starter brings its own theme; use --starter or --theme, not both.')
+        expect(await fs.readdir(workdir)).toEqual([])
+    })
+
+    it('refuses an invalid starter spec before creating anything', async () => {
+        await expect(
+            scaffoldProject('x', { cwd: workdir, install: false, starter: 'a b' })
+        ).rejects.toThrow(/Invalid starter "a b"/)
+        expect(await fs.readdir(workdir)).toEqual([])
+    })
+
+    it('refuses a package that is not a starter and leaves no target folder', async () => {
+        const notStarter = path.join(workdir, 'not-starter')
+        await fs.mkdir(path.join(notStarter, 'pages'), { recursive: true })
+        await fs.writeFile(path.join(notStarter, 'package.json'), '{"name":"plain"}')
+        await expect(
+            scaffoldProject('x', { cwd: workdir, install: false, starter: './not-starter' })
+        ).rejects.toThrow('"./not-starter" is not a Nera starter: its package.json has no `nera.starter` field.')
+        expect(fssync.existsSync(path.join(workdir, 'x'))).toBe(false)
+    })
+
+    it('removes the folder it created when a later step fails', async () => {
+        const broken = path.join(workdir, 'broken')
+        await fs.cp(FIXTURE, broken, { recursive: true })
+        // A config file where the site has a folder makes the copy fail.
+        await fs.rm(path.join(broken, 'pages'), { recursive: true })
+        await fs.writeFile(path.join(broken, 'pages'), 'not a folder')
+        await expect(scaffoldQuiet('x', { starter: './broken' })).rejects.toThrow()
+        expect(fssync.existsSync(path.join(workdir, 'x'))).toBe(false)
+    })
+
+    it('in place, lists what was written when a later step fails', async () => {
+        const broken = path.join(workdir, 'broken')
+        await fs.cp(FIXTURE, broken, { recursive: true })
+        await fs.rm(path.join(broken, 'pages'), { recursive: true })
+        await fs.writeFile(path.join(broken, 'pages'), 'not a folder')
+        const here = path.join(workdir, 'here')
+        await fs.mkdir(here)
+        const logs = vi.spyOn(console, 'log').mockImplementation(() => {})
+        try {
+            await expect(
+                scaffoldProject('.', { cwd: here, install: false, starter: '../broken' })
+            ).rejects.toThrow(/Already written to the current folder: .*package\.json.*Remove them/)
+        } finally {
+            logs.mockRestore()
+        }
+    })
+
+    it('fetches a package starter through the injected fetchStarter and cleans up', async () => {
+        const tmp = await fs.mkdtemp(path.join(workdir, 'pack-'))
+        const dir = path.join(tmp, 'package')
+        await fs.cp(FIXTURE, dir, { recursive: true })
+        const cleanup = vi.fn(() => fs.rm(tmp, { recursive: true, force: true }))
+        const fetchStarter = vi.fn(async () => ({ dir, cleanup }))
+
+        const { target } = await scaffoldQuiet('pkg', { starter: 'blank', fetchStarter })
+
+        expect(fetchStarter).toHaveBeenCalledWith('blank', { cwd: workdir })
+        expect(cleanup).toHaveBeenCalledOnce()
+        expect(fssync.existsSync(tmp)).toBe(false)
+        expect(fssync.existsSync(path.join(target, 'pages/about.md'))).toBe(true)
+    })
+
+    it('cleans up the download when the package is no starter', async () => {
+        const tmp = await fs.mkdtemp(path.join(workdir, 'pack-'))
+        await fs.writeFile(path.join(tmp, 'package.json'), '{"name":"@nera-static/theme-x"}')
+        const cleanup = vi.fn(() => fs.rm(tmp, { recursive: true, force: true }))
+        await expect(
+            scaffoldProject('pkg', {
+                cwd: workdir,
+                install: false,
+                starter: '@nera-static/theme-x',
+                fetchStarter: async () => ({ dir: tmp, cleanup }),
+            })
+        ).rejects.toThrow(/is not a Nera starter/)
+        expect(cleanup).toHaveBeenCalledOnce()
+        expect(fssync.existsSync(path.join(workdir, 'pkg'))).toBe(false)
+    })
+})
+
+describe('scaffoldProject without a starter or flags', () => {
+    it('matches the template file for file (today\'s behaviour)', async () => {
+        const target = await scaffoldProject('plain', { cwd: workdir, install: false })
+        const files = (await filesUnder(target)).filter((f) => !/^\.(agents|claude)\//.test(f))
+        const template = (await filesUnder(templateDir())).map((f) =>
+            f === '_gitignore' ? '.gitignore' : f
+        ).sort()
+        expect(files).toEqual(template)
+        for (const rel of template.filter((f) => f !== 'package.json')) {
+            const src = rel === '.gitignore' ? '_gitignore' : rel
+            expect(await read(target, rel)).toBe(await read(templateDir(), src))
+        }
+    })
+})

@@ -13,7 +13,7 @@ const json = rest.includes('--json')
 const usage = `Nera — the static site generator CLI
 
 Usage:
-  nera new <name>    scaffold a new Nera site (--theme <name> to start from a theme, --no-install to skip npm install)
+  nera new <name>    scaffold a new Nera site (--starter <name|package|github-url|./path> to start from a starter kit, --theme <name> to start from a theme, --name "<site name>", --lang <code>, --yes to never ask, --no-install to skip npm install; asks what you are building only on a terminal)
   nera new .         scaffold into the current, empty folder
   nera build         render pages/ → public/ (--check to check the output after, --json for machine-readable output)
   nera dev           build, serve and live-reload
