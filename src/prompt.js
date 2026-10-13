@@ -53,6 +53,7 @@ export async function runPicker({
         rl.ended = true
     })
     rl.on('SIGINT', () => {
+        output.write('\n')
         cancelled = true
         rl.close()
     })
