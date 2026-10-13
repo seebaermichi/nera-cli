@@ -1,0 +1,12 @@
+# The minimal starter's site settings.
+lang: fr
+name: Minimal Starter
+robots: index,follow
+
+translations:
+  fr:
+    app_description: Un site Nera minimal
+    app_keywords: nera, starter
+  en:
+    app_description: A minimal Nera site
+    app_keywords: nera, starter

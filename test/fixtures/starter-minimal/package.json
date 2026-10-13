@@ -1,0 +1,22 @@
+{
+    "name": "nera-starter-minimal",
+    "version": "1.0.0",
+    "description": "Test fixture: the smallest Nera starter kit",
+    "keywords": ["nera-starter"],
+    "nera": {
+        "starter": {
+            "label": "Minimal",
+            "description": "Two pages for the nera-cli tests."
+        }
+    },
+    "scripts": {
+        "postinstall": "node scripts/x.js"
+    },
+    "dependencies": {
+        "@nera-static/nera": "^0.0.1",
+        "@nera-static/plugin-navigation": "^1.0.0"
+    },
+    "devDependencies": {
+        "left-pad": "^1.3.0"
+    }
+}
