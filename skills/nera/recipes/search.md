@@ -22,12 +22,16 @@ JSON index, a small script searches it in the browser. No backend.
        include /vendor/plugin-search/search.pug
    ```
 
-4. `pages/search.md` with `layout: pages/search.pug` and a `title`, and no
-   `#` heading: the copied template brings its own `h1`. Link the page from
+4. `pages/search.md` with `layout: pages/search.pug`, a `title` and a
+   `# Search` heading, and `show_title: false` in `config/search.yaml`, so
+   that heading is the page's only `h1` (without the key the template adds
+   its own and `nera build --check` warns `a11y-h1`). Link the page from
    the menu.
-5. The copy is the site's own: give its search input a label
-   (`aria-label="Search"`), or `nera build --check` warns
-   (`a11y-form-label`).
+5. The template's input is already labelled (`aria-label`, default
+   "Search"). To translate the template, add `search_label`, `search_title`
+   and `search_placeholder` to the site's translations. A copy published
+   before plugin-search 2.3.0 lacks both: refresh it with
+   `npx nera-search --force` if it was never edited.
 6. The index is written to `theme/assets/search-index.json` on every build
    and served as `/search-index.json`. It is generated: add
    `theme/assets/search-index*.json` to `.gitignore`.

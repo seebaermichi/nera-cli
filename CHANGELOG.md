@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.1] - 2026-10-13
+
+### Changed
+
+-   The skill's search recipe follows `@nera-static/plugin-search` 2.3.0, whose template labels its input and can leave out its own `h1`: the search page keeps its `# Search` heading with `show_title: false` in `config/search.yaml`, and no hand-added `aria-label` is needed. It names the `search_label`, `search_title` and `search_placeholder` translation keys. `nera update` brings the new recipe into a site's skill folders.
+
 ## [1.10.0] - 2026-10-12
 
 ### Added
