@@ -7,6 +7,6 @@ export const BUNDLED_STARTERS = [
         name: 'blank',
         package: '@nera-static/starter-blank',
         label: 'Blank',
-        description: 'The smallest Nera starter: one page, one layout.',
+        description: 'The smallest Nera starter: a home page, imprint and privacy placeholders, and one accessible layout. No theme, no plugins, no JavaScript.',
     },
 ]
