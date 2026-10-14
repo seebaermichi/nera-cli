@@ -447,6 +447,18 @@ manual setup for users.
   open: the catalog entries (`generator/PLUGINS.md`, the three `nera-website`
   pages), prepared in that ROADMAP's slice 7.
 - **`@nera-static/plugin-feed`** — RSS/Atom for blogs, per language.
+  Spec and record: `nera-plugin-feed/ROADMAP.md`. Built 2026-10-14 in a cloud
+  session (Snagio issue `01a1260d-904a-70a2-a284-b3a8b28df73a`): `getAssets`
+  writes one Atom feed per language (`feed.xml` for `app.lang`,
+  `<lang>/feed.xml` for the others; RSS 2.0 at `rss.xml` with
+  `format: rss|both`) from pages whose layout is in `layouts` (default
+  `pages/post.pug`, theme-blog's post rule), dated from frontmatter
+  `date`/`published` only, newest first, `limit` 20, full HTML with absolute,
+  `base_path`-aware URLs; all four feed shapes pass the W3C Feed Validator.
+  `getAppData` writes `app.feeds`, and `views/feed-link.pug` (published with
+  `npx nera-feed`) fills theme-blog's `partials/feed-link.pug` seam. Merged
+  locally; release pending (1.0.0 bootstrap by hand, then 1.0.1 via CI OIDC,
+  per that ROADMAP's slice 7, which also holds the catalog entries).
 
 Each gets its own ROADMAP in its own repo; the `blog` starter needs both.
 
