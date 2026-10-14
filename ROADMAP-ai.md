@@ -456,9 +456,9 @@ manual setup for users.
   `date`/`published` only, newest first, `limit` 20, full HTML with absolute,
   `base_path`-aware URLs; all four feed shapes pass the W3C Feed Validator.
   `getAppData` writes `app.feeds`, and `views/feed-link.pug` (published with
-  `npx nera-feed`) fills theme-blog's `partials/feed-link.pug` seam. Merged
-  locally; release pending (1.0.0 bootstrap by hand, then 1.0.1 via CI OIDC,
-  per that ROADMAP's slice 7, which also holds the catalog entries).
+  `npx nera-feed`) fills theme-blog's `partials/feed-link.pug` seam.
+  Released 2026-10-14 (1.0.0 bootstrap by hand, 1.0.1 via CI OIDC) and listed
+  in `generator/PLUGINS.md` and the three `nera-website` catalog pages.
 
 Each gets its own ROADMAP in its own repo; the `blog` starter needs both.
 
