@@ -21,7 +21,8 @@
 > as `/downloads/nera-skill.zip` (2026-10-13, live with the deploy that
 > takes 1.10.0). Slice 5 is under way: `nera new --starter`, `--name`,
 > `--lang`, `--yes` and the picker ship in `@nera-static/nera` 1.11.0
-> (2026-10-13, see "Slice 5 — progress"); `starter-blank` is next. No open
+> (2026-10-13, see "Slice 5 — progress"); `starter-blank` 1.0.0 is built
+> (2026-10-14), its first publish is next. No open
 > questions.**
 >
 > This document is the single source of truth for two linked goals:
@@ -1055,9 +1056,35 @@ Settled on the way:
   current language (found in local review): core's `t(key)` falls back to the
   key, so `--lang de` with only `en` translations rendered
   `content="app_description"` on any page without its own description.
-- Still to do in slice 5: mention `--starter` in the template's `AGENTS.md`
-  and the skill once `@nera-static/starter-blank` is published, and the new
-  flags on the CLI docs page of nera.js.org.
+
+**Done 2026-10-14 (`nera-starter-blank` 1.0.0, not yet published):
+`@nera-static/starter-blank`, the first starter.** Worked in a Claude Code
+cloud session, verified and merged locally (Node 20 and 22, browser check of
+the skip link). No theme, no `dependencies`, no JavaScript. It ships
+`pages/index.md`, imprint and privacy placeholders, `config/app.yaml` (with
+`skip_to_content`/`imprint`/`privacy` labels in `translations.en`) and its own
+`theme/views/` over the scaffold's: skip link, `main#main`, footer with the
+legal links, `nera:scaffold-default` marker kept. So a fresh site passes
+`nera build --check` and `nera validate` with zero findings, where the plain
+scaffold has 3 warnings (`a11y-skip-link`, `legal-imprint-link`,
+`legal-privacy-link`). This deviates from `ROADMAP-themes.md` S1 ("the
+scaffold's own views"), by the maintainer's decision; S1 is updated. An
+offline vitest integration test scaffolds from the repo with the CLI 1.11.0
+(local path, `--no-install`, `node_modules` symlinked) and asserts that, also
+with `--name`/`--lang de`. `nera.starter.description` and the package
+`description` are the same text, because the online picker reads the npm
+`description`: "The smallest Nera starter: a home page, imprint and privacy
+placeholders, and one accessible layout. No theme, no plugins, no
+JavaScript." The bundled offline list says the same since
+`@nera-static/nera` 1.11.1. Layout labels stay English in a `--lang de` site
+(the CLI copies `en`); `legal-*` still passes there. Along the way,
+`@nera-static/core` 4.16.1 dropped `pretty` for `js-beautify` 2 (identical
+output), ending the `glob@10` deprecation warning on every install.
+
+- Still to do in slice 5: publish `starter-blank` (bootstrap 1.0.0 by hand,
+  then a CI 1.0.1 within two days) and try `nera new --starter blank` against
+  npm once; mention `--starter` in the template's `AGENTS.md` and the skill,
+  and the new flags on the CLI docs page of nera.js.org (both on the board).
 
 ## Where the work lands
 
