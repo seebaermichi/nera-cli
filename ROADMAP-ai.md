@@ -1079,7 +1079,9 @@ JavaScript." The bundled offline list says the same since
 `@nera-static/nera` 1.11.1. Layout labels stay English in a `--lang de` site
 (the CLI copies `en`); `legal-*` still passes there. Along the way,
 `@nera-static/core` 4.16.1 dropped `pretty` for `js-beautify` 2 (identical
-output), ending the `glob@10` deprecation warning on every install.
+output), ending the `glob@10` deprecation warning on every install; Node 20
+and Node 22 before 22.22.2 get a harmless `EBADENGINE` warning from its
+CLI-only `nopt` 10 instead (decided to keep, noted in core 4.16.2).
 
 - Still to do in slice 5: publish `starter-blank` (bootstrap 1.0.0 by hand,
   then a CI 1.0.1 within two days) and try `nera new --starter blank` against
