@@ -128,7 +128,8 @@ theme it depends on still updates through npm).
 
 `--starter` takes:
 
-- a starter name: `blank` → `@nera-static/starter-blank`;
+- a starter name: `blank` → `@nera-static/starter-blank`, `blog` →
+  `@nera-static/starter-blog`;
 - a package name: `@acme/starter-shop`, or unscoped `nera-starter-shop`;
 - a GitHub URL: `https://github.com/owner/repo` (optionally `.git`, `#ref`),
   or `github:owner/repo#ref`;
@@ -159,8 +160,9 @@ default. Every question has a flag (`--starter`, `--name`, `--lang`); with
 `--yes`, or without a terminal (scripts, CI, AI agents), nothing is asked and
 `nera new` scaffolds the base template.
 
-The official starters are coming: `@nera-static/starter-blank` is the first,
-more will follow. Until they are on npm, use a local path or your own package.
+The official starters: `blank` (`@nera-static/starter-blank`, one accessible
+layout, no theme) and `blog` (`@nera-static/starter-blog`, a blog on
+`@nera-static/theme-blog` with tags, an archive, an Atom feed and a sitemap).
 
 ## Checking the built site
 

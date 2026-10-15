@@ -227,7 +227,7 @@ describe('listStarters', () => {
             throw new TypeError('fetch failed')
         }
         expect(await listStarters({ fetch })).toEqual(bundled)
-        expect(bundled[0].package).toBe('@nera-static/starter-blank')
+        expect(bundled.map((starter) => starter.package)).toEqual(['@nera-static/starter-blank', '@nera-static/starter-blog'])
     })
 
     it('falls back on a non-200 and on bad JSON', async () => {
