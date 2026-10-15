@@ -22,7 +22,8 @@
 > takes 1.10.0). Slice 5 is under way: `nera new --starter`, `--name`,
 > `--lang`, `--yes` and the picker ship in `@nera-static/nera` 1.11.0
 > (2026-10-13, see "Slice 5 — progress"); `starter-blank` 1.0.0 is built
-> (2026-10-14), its first publish is next. No open
+> (2026-10-14), its first publish is next; `@nera-static/theme-blog`
+> 1.0.2 is on npm (2026-10-15), so the blog starter is next. No open
 > questions.**
 >
 > This document is the single source of truth for two linked goals:
@@ -271,7 +272,7 @@ plugins wired up, and a theme dependency.
   projects); `@nera-static/theme-blog` (`nera-theme-blog`, `theme: blog`)
   carries the blog starter (post list, post, archive, tag page for plugin-tags
   3.x, prev/next via plugin-page-pagination, code blocks via `--nera-code-*`,
-  a reserved seam for the planned plugin-feed). The blank starter uses no
+  a `feed-link` seam for plugin-feed). The blank starter uses no
   theme. Both: `nera.generator >=4.15.0`, optional plugin peers, plugin output
   only through seam partials the starter overrides, tokens in
   `config/theme.yaml` as `--theme-*` custom properties, no JS, no third-party
@@ -1099,6 +1100,20 @@ CLI-only `nopt` 10 instead (decided to keep, noted in core 4.16.2).
   then a CI 1.0.1 within two days) and try `nera new --starter blank` against
   npm once; mention `--starter` in the template's `AGENTS.md` and the skill,
   and the new flags on the CLI docs page of nera.js.org (both on the board).
+
+**Done 2026-10-15 (`@nera-static/theme-blog` 1.0.2 on npm): the blog
+theme.** Worked in a Claude Code cloud session, verified and merged locally
+(lint + 86 vitest tests on Node 22 and 24, a Chrome check at desktop and
+375 px). Every `ROADMAP-themes.md` §S7 criterion is a test; the en/de fixture
+`test/site/` passes `nera validate` and `nera check` with every rule at
+`error`. 1.0.0 was published by hand; the `v1.0.1` CI publish failed in the
+package test under npm 12 (`npm pack --json` changed shape), so 1.0.2 is the
+first CI OIDC release and validated the Trusted Publisher. 1.0.2 documents the
+`feed-link` seam's plugin-feed override (`include /vendor/plugin-feed/feed-link`,
+needs `origin` in `config/app.yaml`), proven in a fixture copy. Decisions:
+`ROADMAP-themes.md` §S4 "Built". Found on the way: core 4.16.3 (the theme's
+plugin-range warning never fired) and Node 20 dropped from every fleet CI
+matrix (vitest 5). Next: `nera-starter-blog`.
 
 ## Where the work lands
 
