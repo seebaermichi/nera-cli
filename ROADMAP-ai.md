@@ -22,9 +22,9 @@
 > takes 1.10.0). Slice 5 is under way: `nera new --starter`, `--name`,
 > `--lang`, `--yes` and the picker ship in `@nera-static/nera` 1.11.0
 > (2026-10-13, see "Slice 5 — progress"); `starter-blank` 1.0.0 is built
-> (2026-10-14) and on npm; `@nera-static/theme-blog`
-> 1.0.2 is on npm (2026-10-15); `starter-blog` 1.0.0 is built
-> (2026-10-15), its first publish is next. No open questions.**
+> (2026-10-14) and on npm; `@nera-static/theme-blog` and
+> `starter-blog` 1.0.1 are on npm (2026-10-15), and `nera new --starter
+> blog` works against npm. No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -1148,12 +1148,14 @@ copies `.gitkeep`/`.keep` into `public/`; `@nera-static/nera` 1.12.0 offers
 current entry (not renaming it): with theme-blog 1.0.3 a leftover `en` entry
 has no visible effect, and `starter-blank` relies on the copy.
 
-- Still to do in slice 5: release theme-blog 1.0.3, plugin-tags 3.4.0,
-  plugin-sitemap 1.1.0 and core 4.16.4; publish `starter-blog` (bootstrap
-  1.0.0 by hand, then a CI 1.0.1 within two days that raises its ranges to
-  those releases, refreshes `theme/views/vendor/plugin-tags/` and drops the
-  README's "delete the `en:` entry" step); then release `@nera-static/nera`
-  1.12.0 (its offline list must not name an unpublished package).
+Released the same day: theme-blog 1.0.3, plugin-tags 3.4.0, plugin-sitemap
+1.1.0 and core 4.16.4 (CI); `starter-blog` 1.0.0 by hand, then 1.0.1 by CI
+OIDC (validates the Trusted Publisher), which raises its ranges to those
+releases, refreshes `theme/views/vendor/plugin-tags/` and drops the README's
+"delete the `en:` entry" step; then `@nera-static/nera` 1.12.0. Tried against
+npm: `npx @nera-static/nera@1.12.0 new my-blog --starter blog --name "Brot &
+Zeit" --lang de --yes` builds, checks and validates with no findings, with no
+language switch and no `public/.gitkeep`.
 
 ## Where the work lands
 
