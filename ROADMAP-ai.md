@@ -22,9 +22,9 @@
 > takes 1.10.0). Slice 5 is under way: `nera new --starter`, `--name`,
 > `--lang`, `--yes` and the picker ship in `@nera-static/nera` 1.11.0
 > (2026-10-13, see "Slice 5 — progress"); `starter-blank` 1.0.0 is built
-> (2026-10-14), its first publish is next; `@nera-static/theme-blog`
-> 1.0.2 is on npm (2026-10-15), so the blog starter is next. No open
-> questions.**
+> (2026-10-14) and on npm; `@nera-static/theme-blog`
+> 1.0.2 is on npm (2026-10-15); `starter-blog` 1.0.0 is built
+> (2026-10-15), its first publish is next. No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -1114,6 +1114,46 @@ needs `origin` in `config/app.yaml`), proven in a fixture copy. Decisions:
 `ROADMAP-themes.md` §S4 "Built". Found on the way: core 4.16.3 (the theme's
 plugin-range warning never fired) and Node 20 dropped from every fleet CI
 matrix (vitest 5). Next: `nera-starter-blog`.
+
+**Done 2026-10-15 (`nera-starter-blog` 1.0.0, not yet published):
+`@nera-static/starter-blog`, the second starter.** Worked in a Claude Code
+cloud session, verified and merged locally (lint, 20 vitest tests, a by-hand
+scaffold on Node 22). `theme: blog` on `@nera-static/theme-blog` ^1.0.2 with
+plugin-tags, -page-pagination, -feed, -sitemap, -code-blocks, -navigation,
+-images and -social-media-links. It ships `config/` (an `origin:
+https://example.com` placeholder so feed and sitemap are written, every theme,
+footer and plugin `t()` key in `translations.en`), the nine §S4.2 seam
+overrides, the published vendor templates (without
+`fontawesome-cdn-link.pug`, which loads a CDN), home, archive and about,
+imprint and privacy placeholders, and three posts across 2025 and 2026. A
+site scaffolded with CLI 1.11.1 has zero findings in `nera build --check` and
+`nera validate`, also with every rule promoted to error and with
+`--name`/`--lang de`. Decisions: pages carry no `lang` (so `--lang` relabels
+the whole site), home `title: Welcome` (independent of `--name`),
+`images.yaml` `og: false` (the theme writes no `og:image`),
+`tag_overview_meta.description` for the tag pages, English only. The
+description, shared by `package.json` and `nera.starter`: "A ready-to-edit
+Nera blog on @nera-static/theme-blog: three sample posts, tags, an archive by
+year, prev/next, an Atom feed, a sitemap, code blocks, navigation, responsive
+images, social links and imprint and privacy placeholders. No JavaScript."
+
+Found on the way and fixed the same day, each in its own repo: theme-blog
+1.0.3 renders no language switch when no other language has a page (a
+`--lang de` site kept the copied `en` entry and showed a one-item switch,
+§S2.8); plugin-tags 3.4.0 shows tag-overview dates as calendar dates in UTC
+with `datetime` (a build west of UTC showed the day before, with a time);
+plugin-sitemap 1.1.0 reads `updated` for `<lastmod>`; core 4.16.4 no longer
+copies `.gitkeep`/`.keep` into `public/`; `@nera-static/nera` 1.12.0 offers
+`blog` in the bundled offline list. The CLI's `--lang` keeps copying the
+current entry (not renaming it): with theme-blog 1.0.3 a leftover `en` entry
+has no visible effect, and `starter-blank` relies on the copy.
+
+- Still to do in slice 5: release theme-blog 1.0.3, plugin-tags 3.4.0,
+  plugin-sitemap 1.1.0 and core 4.16.4; publish `starter-blog` (bootstrap
+  1.0.0 by hand, then a CI 1.0.1 within two days that raises its ranges to
+  those releases, refreshes `theme/views/vendor/plugin-tags/` and drops the
+  README's "delete the `en:` entry" step); then release `@nera-static/nera`
+  1.12.0 (its offline list must not name an unpublished package).
 
 ## Where the work lands
 
