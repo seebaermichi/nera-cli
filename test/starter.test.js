@@ -11,6 +11,7 @@ import {
     fetchStarter,
     readStarterManifest,
     listStarters,
+    firstStepsSection,
 } from '../src/starter.js'
 import { BUNDLED_STARTERS } from '../src/starters.js'
 
@@ -178,6 +179,79 @@ describe('readStarterManifest', () => {
         await expect(readStarterManifest(workdir, './x')).rejects.toThrow(
             /"\.\/x" is not a Nera starter: it has no readable package\.json/
         )
+    })
+})
+
+describe('firstStepsSection', () => {
+    const README = [
+        '# Blog starter',
+        '',
+        '[![npm version](https://img.shields.io/npm/v/x)](https://www.npmjs.com/package/x)',
+        '',
+        '## First steps',
+        '',
+        '1. Edit `config/app.yaml`.',
+        '',
+        '### Writing posts',
+        '',
+        'Add a file to `pages/posts/`.',
+        '',
+        '## License',
+        '',
+        'MIT',
+    ].join('\n')
+
+    it('returns the section without badges or other sections', () => {
+        expect(firstStepsSection(README)).toBe(
+            '## First steps\n\n1. Edit `config/app.yaml`.\n\n' +
+                '### Writing posts\n\nAdd a file to `pages/posts/`.'
+        )
+    })
+
+    it('runs the last section to the end of the file', () => {
+        expect(firstStepsSection('# X\n\n## First steps\n\nRun it.\n\n')).toBe(
+            '## First steps\n\nRun it.'
+        )
+    })
+
+    it('returns null when there is no First steps section', () => {
+        expect(firstStepsSection('# X\n\n## Next steps\n\nRun it.\n')).toBeNull()
+        expect(firstStepsSection('')).toBeNull()
+        expect(firstStepsSection('### First steps\n\nToo deep.\n')).toBeNull()
+    })
+
+    it('reads a CRLF README and returns LF', () => {
+        expect(firstStepsSection(README.replace(/\n/g, '\r\n'))).toBe(firstStepsSection(README))
+    })
+
+    it('ignores headings inside fenced code blocks', () => {
+        const readme = [
+            '# X',
+            '',
+            '```markdown',
+            '## First steps',
+            'not this one',
+            '```',
+            '',
+            '## First steps',
+            '',
+            '~~~~',
+            '## Not an end',
+            '~~~',
+            'still in the fence',
+            '~~~~',
+            '',
+            'Done.',
+            '',
+            '## License',
+        ].join('\n')
+        expect(firstStepsSection(readme)).toBe(
+            '## First steps\n\n~~~~\n## Not an end\n~~~\nstill in the fence\n~~~~\n\nDone.'
+        )
+    })
+
+    it('matches the heading regardless of case and closing hashes', () => {
+        expect(firstStepsSection('## First Steps ##\nGo.')).toBe('## First Steps ##\nGo.')
     })
 })
 

@@ -122,9 +122,10 @@ A starter kit is a whole ready-to-edit site: sample pages, config, optional
 site-level `theme/` overrides, assets and the theme and plugins it depends on.
 `nera new` copies its `pages/`, `config/`, `theme/`, `assets/`, `plugins/` and
 `.neraignore` over the base template, adds its `dependencies` to the site's
-`package.json`, applies `--name` / `--lang`, installs, and prints the starter's
-README. After that the site owns the files; a starter has no update path (the
-theme it depends on still updates through npm).
+`package.json`, applies `--name` / `--lang`, installs, and prints the
+`## First steps` section of the starter's README (nothing, when it has none).
+After that the site owns the files; a starter has no update path (the theme it
+depends on still updates through npm).
 
 `--starter` takes:
 

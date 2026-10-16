@@ -730,16 +730,28 @@ describe('scaffoldProject with a starter', () => {
         expect(pkg.scripts).toEqual(template.scripts)
     })
 
-    it('prints the starter README after Done, before the next steps', async () => {
+    it('prints only the starter README\'s First steps after Done, before the next steps', async () => {
         const { logs } = await scaffoldQuiet('s', { starter: FIXTURE })
         const done = logs.indexOf('✅ Done!')
-        const readme = logs.findIndex((l) => l.includes('# Minimal starter'))
         const next = logs.findIndex((l) => l.startsWith('👉 Next steps:'))
         expect(done).toBeGreaterThan(-1)
-        expect(readme).toBe(done + 1)
-        expect(next).toBe(readme + 1)
-        expect(logs[readme]).toContain('Edit `pages/about.md`')
+        expect(next).toBe(done + 2)
+        expect(logs[done + 1]).toBe(
+            '\n## First steps\n\nEdit `pages/about.md` to tell visitors who you are.\n\n' +
+                '### Then\n\nRun `npm run dev`.\n'
+        )
+        expect(logs.join('\n')).not.toMatch(/Minimal starter|img\.shields\.io|## License/)
         expect(logs).toContain('  ✓ Applied the "Minimal" starter (nera-starter-minimal)')
+    })
+
+    it('prints nothing from a starter README without First steps', async () => {
+        const starter = path.join(workdir, 'no-first-steps')
+        await fs.cp(FIXTURE, starter, { recursive: true })
+        await fs.writeFile(path.join(starter, 'README.md'), '# Starter\n\n## Usage\n\nRead me.\n')
+        const { logs } = await scaffoldQuiet('s', { starter })
+        const done = logs.indexOf('✅ Done!')
+        expect(logs[done + 1]).toMatch(/^👉 Next steps:/)
+        expect(logs.join('\n')).not.toContain('Read me.')
     })
 
     it('applies --name and --lang over the starter\'s config', async () => {

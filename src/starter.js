@@ -170,7 +170,7 @@ const OWN_PACKAGE = '@nera-static/nera'
 
 // Lay the starter over a scaffolded site, file by file (the starter wins),
 // and merge its `dependencies` into the site's package.json. Symlinks are not
-// copied. Returns the starter's README text, or null.
+// copied. Returns the "First steps" section of the starter's README, or null.
 export async function applyStarter(targetDir, starterDir) {
     const pkg = await readStarterManifest(starterDir)
     const notLink = async (src) => !(await fs.lstat(src)).isSymbolicLink()
@@ -200,10 +200,46 @@ export async function applyStarter(targetDir, starterDir) {
     console.log(`  ✓ Applied the "${label}" starter${pkg.name ? ` (${pkg.name})` : ''}`)
 
     try {
-        return await fs.readFile(path.join(starterDir, 'README.md'), 'utf-8')
+        return firstStepsSection(await fs.readFile(path.join(starterDir, 'README.md'), 'utf-8'))
     } catch {
         return null
     }
+}
+
+const FIRST_STEPS = /^## +first steps *#* *$/i
+const SECTION_END = /^#{1,2} /
+const FENCE = /^ {0,3}(`{3,}|~{3,})/
+
+// The `## First steps` section of a starter README, from its heading to the
+// next `#`/`## ` heading or the end, trimmed; null when there is none. Headings
+// inside fenced code blocks do not count. Line endings come back as `\n`.
+export function firstStepsSection(readme) {
+    const lines = readme.replace(/\r\n?/g, '\n').split('\n')
+    let fence = null
+    let start = -1
+    let end = lines.length
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        const marker = FENCE.exec(line)?.[1]
+        if (fence) {
+            // A fence closes on the same character, at least as long, alone on its line.
+            const closes = marker && marker[0] === fence[0] && marker.length >= fence.length
+            if (closes && line.trim() === marker) fence = null
+            continue
+        }
+        if (marker) {
+            fence = marker
+            continue
+        }
+        if (start < 0) {
+            if (FIRST_STEPS.test(line)) start = i
+        } else if (SECTION_END.test(line)) {
+            end = i
+            break
+        }
+    }
+    if (start < 0) return null
+    return lines.slice(start, end).join('\n').trim()
 }
 
 const REGISTRY_SEARCH =

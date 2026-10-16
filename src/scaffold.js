@@ -421,7 +421,7 @@ export async function scaffoldProject(projectName, options = {}) {
         'npm run dev',
     ]
     console.log('✅ Done!')
-    if (readme) console.log(`\n${readme.replace(/\n*$/, '')}\n`)
+    if (readme) console.log(`\n${readme}\n`)
     console.log(
         `👉 Next steps:\n${nextSteps.map((l) => `  ${l}\n`).join('')}`
     )

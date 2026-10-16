@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+-   `nera new --starter` prints only the `## First steps` section of the starter's README (up to the next `#` or `## ` heading), not the whole file with its badges and reference sections. A starter README without that section prints nothing.
 -   `engines.node` is `>=22.12.0`, documenting the real floor: on Node 20 the bundled npm cannot install a new site. Node 22.12 bundles npm 10.9.
 
 ## [1.12.0] - 2026-10-15

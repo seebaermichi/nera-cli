@@ -251,7 +251,9 @@ plugins wired up, and a theme dependency.
   the same forms `--theme` accepts today (`validateThemeSpec` in `scaffold.js`).
 - **Contents:** `pages/`, `config/`, optional site-level `theme/` overrides,
   `assets/`, a `package.json` fragment (`dependencies`: the theme and plugins),
-  and an optional `README` shown after scaffolding.
+  and an optional `README` whose `## First steps` section (up to the next
+  `## ` heading) is printed after scaffolding; a README without one prints
+  nothing.
 - **Behaviour:** `nera new` copies the starter over the base template, merges the
   dependencies, applies `--name`/`--lang` to `config/app.yaml`, installs. After
   that the starter is gone — the site owns the files (no update path, by
@@ -1048,6 +1050,11 @@ string). The picker (`src/prompt.js`, `node:readline`) runs only on a TTY
 without `--yes` or `--starter` and only collects options for
 `scaffoldProject`, the one code path the MCP tool `create_site` will call.
 The offline list (`src/starters.js`) is hand-kept and holds only `blank`.
+Since 1.13.0 only the README's `## First steps` section is printed
+(`firstStepsSection` in `src/starter.js`: to the next `#`/`## ` heading,
+fenced code ignored, CRLF read), never the whole file with its badges; a
+starter without the section prints nothing, by design — no fallback to the
+whole README.
 Proven with `test/fixtures/starter-minimal`; no starter is on npm yet.
 Settled on the way:
 
