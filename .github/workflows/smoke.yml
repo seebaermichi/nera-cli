@@ -1,0 +1,40 @@
+name: Smoke
+
+# Installs a new site the way a user does — `nera new`, no lockfile, today's
+# versions from npm — on the lowest Node `engines` allows and on the newest.
+# `test.yml` cannot catch this: `npm ci` installs our own pinned lockfile.
+# Weekly too, because a dependency release can break a fresh install without
+# any commit here.
+
+on:
+    push:
+        branches: [main]
+    schedule:
+        - cron: '0 6 * * 1'
+    workflow_dispatch:
+
+jobs:
+    smoke:
+        runs-on: ubuntu-latest
+
+        strategy:
+            fail-fast: false
+            matrix:
+                # 22.12.0 is the `engines.node` floor (bundles npm 10.9).
+                node-version: ['22.12.0', 24]
+                starter: [none, blank, blog]
+
+        steps:
+            - uses: actions/checkout@v7
+
+            - name: Use Node.js ${{ matrix.node-version }}
+              uses: actions/setup-node@v7
+              with:
+                  node-version: ${{ matrix.node-version }}
+
+            # `nera new` from this checkout needs the CLI's own dependencies.
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Smoke test (${{ matrix.starter }})
+              run: bash scripts/smoke.sh ${{ matrix.starter }}

@@ -82,6 +82,8 @@ describe('scaffoldProject', () => {
             dev: 'nera dev',
             build: 'nera build',
             serve: 'nera serve',
+            validate: 'nera validate',
+            check: 'nera build --check',
         })
     })
 

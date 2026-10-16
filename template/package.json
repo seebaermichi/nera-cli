@@ -6,7 +6,9 @@
     "scripts": {
         "dev": "nera dev",
         "build": "nera build",
-        "serve": "nera serve"
+        "serve": "nera serve",
+        "validate": "nera validate",
+        "check": "nera build --check"
     },
     "dependencies": {
         "@nera-static/nera": "^1.0.0"
