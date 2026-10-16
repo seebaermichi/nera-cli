@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-10-16
+
+### Added
+
+-   `nera new` refuses to start, before it asks or writes anything, when it would run `npm install` with npm older than 10.9.0, and names the fix: Node.js 22.12 or later, or `npm i -g npm@10.9`. npm 10.8 (bundled with Node 20) crashes in arborist on the optional peers of vite 8, which every site installs. With `--no-install` npm is not checked; when its version cannot be read, `nera new` goes ahead as before.
+
+### Changed
+
+-   `engines.node` is `>=22.12.0`, documenting the real floor: on Node 20 the bundled npm cannot install a new site. Node 22.12 bundles npm 10.9.
+
 ## [1.12.0] - 2026-10-15
 
 ### Added

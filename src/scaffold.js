@@ -293,11 +293,49 @@ async function addSkill(targetDir) {
     )
 }
 
+// npm before 10.9 (bundled with Node < 22.12) crashes in arborist on the
+// optional peer chain of vite 8, which every site installs (ROADMAP-ai.md,
+// slice 5, "the Node floor"). Checked before anything is written or asked.
+const MIN_NPM = [10, 9, 0]
+
+const defaultExecNpm = (args, options) => execFileSync('npm', args, options)
+
+// The installed npm's version, or null when it cannot be read (no npm on the
+// PATH, an unparseable answer): then nothing is refused, and `npm install`
+// reports its own error.
+export function probeNpmVersion(execNpm = defaultExecNpm) {
+    try {
+        const out = execNpm(['--version'], {
+            encoding: 'utf-8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        })
+        const version = String(out).trim()
+        return /^\d+\.\d+\.\d+/.test(version) ? version : null
+    } catch {
+        return null
+    }
+}
+
+// Throws when `version` is an npm that cannot install a site; null passes.
+export function assertNpmCanInstall(version) {
+    if (version === null) return
+    const parts = version.split(/[.-]/).slice(0, 3).map(Number)
+    const i = parts.findIndex((n, j) => n !== MIN_NPM[j])
+    if (i === -1 || parts[i] > MIN_NPM[i]) return
+    throw new Error(
+        `npm ${version} cannot install a Nera site: it crashes on vite's ` +
+            'dependencies. Use Node.js 22.12 or later, which bundles npm 10.9, ' +
+            'or update npm with `npm i -g npm@10.9`, then run `nera new` ' +
+            'again. Nothing was written.'
+    )
+}
+
 // Scaffold a thin Nera site: copy the template, lay a starter kit over it if
 // one is given, name it, and (by default) install its dependencies. The one
 // code path for flags, the interactive picker and the future MCP tool
 // (ROADMAP-ai.md principle 4): everything comes in as plain options.
-// `fetchStarter(spec, { cwd })` → `{ dir, cleanup }` is injectable for tests.
+// `fetchStarter(spec, { cwd })` → `{ dir, cleanup }` and `execNpm(args,
+// options)` (execFileSync's shape) are injectable for tests.
 export async function scaffoldProject(projectName, options = {}) {
     const {
         install = true,
@@ -307,6 +345,7 @@ export async function scaffoldProject(projectName, options = {}) {
         name,
         lang,
         fetchStarter = defaultFetchStarter,
+        execNpm = defaultExecNpm,
     } = options
 
     // Everything is checked before anything is written.
@@ -321,6 +360,7 @@ export async function scaffoldProject(projectName, options = {}) {
     }
     if (name !== undefined) validateSiteName(name)
     if (lang !== undefined) validateLang(lang)
+    if (install) assertNpmCanInstall(probeNpmVersion(execNpm))
 
     const targetDir = path.resolve(cwd, inPlace ? '.' : projectName)
     if (inPlace) {
@@ -371,7 +411,7 @@ export async function scaffoldProject(projectName, options = {}) {
         // it resolved. A starter's dependencies are already in package.json.
         const themePkg = theme ? themePackageName(theme) : null
         const args = themePkg ? ['install', themePkg] : ['install']
-        execFileSync('npm', args, { cwd: targetDir, stdio: 'inherit' })
+        execNpm(args, { cwd: targetDir, stdio: 'inherit' })
     }
 
     // `npm run dev`, not `nera dev`: it works without a global `nera`.

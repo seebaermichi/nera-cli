@@ -38,9 +38,10 @@ releases, plugin contract); this file only adds what a reviewer checks per diff.
 
 ## Framework correctness
 
-- ESM only, Node `^20.19.0 || >=22.12.0`; eslint style: 4-space indent, no
-  semicolons, single quotes. No new runtime dependency without a stated reason —
-  every site installs this package.
+- ESM only, Node `>=22.12.0` (npm ≥ 10.9; older npm crashes installing
+  vite 8); eslint style: 4-space indent, no semicolons, single quotes. No new
+  runtime dependency without a stated reason — every site installs this
+  package.
 - Commands return an exit code; only `bin/nera.js` calls `process.exit`, so the
   `run*` functions stay testable.
 - Heavy dependencies (vite, chokidar, future GitHub/Netlify clients, keychain) are

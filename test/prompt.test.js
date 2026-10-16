@@ -107,6 +107,7 @@ describe('runNew', () => {
         stdout,
         prompt: vi.fn(async () => answers),
         scaffold: vi.fn(async () => '/x'),
+        npmVersion: vi.fn(() => '10.9.0'),
     })
 
     it('never prompts without a TTY', async () => {
@@ -150,6 +151,25 @@ describe('runNew', () => {
         const d = deps(tty, tty)
         await runNew(['site', '--theme', 'example'], d)
         expect(d.prompt.mock.calls[0][0].skip.starter).toBe(true)
+    })
+
+    it('refuses an npm that would crash on install before asking', async () => {
+        const d = { ...deps(tty, tty), npmVersion: vi.fn(() => '10.8.2') }
+        await expect(runNew(['site'], d)).rejects.toThrow(/npm 10\.8\.2 cannot install/)
+        expect(d.prompt).not.toHaveBeenCalled()
+        expect(d.scaffold).not.toHaveBeenCalled()
+    })
+
+    it('asks with npm 10.9.0, and does not check npm with --no-install', async () => {
+        const ok = deps(tty, tty)
+        await runNew(['site'], ok)
+        expect(ok.npmVersion).toHaveBeenCalledOnce()
+        expect(ok.prompt).toHaveBeenCalledOnce()
+
+        const offline = { ...deps(tty, tty), npmVersion: vi.fn(() => '10.8.2') }
+        await runNew(['site', '--no-install'], offline)
+        expect(offline.npmVersion).not.toHaveBeenCalled()
+        expect(offline.prompt).toHaveBeenCalledOnce()
     })
 
     it('refuses a bad project name or flag before asking', async () => {

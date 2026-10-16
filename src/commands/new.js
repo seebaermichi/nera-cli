@@ -1,4 +1,6 @@
 import {
+    assertNpmCanInstall,
+    probeNpmVersion,
     scaffoldProject,
     isCurrentDir,
     validateProjectName,
@@ -44,12 +46,13 @@ async function defaultPrompt(options) {
     return runPicker({ ...options, listStarters, validateSiteName, validateLang })
 }
 
-// `prompt`, `scaffold` and the streams are injectable for tests.
+// `prompt`, `scaffold`, `npmVersion` and the streams are injectable for tests.
 export async function runNew(args = [], {
     stdin = process.stdin,
     stdout = process.stdout,
     prompt = defaultPrompt,
     scaffold = scaffoldProject,
+    npmVersion = probeNpmVersion,
 } = {}) {
     const { projectName, yes, install, ...rest } = parseNewArgs(args)
     const options = Object.fromEntries(
@@ -63,6 +66,9 @@ export async function runNew(args = [], {
         if (options.theme !== undefined) validateThemeSpec(options.theme)
         if (options.name !== undefined) validateSiteName(options.name)
         if (options.lang !== undefined) validateLang(options.lang)
+        // An npm that would crash on install is refused before the
+        // questions too; scaffoldProject checks again for every caller.
+        if (install) assertNpmCanInstall(npmVersion())
         const answers = await prompt({
             input: stdin,
             output: stdout,

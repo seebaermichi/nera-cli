@@ -16,6 +16,8 @@ import {
     themePackageName,
     projectNameFromDir,
     templateDir,
+    probeNpmVersion,
+    assertNpmCanInstall,
 } from '../src/scaffold.js'
 import { skillSourceDir } from '../src/skill.js'
 import { parseNewArgs } from '../src/commands/new.js'
@@ -870,5 +872,78 @@ describe('scaffoldProject without a starter or flags', () => {
             const src = rel === '.gitignore' ? '_gitignore' : rel
             expect(await read(target, rel)).toBe(await read(templateDir(), src))
         }
+    })
+})
+
+describe('the npm check before installing', () => {
+    // A stand-in for execFileSync('npm', …): answers `--version` with
+    // `version` (or throws when it is an Error) and records every call.
+    const fakeNpm = (version) =>
+        vi.fn((args) => {
+            if (args[0] !== '--version') return null
+            if (version instanceof Error) throw version
+            return `${version}\n`
+        })
+
+    it('reads the version, or null when npm cannot be run or answers nonsense', () => {
+        expect(probeNpmVersion(fakeNpm('10.9.0'))).toBe('10.9.0')
+        expect(probeNpmVersion(fakeNpm(new Error('spawn npm ENOENT')))).toBe(null)
+        expect(probeNpmVersion(fakeNpm('oops'))).toBe(null)
+    })
+
+    it('refuses npm below 10.9.0 and lets 10.9.0, 10.10 and 11 through', () => {
+        for (const v of ['10.8.2', '10.8.99', '9.9.9', '8.19.4']) {
+            expect(() => assertNpmCanInstall(v)).toThrow(`npm ${v} cannot install`)
+        }
+        for (const v of ['10.9.0', '10.9.4', '10.10.0', '11.0.0', '11.6.2', null]) {
+            expect(() => assertNpmCanInstall(v)).not.toThrow()
+        }
+    })
+
+    it('with npm 10.8.2, names the fix and creates nothing', async () => {
+        const execNpm = fakeNpm('10.8.2')
+        await expect(
+            scaffoldProject('old-npm', { cwd: workdir, execNpm })
+        ).rejects.toThrow(/Node\.js 22\.12 or later.*npm i -g npm@10\.9/)
+        expect(fssync.existsSync(path.join(workdir, 'old-npm'))).toBe(false)
+        expect(execNpm.mock.calls.map(([args]) => args)).toEqual([['--version']])
+    })
+
+    it('with npm 10.9.0, scaffolds and installs', async () => {
+        const execNpm = fakeNpm('10.9.0')
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+        try {
+            const target = await scaffoldProject('new-npm', { cwd: workdir, execNpm })
+            expect(fssync.existsSync(path.join(target, 'package.json'))).toBe(true)
+            expect(execNpm).toHaveBeenLastCalledWith(['install'], {
+                cwd: target,
+                stdio: 'inherit',
+            })
+        } finally {
+            log.mockRestore()
+        }
+    })
+
+    it('goes ahead when the version cannot be read', async () => {
+        const execNpm = fakeNpm(new Error('spawn npm ENOENT'))
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+        try {
+            await scaffoldProject('no-npm', { cwd: workdir, execNpm })
+            expect(execNpm).toHaveBeenLastCalledWith(['install'], expect.anything())
+        } finally {
+            log.mockRestore()
+        }
+    })
+
+    it('does not run npm at all with --no-install', async () => {
+        const execNpm = fakeNpm('10.8.2')
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+        try {
+            await scaffoldProject('offline', { cwd: workdir, install: false, execNpm })
+        } finally {
+            log.mockRestore()
+        }
+        expect(execNpm).not.toHaveBeenCalled()
+        expect(fssync.existsSync(path.join(workdir, 'offline'))).toBe(true)
     })
 })

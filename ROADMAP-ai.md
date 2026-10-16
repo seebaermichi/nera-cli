@@ -1157,6 +1157,20 @@ npm: `npx @nera-static/nera@1.12.0 new my-blog --starter blog --name "Brot &
 Zeit" --lang de --yes` builds, checks and validates with no findings, with no
 language switch and no `public/.gitkeep`.
 
+**In progress 2026-10-16 (`@nera-static/nera` 1.13.0, not yet released): the
+Node floor.** A manual `nera new x --starter blog` failed on Node 20: its npm
+10.8.2 crashes in arborist (`edgesOut` of null) on vite 8's optional peer
+chain; npm 10.9 (Node 22.12+) installs fine. CI missed it, because it runs
+`npm ci` on a lockfile with an older vite, on Node 22/24 only. Decisions:
+
+- **Floor `>=22.12.0`** in core, validate, nera, theme-blog, starter-blog and
+  starter-blank, each as a minor "Changed" entry. Node 22.12 bundles npm 10.9.
+- **The EBADENGINE warning on Node 22.12–22.22.1 stays**, documented as
+  harmless: it comes from `nopt`/`abbrev` through `js-beautify`'s CLI.
+- **`nera new` refuses npm < 10.9.0** when it would run `npm install`, before
+  it asks or writes anything, names the fix and exits 1. `--no-install` skips
+  the check, and an unreadable `npm --version` lets it go ahead.
+
 ## Where the work lands
 
 | Repo | Slices | What lands there |
