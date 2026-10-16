@@ -286,7 +286,7 @@ layout `nera new` scaffolds.
 
 ## Requirements
 
-Node.js 20.19 or later, or 22.12 or later.
+Node.js 22.12 or later (its bundled npm 10.9 or later).
 
 ## License
 
