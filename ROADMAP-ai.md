@@ -1164,8 +1164,9 @@ npm: `npx @nera-static/nera@1.12.0 new my-blog --starter blog --name "Brot &
 Zeit" --lang de --yes` builds, checks and validates with no findings, with no
 language switch and no `public/.gitkeep`.
 
-**In progress 2026-10-16 (`@nera-static/nera` 1.13.0, not yet released): the
-Node floor.** A manual `nera new x --starter blog` failed on Node 20: its npm
+**Done 2026-10-16 (`@nera-static/nera` 1.13.0, core 4.17.0, validate 1.5.0,
+theme-blog 1.1.0, starter-blog and starter-blank 1.1.0; released after this
+note): the Node floor.** A manual `nera new x --starter blog` failed on Node 20: its npm
 10.8.2 crashes in arborist (`edgesOut` of null) on vite 8's optional peer
 chain; npm 10.9 (Node 22.12+) installs fine. CI missed it, because it runs
 `npm ci` on a lockfile with an older vite, on Node 22/24 only. Decisions:
@@ -1177,6 +1178,18 @@ chain; npm 10.9 (Node 22.12+) installs fine. CI missed it, because it runs
 - **`nera new` refuses npm < 10.9.0** when it would run `npm install`, before
   it asks or writes anything, names the fix and exits 1. `--no-install` skips
   the check, and an unreadable `npm --version` lets it go ahead.
+- **`nera new --starter` prints only the README's `## First steps`
+  section** (up to the next `## `), or nothing when there is none.
+  `starter-blank` renamed its `## Next steps` to match.
+- **Every new site gets `validate` and `check` scripts** in
+  `template/package.json`. `AGENTS.md` keeps `npx nera …`, which also works
+  in older sites.
+- **A lockfile-free smoke job** (`scripts/smoke.sh`, `smoke.yml`) scaffolds
+  none/blank/blog on Node 22.12.0 and 24, on push to main and weekly, so a
+  fresh install's dependency tree is tested, not only the lockfile's.
+  `test.yml` keeps the fleet-identical shape.
+- **Core's asset log names its source** ("Theme/Plugin (<name>)/Site assets
+  copied") instead of three bare "Assets copied" lines.
 
 ## Where the work lands
 
