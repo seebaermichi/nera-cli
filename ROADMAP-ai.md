@@ -1190,6 +1190,11 @@ chain; npm 10.9 (Node 22.12+) installs fine. CI missed it, because it runs
   `test.yml` keeps the fleet-identical shape.
 - **Core's asset log names its source** ("Theme/Plugin (<name>)/Site assets
   copied") instead of three bare "Assets copied" lines.
+- **nera.js.org follows (2026-10-16):** the home page and getting-started
+  state "Node.js 22.12 or newer" in en/de/es, "How this site is built" names
+  the real CI matrix (Node 22 and 24, it said 20 and 22), the four English
+  tutorials that stamp `nera`/`core` are re-stamped, and the site's lockfile
+  is refreshed to core 4.17.0 / nera 1.13.0.
 
 ## Where the work lands
 
