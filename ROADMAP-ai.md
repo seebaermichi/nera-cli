@@ -25,8 +25,8 @@
 > (2026-10-14) and on npm; `@nera-static/theme-blog` and
 > `starter-blog` 1.0.1 are on npm (2026-10-15), and `nera new --starter
 > blog` works against npm. `@nera-static/theme-business` 1.0.0 (business
-> and portfolio starters) is built (2026-10-17) and awaits its bootstrap
-> publish. No open questions.**
+> and portfolio starters) is on npm (2026-10-17, 1.0.2 via CI OIDC). No
+> open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -289,10 +289,10 @@ plugins wired up, and a theme dependency.
   page-navigation 2.5.0, social-media-links 2.3.0, tags 3.3.0). **T4 belongs
   to `--starter`:** it must leave out the `nera:scaffold-default` files as
   `--theme` does.
-- **theme-business built 2026-10-17** (`nera-theme-business`, §S3 of
-  `generator/ROADMAP-themes.md` carries the record): 1.0.0 waits for its
-  bootstrap publish, then a CI x.y.1; `starter-business` and
-  `starter-portfolio` can start once it is on npm.
+- **theme-business released 2026-10-17** (`nera-theme-business`, §S3 of
+  `generator/ROADMAP-themes.md` carries the record): 1.0.0 and 1.0.1 by
+  hand, 1.0.2 via CI OIDC; `starter-business` and `starter-portfolio` can
+  start.
 
 ### L6 — `nera publish`: from folder to URL
 
