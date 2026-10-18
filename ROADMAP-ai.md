@@ -25,7 +25,8 @@
 > (2026-10-14) and on npm; `@nera-static/theme-blog` and
 > `starter-blog` 1.0.1 are on npm (2026-10-15), and `nera new --starter
 > blog` works against npm. `@nera-static/theme-business` 1.0.0 (business
-> and portfolio starters) is on npm (2026-10-17, 1.0.2 via CI OIDC). No
+> and portfolio starters) is on npm (2026-10-17, 1.0.2 via CI OIDC);
+> `starter-business` 1.0.1 is on npm (2026-10-18, 1.0.1 via CI OIDC). No
 > open questions.**
 >
 > This document is the single source of truth for two linked goals:
@@ -1201,6 +1202,43 @@ chain; npm 10.9 (Node 22.12+) installs fine. CI missed it, because it runs
   the real CI matrix (Node 22 and 24, it said 20 and 22), the four English
   tutorials that stamp `nera`/`core` are re-stamped, and the site's lockfile
   is refreshed to core 4.17.0 / nera 1.13.0.
+
+**Done 2026-10-18 (`@nera-static/starter-business` 1.0.1 on npm):
+`@nera-static/starter-business`, the third starter.** Worked locally in six
+gated steps (lint, 40 vitest tests including an end-to-end scaffold in
+English and with `--lang de`, a browser walkthrough of all nine acceptance
+cases). `theme: business` on `@nera-static/theme-business` ^1.0.1 (lockfile
+on 1.0.2) with plugin-contact-form, -images, -navigation,
+-social-media-links and -sitemap; `engines.node` `>=22.12.0`. It ships the
+seven L5 pages (home with hero and three service cards, about, services,
+opening hours, contact, imprint and privacy placeholders citing § 5 DDG and
+the TDDDG), `config/` with the business's facts under `app.business`
+(address, phone, hours, a holiday note; no `email`, the form replaces it),
+the seam overrides `hero-media`, `card-media`, `contact-form`, `nav-main`
+and `footer-extra`, the published vendor templates (without
+`fontawesome-cdn-link.pug`), one hero image and a placeholder
+`favicon.ico`. A scaffolded site has zero findings in `nera build --check`
+and `nera validate`, also with every rule promoted to error and with `--lang
+de`. Decisions: English only, pages carry no `lang`; no portfolio section
+(that is `starter-portfolio`'s); generic form fields (name, email, message,
+privacy checkbox) with a placeholder recipient; the plugin's
+`contact-form.js` is the starter's only script, so the description says
+"One small script for the contact form" instead of "No JavaScript"; every
+placeholder is marked and listed in the README's `## First steps`. The
+description, shared by `package.json` and `nera.starter`: "A ready-to-edit
+Nera site for a small business on @nera-static/theme-business: home, about,
+services, opening hours, a contact form, navigation, responsive images,
+social links, a sitemap and imprint and privacy placeholders. One small
+script for the contact form."
+
+Released the same day: 1.0.0 by hand, then 1.0.1 by CI OIDC (validates the
+Trusted Publisher), which raises the theme-business range to ^1.0.2, the
+version the tests run on. The repo meets the fleet baseline (`fleet-check`).
+
+- Still to do in slice 5: add `business` to
+  `BUNDLED_STARTERS` in `src/starters.js` in a `@nera-static/nera` minor,
+  and try `npx @nera-static/nera new my-site --starter business --name "Brot
+  & Zeit" --lang de --yes` against npm. `starter-portfolio` is next.
 
 ## Where the work lands
 
