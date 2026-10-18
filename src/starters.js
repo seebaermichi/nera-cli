@@ -15,4 +15,10 @@ export const BUNDLED_STARTERS = [
         label: 'Blog',
         description: 'A ready-to-edit Nera blog on @nera-static/theme-blog: three sample posts, tags, an archive by year, prev/next, an Atom feed, a sitemap, code blocks, navigation, responsive images, social links and imprint and privacy placeholders. No JavaScript.',
     },
+    {
+        name: 'business',
+        package: '@nera-static/starter-business',
+        label: 'Business',
+        description: 'A ready-to-edit Nera site for a small business on @nera-static/theme-business: home, about, services, opening hours, a contact form, navigation, responsive images, social links, a sitemap and imprint and privacy placeholders. One small script for the contact form.',
+    },
 ]

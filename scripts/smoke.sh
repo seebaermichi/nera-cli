@@ -13,7 +13,7 @@
 # Runs in .github/workflows/smoke.yml.
 #
 # Usage: scripts/smoke.sh <starter|none>
-#   starter   a `--starter` spec, e.g. blank or blog
+#   starter   a `--starter` spec, e.g. blank, blog or business
 #   none      no starter: the base template
 set -euo pipefail
 
