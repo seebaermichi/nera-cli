@@ -26,7 +26,8 @@
 > `starter-blog` 1.0.1 are on npm (2026-10-15), and `nera new --starter
 > blog` works against npm. `@nera-static/theme-business` 1.0.0 (business
 > and portfolio starters) is on npm (2026-10-17, 1.0.2 via CI OIDC);
-> `starter-business` 1.0.1 is on npm (2026-10-18, 1.0.1 via CI OIDC). No
+> `starter-business` 1.0.1 is on npm and offered by `@nera-static/nera`
+> 1.14.0 (2026-10-18). No
 > open questions.**
 >
 > This document is the single source of truth for two linked goals:
@@ -1235,10 +1236,13 @@ Released the same day: 1.0.0 by hand, then 1.0.1 by CI OIDC (validates the
 Trusted Publisher), which raises the theme-business range to ^1.0.2, the
 version the tests run on. The repo meets the fleet baseline (`fleet-check`).
 
-- Still to do in slice 5: add `business` to
-  `BUNDLED_STARTERS` in `src/starters.js` in a `@nera-static/nera` minor,
-  and try `npx @nera-static/nera new my-site --starter business --name "Brot
-  & Zeit" --lang de --yes` against npm. `starter-portfolio` is next.
+Then `@nera-static/nera` 1.14.0 (CI, the same day) offers `business` in the
+bundled offline list, and the smoke job scaffolds it too. Tried against npm:
+`npx @nera-static/nera@1.14.0 new my-site --starter business --name "Brot &
+Zeit" --lang de --yes` builds seven pages, `nera build --check` and `nera
+validate` find no problems, `<html lang="de">`, the title carries the name,
+and `public/` holds `sitemap.xml` and `favicon.ico`. Next in slice 5:
+`starter-portfolio`.
 
 ## Where the work lands
 
