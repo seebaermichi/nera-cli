@@ -18,6 +18,78 @@ export function neraDeps(pkg) {
     )
 }
 
+// The caret range `range` raised to the installed `version`, or null when it
+// stays: only a plain `^x.y.z` with x ≥ 1, only upwards, never across a major.
+// Exact, tilde, tag, git and 0.x ranges are the user's choice and stay as
+// they are. `npm update` installs within the range but never rewrites it.
+export function raisedRange(range, version) {
+    const from = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(range ?? '')
+    const to = /^(\d+)\.(\d+)\.(\d+)$/.exec(version ?? '')
+    if (!from || !to) return null
+    const [a, b] = [from, to].map((m) => m.slice(1).map(Number))
+    if (a[0] < 1 || a[0] !== b[0]) return null
+    const newer = b[1] > a[1] || (b[1] === a[1] && b[2] > a[2])
+    return newer ? `^${version}` : null
+}
+
+const indentOf = (text) => /^[ \t]+(?=")/m.exec(text)?.[0] ?? '  '
+
+// Raise the site's caret ranges of `names` to what is installed in its
+// node_modules, keeping the file's own indentation, and the same ranges in
+// the root entry of package-lock.json, so the two stay in sync. Returns the
+// changes as [name, from, to].
+export async function raiseRanges(cwd, names) {
+    const pkgPath = path.join(cwd, 'package.json')
+    const text = await fs.readFile(pkgPath, 'utf-8')
+    const pkg = JSON.parse(text)
+    const raised = {}
+    const changes = []
+    for (const field of ['dependencies', 'devDependencies']) {
+        for (const name of names) {
+            const range = pkg[field]?.[name]
+            if (typeof range !== 'string') continue
+            let version
+            try {
+                const installed = path.join(cwd, 'node_modules', ...name.split('/'), 'package.json')
+                version = JSON.parse(await fs.readFile(installed, 'utf-8')).version
+            } catch {
+                continue
+            }
+            const to = raisedRange(range, version)
+            if (to) {
+                pkg[field][name] = to
+                raised[field] = { ...raised[field], [name]: [range, to] }
+                changes.push([name, range, to])
+            }
+        }
+    }
+    if (changes.length === 0) return changes
+    await fs.writeFile(pkgPath, `${JSON.stringify(pkg, null, indentOf(text))}\n`)
+
+    const lockPath = path.join(cwd, 'package-lock.json')
+    let lockText
+    try {
+        lockText = await fs.readFile(lockPath, 'utf-8')
+    } catch {
+        return changes
+    }
+    const lock = JSON.parse(lockText)
+    const root = lock.packages?.['']
+    let lockChanged = false
+    for (const [field, entries] of Object.entries(raised)) {
+        for (const [name, [from, to]] of Object.entries(entries)) {
+            if (root?.[field]?.[name] === from) {
+                root[field][name] = to
+                lockChanged = true
+            }
+        }
+    }
+    if (lockChanged) {
+        await fs.writeFile(lockPath, `${JSON.stringify(lock, null, indentOf(lockText))}\n`)
+    }
+    return changes
+}
+
 // A THIN site depends on @nera-static/nera and carries no engine source.
 // A LEGACY site is a clone of the old generator: it vendors the engine under
 // src/ and has no @nera-static/nera dependency — the case `nera update` migrates.
@@ -193,6 +265,9 @@ export async function runUpdate(args = [], options = {}) {
     const targets = neraDeps(pkg)
     console.log(`🔄 Updating Nera packages: ${targets.join(', ')}`)
     runNpm(['update', ...targets], cwd)
+    for (const [name, from, to] of await raiseRanges(cwd, targets)) {
+        console.log(`  ✓ ${name}: ${from} → ${to} in package.json`)
+    }
     await syncAndReportAgentFiles(cwd, templateDir)
     await syncAndReportSkill(cwd, skillDir)
     console.log('✅ Up to date.')

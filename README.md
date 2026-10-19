@@ -31,7 +31,7 @@ package is named after the folder (`My Bakery` → `my-bakery`).
 | `nera build` | Render `pages/` → `public/`. With `--check`, then run `nera check` on the result — one command for CI. `--json` prints the result as one JSON object (see [Machine-readable output](#machine-readable-output)). |
 | `nera dev` | Build, serve `public/`, and rebuild on change with live reload. Watches `pages/`, `config/`, `theme/` and a local theme (`theme: ./themes/<name>`). |
 | `nera serve` | Serve the already-built `public/` folder. |
-| `nera update` | Update the site's Nera packages, then create a missing `AGENTS.md`/`CLAUDE.md` and refresh the Nera part of `AGENTS.md` and the `nera` skill (see [Instructions for AI assistants](#instructions-for-ai-assistants)). On a legacy cloned site, `nera update --migrate` converts it to the thin model. |
+| `nera update` | Update the site's Nera packages and raise their caret ranges in `package.json` (and `package-lock.json`) to the installed versions, then create a missing `AGENTS.md`/`CLAUDE.md` and refresh the Nera part of `AGENTS.md` and the `nera` skill (see [Instructions for AI assistants](#instructions-for-ai-assistants)). On a legacy cloned site, `nera update --migrate` converts it to the thin model. |
 | `nera validate` | Check the site's sources (layouts, includes, YAML) before publishing; exits non-zero on any error. `--json` for machine-readable output. |
 | `nera check` | Check the built `public/` for accessibility, privacy and legal-notice problems (see below). Build first. `--json` for machine-readable output. |
 

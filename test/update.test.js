@@ -7,6 +7,7 @@ import {
     agentTemplateDir,
     classifyProject,
     neraDeps,
+    raisedRange,
     runUpdate,
 } from '../src/commands/update.js'
 import { templateDir as packageTemplateDir } from '../src/scaffold.js'
@@ -67,7 +68,96 @@ describe('neraDeps', () => {
     })
 })
 
+describe('raisedRange', () => {
+    it.each([
+        ['^1.0.0', '1.14.1', '^1.14.1'],
+        ['^1.14.1', '1.14.2', '^1.14.2'],
+        ['^3.1.0', '3.1.0', null],
+        ['^3.2.0', '3.1.9', null],
+        ['^1.0.0', '2.0.0', null],
+        ['^0.3.0', '0.3.5', null],
+        ['~1.0.0', '1.0.5', null],
+        ['1.0.0', '1.0.0', null],
+        ['latest', '1.2.3', null],
+        ['^1.0.0', '1.2.0-beta.1', null],
+        ['github:owner/repo', '1.0.0', null],
+        [undefined, '1.0.0', null],
+    ])('%s with %s installed → %s', (range, version, expected) => {
+        expect(raisedRange(range, version)).toBe(expected)
+    })
+})
+
+const writeInstalled = async (name, version) => {
+    const dir = path.join(cwd, 'node_modules', ...name.split('/'))
+    await fs.mkdir(dir, { recursive: true })
+    await fs.writeFile(path.join(dir, 'package.json'), JSON.stringify({ name, version }))
+}
+
 describe('runUpdate', () => {
+    it('raises the caret ranges of the Nera packages to what npm installed', async () => {
+        await fs.writeFile(
+            path.join(cwd, 'package.json'),
+            `${JSON.stringify({
+                dependencies: {
+                    '@nera-static/nera': '^1.0.0',
+                    '@nera-static/plugin-tags': '^3.4.0',
+                    '@nera-static/theme-blog': '~1.0.0',
+                    lodash: '^4.0.0',
+                },
+                devDependencies: { '@nera-static/validate': '^1.2.0' },
+            }, null, 2)}\n`
+        )
+        await writeInstalled('@nera-static/nera', '1.15.0')
+        await writeInstalled('@nera-static/plugin-tags', '3.4.0')
+        await writeInstalled('@nera-static/theme-blog', '1.0.5')
+        await writeInstalled('@nera-static/validate', '1.5.0')
+        await writeInstalled('lodash', '4.17.21')
+        const lock = {
+            name: 'site',
+            lockfileVersion: 3,
+            packages: {
+                '': {
+                    dependencies: { '@nera-static/nera': '^1.0.0', lodash: '^4.0.0' },
+                    devDependencies: { '@nera-static/validate': '^1.2.0' },
+                },
+                'node_modules/@nera-static/nera': { version: '1.15.0' },
+            },
+        }
+        await fs.writeFile(path.join(cwd, 'package-lock.json'), `${JSON.stringify(lock, null, 2)}\n`)
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+        await runUpdate([], { cwd, runNpm: () => {} })
+        const lines = log.mock.calls.map((c) => c[0])
+        log.mockRestore()
+
+        const text = await fs.readFile(path.join(cwd, 'package.json'), 'utf-8')
+        expect(JSON.parse(text)).toEqual({
+            dependencies: {
+                '@nera-static/nera': '^1.15.0',
+                '@nera-static/plugin-tags': '^3.4.0',
+                '@nera-static/theme-blog': '~1.0.0',
+                lodash: '^4.0.0',
+            },
+            devDependencies: { '@nera-static/validate': '^1.5.0' },
+        })
+        expect(text).toMatch(/^ {2}"dependencies"/m)
+        expect(text.endsWith('}\n')).toBe(true)
+        expect(lines).toContain('  ✓ @nera-static/nera: ^1.0.0 → ^1.15.0 in package.json')
+
+        const lockAfter = JSON.parse(await fs.readFile(path.join(cwd, 'package-lock.json'), 'utf-8'))
+        expect(lockAfter.packages['']).toEqual({
+            dependencies: { '@nera-static/nera': '^1.15.0', lodash: '^4.0.0' },
+            devDependencies: { '@nera-static/validate': '^1.5.0' },
+        })
+        expect(lockAfter.packages['node_modules/@nera-static/nera']).toEqual({ version: '1.15.0' })
+    })
+
+    it('leaves package.json byte for byte when nothing is installed', async () => {
+        const original = '{\n    "dependencies": { "@nera-static/nera": "^1.0.0" }\n}\n'
+        await fs.writeFile(path.join(cwd, 'package.json'), original)
+        await runUpdate([], { cwd, runNpm: () => {} })
+        expect(await fs.readFile(path.join(cwd, 'package.json'), 'utf-8')).toBe(original)
+    })
+
     it('npm-updates only the Nera packages of a thin site', async () => {
         await writePkg({
             dependencies: {

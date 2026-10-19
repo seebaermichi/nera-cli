@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] - 2026-10-19
+
+### Changed
+
+-   `nera update` raises the caret range of each updated Nera package in `package.json` to the version npm installed (`^1.0.0` → `^1.15.0`) and prints each change; `npm update` installs within a range but never rewrites it. The root entry of `package-lock.json` follows, so `package.json` and the lockfile stay in sync. Only a plain `^x.y.z` (x ≥ 1) is raised, only upwards and never across a major; exact, tilde, tag, git and 0.x ranges stay as they are, and the file keeps its indentation.
+
 ## [1.14.1] - 2026-10-19
 
 ### Fixed
