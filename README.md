@@ -36,12 +36,16 @@ package is named after the folder (`My Bakery` → `my-bakery`).
 | `nera check` | Check the built `public/` for accessibility, privacy and legal-notice problems (see below). Build first. `--json` for machine-readable output. |
 
 A scaffolded site is a thin project — no vendored engine, no clone. It lists one
-dependency and its scripts call the CLI:
+dependency, a caret range starting at the version of the CLI that created it,
+and its scripts call the CLI:
 
 ```jsonc
 {
-  "scripts": { "dev": "nera dev", "build": "nera build", "serve": "nera serve" },
-  "dependencies": { "@nera-static/nera": "^1.0.0" }
+  "scripts": {
+    "dev": "nera dev", "build": "nera build", "serve": "nera serve",
+    "validate": "nera validate", "check": "nera build --check"
+  },
+  "dependencies": { "@nera-static/nera": "^1.14.1" }
 }
 ```
 

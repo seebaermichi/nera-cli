@@ -22,6 +22,9 @@ import {
 import { skillSourceDir } from '../src/skill.js'
 import { parseNewArgs } from '../src/commands/new.js'
 
+// The range a new or migrated site gets for this CLI: its own version.
+const OWN_RANGE = `^${JSON.parse(fssync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version}`
+
 let workdir
 
 beforeEach(async () => {
@@ -77,7 +80,8 @@ describe('scaffoldProject', () => {
             await fs.readFile(path.join(target, 'package.json'), 'utf-8')
         )
         expect(pkg.name).toBe('acme')
-        expect(Object.keys(pkg.dependencies)).toEqual(['@nera-static/nera'])
+        expect(pkg.dependencies).toEqual({ '@nera-static/nera': OWN_RANGE })
+        expect(OWN_RANGE).not.toBe('^1.0.0')
         expect(pkg.scripts).toMatchObject({
             dev: 'nera dev',
             build: 'nera build',
@@ -328,7 +332,7 @@ describe('scaffoldProject with a theme', () => {
         })
         const pkg = JSON.parse(await read(target, 'package.json'))
         expect(pkg.dependencies).toEqual({
-            '@nera-static/nera': expect.any(String),
+            '@nera-static/nera': OWN_RANGE,
             '@nera-static/theme-example': 'latest',
         })
     })
@@ -725,7 +729,7 @@ describe('scaffoldProject with a starter', () => {
         const template = JSON.parse(await read(templateDir(), 'package.json'))
         expect(pkg.name).toBe('s')
         expect(pkg.dependencies).toEqual({
-            '@nera-static/nera': template.dependencies['@nera-static/nera'],
+            '@nera-static/nera': OWN_RANGE,
             '@nera-static/plugin-navigation': '^1.0.0',
         })
         expect(pkg.devDependencies).toBeUndefined()

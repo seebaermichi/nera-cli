@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.1] - 2026-10-19
+
+### Fixed
+
+-   `nera new` and `nera update --migrate` write `@nera-static/nera` as a caret range from the CLI's own version (`^1.14.1`), not `^1.0.0`. The old range claimed a site worked with versions that lack what set it up: starters, `nera check` and the `validate`/`check` scripts. Existing sites are unchanged; `nera update` raises their range anyway.
+-   The README's example of a scaffolded site's `package.json` shows the `validate` and `check` scripts.
+
 ## [1.14.0] - 2026-10-18
 
 ### Added

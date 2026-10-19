@@ -12,6 +12,9 @@ import {
 import { templateDir as packageTemplateDir } from '../src/scaffold.js'
 import { skillSourceDir } from '../src/skill.js'
 
+// The range a new or migrated site gets for this CLI: its own version.
+const OWN_RANGE = `^${JSON.parse(fssync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version}`
+
 let cwd
 
 beforeEach(async () => {
@@ -114,7 +117,7 @@ describe('runUpdate', () => {
             await fs.readFile(path.join(cwd, 'package.json'), 'utf-8')
         )
         // Thin now.
-        expect(pkg.dependencies['@nera-static/nera']).toBeDefined()
+        expect(pkg.dependencies['@nera-static/nera']).toBe(OWN_RANGE)
         expect(pkg.scripts.build).toBe('nera build')
         expect(pkg.scripts.render).toBeUndefined()
         expect(pkg.nera).toBeUndefined()

@@ -138,6 +138,14 @@ const isStarterTemplate = async (file) =>
 export const templateDir = () =>
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'template')
 
+// The range a new or migrated site depends on: this CLI's own version, so the
+// site never claims to work with an older one that lacks what set it up
+// (starters, `nera check`, the `validate`/`check` scripts).
+export const ownRange = () => {
+    const pkgPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'package.json')
+    return `^${JSON.parse(fssync.readFileSync(pkgPath, 'utf-8')).version}`
+}
+
 async function copyDir(src, dest, { skipStarters = false } = {}) {
     await fs.mkdir(dest, { recursive: true })
     for (const entry of await fs.readdir(src, { withFileTypes: true })) {
@@ -165,6 +173,7 @@ async function personalize(targetDir, projectName) {
     const pkgPath = path.join(targetDir, 'package.json')
     const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf-8'))
     pkg.name = projectName
+    pkg.dependencies = { ...pkg.dependencies, '@nera-static/nera': ownRange() }
     await fs.writeFile(pkgPath, `${JSON.stringify(pkg, null, 4)}\n`)
     console.log(`  ✓ Configured project as "${projectName}"`)
 }

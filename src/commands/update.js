@@ -3,7 +3,7 @@ import fs from 'fs/promises'
 import fssync from 'fs'
 import path from 'path'
 import { syncAgentFiles, SITE_NOTES_MARKER } from '../agent-files.js'
-import { templateDir as packageTemplateDir } from '../scaffold.js'
+import { ownRange, templateDir as packageTemplateDir } from '../scaffold.js'
 import { installedSkillDir, skillSourceDir, syncSkill } from '../skill.js'
 
 const defaultRunNpm = (npmArgs, cwd) =>
@@ -107,7 +107,7 @@ async function migrateLegacy(cwd, pkg, runNpm, templateDir, skillDir) {
 
     pkg.dependencies = {
         ...pkg.dependencies,
-        '@nera-static/nera': '^1.0.0',
+        '@nera-static/nera': ownRange(),
     }
 
     pkg.scripts = {
