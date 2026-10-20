@@ -28,8 +28,9 @@
 > and portfolio starters) is on npm (2026-10-17, 1.0.2 via CI OIDC);
 > `starter-business` 1.0.1 is on npm and offered by `@nera-static/nera`
 > 1.14.0 (2026-10-18). `starter-portfolio` 1.0.1 is on npm (2026-10-20,
-> via CI OIDC); the CLI does not offer it offline yet. No
-> open questions.**
+> via CI OIDC); the CLI does not offer it offline yet. Slice 6 has begun:
+> the GitHub App "Nera Static" is registered (2026-10-20, see "Slice 6 —
+> progress"). No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -374,10 +375,13 @@ The user can pick either. `nera publish --target <other>` later moves a site
 (new host set up, workflow's deploy step swapped, old host left untouched with a
 hint how to remove it).
 
-**The GitHub identity:** a **GitHub App** "Nera" rather than an OAuth App —
-fine-grained permissions (contents, pages, actions, workflows on the
-repositories the user picks, not all repos), and the same app serves the hosted
-MCP server (L7) and Nera Pro. Device flow must be enabled on it.
+**The GitHub identity:** a **GitHub App** "Nera Static" (registered
+2026-10-20; "Nera" is reserved for the `@nera` account) rather than an OAuth
+App — fine-grained permissions (repository creation, contents, pages,
+actions, workflows and secrets on the repositories the user picks, not all
+repos), and the same app serves the hosted MCP server (L7) and Nera Pro.
+Device flow is enabled on it. Client id, settings and the open permission
+check: "Slice 6 — progress".
 
 **Business sites and GitHub's terms:** GitHub Pages "is not intended for or
 allowed to be used as a free web-hosting service to run your online business,
@@ -1284,6 +1288,59 @@ bundled offline list (`src/starters.js`) and the smoke matrix
 leftovers are due: `--starter` in
 the template's `AGENTS.md` and the skill, and the CLI docs page on
 nera.js.org.
+
+## Slice 6 — progress
+
+### The GitHub App (2026-10-20)
+
+Registered by the maintainer under the personal account `seebaermichi`
+(owner per D11):
+
+| Field | Value |
+|---|---|
+| Name | **Nera Static** (`github.com/apps/nera-static`); "Nera" is reserved for the `@nera` account, and the slug matches the npm scope |
+| App ID | `5398043` |
+| Client ID | **`Iv23liGnDuiH8YihBctY`** — public, the CLI ships it; verified the same day with a `POST https://github.com/login/device/code`, which returned a user code |
+| Homepage | https://nera.js.org |
+| Device flow | enabled |
+| User tokens | expire (8 h access token + refresh token; the CLI refreshes) |
+| Redirect URIs | none yet — the hosted MCP server (L7) and Nera Pro add theirs |
+| Webhook | inactive — no server receives events yet |
+| Installable on | any account |
+| Client secret | **none**, deliberately: the device flow does not need one |
+| Private key | generated (GitHub requires one before the app can be installed), kept in the maintainer's password manager, never in a repo; only the server-side MCP and Nera Pro will use it |
+
+Repository permissions (everything else, and all organization, account and
+enterprise permissions, at No access):
+
+| Permission | Access | For |
+|---|---|---|
+| Repository creation | read and write | `POST /user/repos` (step 3) |
+| Contents | read and write | committing and pushing the site |
+| Workflows | read and write | committing `.github/workflows/deploy.yml` |
+| Pages | read and write | enabling Pages with the Actions build type (step 4) |
+| Actions | read and write | polling the run (step 5); `workflow_dispatch` for the Netlify target and the MCP `publish` tool |
+| Secrets | read and write | `NETLIFY_AUTH_TOKEN` + `NETLIFY_SITE_ID` (Netlify target, step 4) |
+| Metadata | read-only | mandatory |
+
+The issue's original list (contents, pages, actions, workflows) could not
+create the repository or store the Netlify secrets, hence repository
+creation and secrets.
+
+**Open check for the implementation** — verify with real calls before the
+first release, while the app still has no installations (a permission added
+after release makes every installation re-approve):
+
+-   GitHub's permission table lists `POST /user/repos` under both
+    *Administration* and *Repository creation*, and
+    `POST`/`PUT /repos/{owner}/{repo}/pages` under both *Pages* and
+    *Administration*, each marked "more than one permission", without saying
+    whether that means all or any one. The app deliberately has **no**
+    Administration (it would allow repo deletion and settings changes). If
+    either call fails without it, add Administration read and write then.
+-   Whether a repository created through the app's user token joins an
+    installation limited to "selected repositories", or the user has to add
+    it (the CLI then has to guide them to the installation page).
 
 ## Where the work lands
 
