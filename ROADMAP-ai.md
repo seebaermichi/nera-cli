@@ -29,8 +29,8 @@
 > `starter-business` 1.0.1 is on npm and offered by `@nera-static/nera`
 > 1.14.0 (2026-10-18). `starter-portfolio` 1.0.1 is on npm (2026-10-20,
 > via CI OIDC); the CLI does not offer it offline yet. Slice 6 has begun:
-> the GitHub App "Nera Static" is registered (2026-10-20, see "Slice 6 —
-> progress"). No open questions.**
+> the GitHub App "Nera Static" is registered and its permissions tested
+> end to end (2026-10-20, see "Slice 6 — progress"). No open questions.**
 >
 > This document is the single source of truth for two linked goals:
 >
@@ -377,11 +377,11 @@ hint how to remove it).
 
 **The GitHub identity:** a **GitHub App** "Nera Static" (registered
 2026-10-20; "Nera" is reserved for the `@nera` account) rather than an OAuth
-App — fine-grained permissions (repository creation, contents, pages,
-actions, workflows and secrets on the repositories the user picks, not all
-repos), and the same app serves the hosted MCP server (L7) and Nera Pro.
-Device flow is enabled on it. Client id, settings and the open permission
-check: "Slice 6 — progress".
+App — fine-grained permissions (repository creation, administration,
+contents, pages, actions, workflows and secrets on the repositories the user
+picks, not all repos), and the same app serves the hosted MCP server (L7) and Nera Pro.
+Device flow is enabled on it. Client id, settings and the permission test:
+"Slice 6 — progress".
 
 **Business sites and GitHub's terms:** GitHub Pages "is not intended for or
 allowed to be used as a free web-hosting service to run your online business,
@@ -1318,29 +1318,58 @@ enterprise permissions, at No access):
 | Repository creation | read and write | `POST /user/repos` (step 3) |
 | Contents | read and write | committing and pushing the site |
 | Workflows | read and write | committing `.github/workflows/deploy.yml` |
+| Administration | read and write | enabling Pages (step 4) — `POST /repos/{owner}/{repo}/pages` needs it **in addition to** Pages; added after the permission test below |
 | Pages | read and write | enabling Pages with the Actions build type (step 4) |
 | Actions | read and write | polling the run (step 5); `workflow_dispatch` for the Netlify target and the MCP `publish` tool |
 | Secrets | read and write | `NETLIFY_AUTH_TOKEN` + `NETLIFY_SITE_ID` (Netlify target, step 4) |
 | Metadata | read-only | mandatory |
 
 The issue's original list (contents, pages, actions, workflows) could not
-create the repository or store the Netlify secrets, hence repository
-creation and secrets.
+create the repository, enable Pages or store the Netlify secrets, hence
+repository creation, administration and secrets.
 
-**Open check for the implementation** — verify with real calls before the
-first release, while the app still has no installations (a permission added
-after release makes every installation re-approve):
+### The permission test (2026-10-20)
 
--   GitHub's permission table lists `POST /user/repos` under both
-    *Administration* and *Repository creation*, and
-    `POST`/`PUT /repos/{owner}/{repo}/pages` under both *Pages* and
-    *Administration*, each marked "more than one permission", without saying
-    whether that means all or any one. The app deliberately has **no**
-    Administration (it would allow repo deletion and settings changes). If
-    either call fails without it, add Administration read and write then.
--   Whether a repository created through the app's user token joins an
-    installation limited to "selected repositories", or the user has to add
-    it (the CLI then has to guide them to the installation page).
+The two questions the table above left open were settled the same day with
+real calls through the app: a throwaway seed repo, the app installed on
+"Only select repositories" with just that repo, a device-flow sign-in, then
+the `nera publish` GitHub Pages path step by step against a new public repo
+(both repos deleted afterwards):
+
+| Call | Result |
+|---|---|
+| `POST /user/repos` (public, empty) | **201** with *Repository creation* alone — no Administration needed |
+| `GET /user/installations/{id}/repositories` | the new repo **joined the "selected" installation automatically** — no extra step for the user |
+| `PUT …/contents/README.md` into the empty repo | 201 — the first commit works through the API, no git needed |
+| `PUT …/contents/.github/workflows/deploy.yml` | 201 with *Workflows* |
+| `POST …/pages` `{"build_type":"workflow"}` | **403** "Resource not accessible by integration" with *Pages* alone; **201** once *Administration* was added |
+| `POST …/actions/workflows/deploy.yml/dispatches` | 204 with *Actions* write |
+| `GET …/actions/runs` until `completed` | `success` after ~20 s; the page answered 200 |
+
+So enabling Pages needs **Pages and Administration**, and the maintainer
+added **Administration read and write** (2026-10-20), accepting that it
+allows settings changes and repo deletion on the repositories in an
+installation, over a manual "Settings → Pages → Source: GitHub Actions"
+stop in `nera publish`. After the installation approved the new permission,
+the existing user token carried it without a new sign-in.
+
+Notes for the implementation:
+
+-   The device-flow page lists no permissions, only "act on your behalf";
+    users see them at **installation**. `nera publish` should say what the
+    app may do before it sends the user to the install page.
+-   GitHub labels a new app "Created less than a day ago" and "Fewer than 10
+    GitHub users". The CLI text before sign-in should name who runs the app
+    (D11) and link nera.js.org.
+-   After "Authorize" the browser page only greys the button out; the CLI
+    must print "Signed in as `<login>`" at once, so the terminal confirms it.
+-   The deploy workflow's own trigger must not fire before Pages is enabled
+    (the test workflow used `workflow_dispatch` only, then dispatched it);
+    order: commit workflow → enable Pages → push or dispatch.
+-   A user token cannot be revoked by the CLI (`DELETE
+    /applications/{client_id}/token` needs the client secret, which does not
+    exist); signing out means deleting it from the keychain, and revoking is
+    the user's job on GitHub.
 
 ## Where the work lands
 
