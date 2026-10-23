@@ -61,6 +61,8 @@ describe('scaffoldProject', () => {
             'package.json',
             'config/app.yaml',
             'pages/index.md',
+            'pages/imprint.md',
+            'pages/privacy.md',
             'theme/views/layouts/layout.pug',
             'theme/views/pages/default.pug',
         ]) {
@@ -307,7 +309,7 @@ describe('scaffoldProject with a theme', () => {
             expect(fssync.existsSync(path.join(target, rel))).toBe(false)
         }
         // The rest of the scaffold is still there.
-        for (const rel of ['pages/index.md', 'theme/assets/.gitkeep']) {
+        for (const rel of ['pages/index.md', 'pages/imprint.md', 'pages/privacy.md', 'theme/assets/.gitkeep']) {
             expect(fssync.existsSync(path.join(target, rel))).toBe(true)
         }
     })

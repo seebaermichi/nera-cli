@@ -7,3 +7,5 @@ translations:
     app_description: A static site built with Nera
     app_keywords: nera, static site generator
     skip_to_content: Skip to content
+    imprint: Imprint
+    privacy: Privacy

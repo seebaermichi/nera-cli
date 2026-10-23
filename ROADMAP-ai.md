@@ -1099,9 +1099,15 @@ the skip link). No theme, no `dependencies`, no JavaScript. It ships
 `skip_to_content`/`imprint`/`privacy` labels in `translations.en`) and its own
 `theme/views/` over the scaffold's: skip link, `main#main`, footer with the
 legal links, `nera:scaffold-default` marker kept. So a fresh site passes
-`nera build --check` and `nera validate` with zero findings, where the plain
-scaffold has 3 warnings (`a11y-skip-link`, `legal-imprint-link`,
-`legal-privacy-link`). This deviates from `ROADMAP-themes.md` S1 ("the
+`nera build --check` and `nera validate` with zero findings. The plain
+scaffold had 3 warnings then (`a11y-skip-link`, `legal-imprint-link`,
+`legal-privacy-link`); since `@nera-static/nera` 1.16.0 it follows
+starter-blank (maintainer's decision 2026-10-22, Snagio issue
+`01a1368f-db87-7191-ac38-4e4b2f421f77`): the same skip link, `main#main`,
+footer with the legal links and imprint/privacy placeholders, so a plain
+`nera new` site is clean too, also with `--name`/`--lang de`
+(`test/build.test.js`). `nera update` leaves existing sites' layouts and pages
+alone. This deviates from `ROADMAP-themes.md` S1 ("the
 scaffold's own views"), by the maintainer's decision; S1 is updated. An
 offline vitest integration test scaffolds from the repo with the CLI 1.11.0
 (local path, `--no-install`, `node_modules` symlinked) and asserts that, also

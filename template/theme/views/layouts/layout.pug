@@ -16,3 +16,7 @@ html(lang=app.lang)
   body
     a.skip-link(href="#main") #{ t('skip_to_content') }
     block content
+    footer
+      a(href="/imprint.html") #{ t('imprint') }
+      = ' · '
+      a(href="/privacy.html") #{ t('privacy') }

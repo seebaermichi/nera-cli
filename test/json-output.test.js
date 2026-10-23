@@ -149,7 +149,7 @@ describe('nera build --json', () => {
         expect(printedJson()).toEqual({ ok: true, results: [] })
         // The engine's log went through console.log → stderr.
         expect(log).not.toHaveBeenCalled()
-        expect(error.mock.calls.flat().join('\n')).toContain('Found 1 page(s) to process')
+        expect(error.mock.calls.flat().join('\n')).toContain('Found 3 page(s) to process')
     })
 
     for (const [name, rule, expectedCode] of [
@@ -217,7 +217,7 @@ describe('bin/nera.js --json, as a child process', () => {
         const out = JSON.parse(child.stdout)
         expect(out.ok).toBe(true)
         expect(out.results.map((r) => r.rule)).toContain('a11y-img-alt')
-        expect(child.stderr).toContain('Found 2 page(s) to process')
+        expect(child.stderr).toContain('Found 4 page(s) to process')
         expect(child.stderr).toContain('HTML created')
     })
 

@@ -5,6 +5,7 @@ import fssync from 'fs'
 import os from 'os'
 import { scaffoldProject } from '../src/scaffold.js'
 import { runBuild } from '../src/commands/build.js'
+import { runValidate } from '../src/commands/validate.js'
 import { fileURLToPath } from 'url'
 
 const STARTER_FIXTURE = fileURLToPath(new URL('./fixtures/starter-minimal', import.meta.url))
@@ -119,15 +120,32 @@ describe('new → build', () => {
             expect(printed()).toContain('not proof of compliance')
         })
 
-        it('reports no a11y-skip-link on a fresh scaffold', async () => {
+        // A fresh scaffold has a skip link, `main#main` and footer links to its
+        // imprint and privacy placeholders, so both passes report nothing.
+        it.each([
+            ['a fresh scaffold', {}],
+            ['a fresh scaffold with --name and --lang de', { name: 'Brot & Zeit', lang: 'de' }],
+        ])('reports no problems on %s, in build --check and validate', async (_, opts) => {
             const target = await scaffoldProject('site', {
                 cwd: workdir,
                 install: false,
+                ...opts,
             })
             process.chdir(target)
 
             expect(await runBuild(['--check'])).toBe(0)
-            expect(printed()).not.toContain('a11y-skip-link')
+            expect(printed()).toContain('No problems found.')
+            expect(printed()).not.toMatch(/(a11y|privacy|legal)-/)
+
+            log.mockClear()
+            expect(runValidate({ cwd: target })).toBe(0)
+            expect(printed()).toContain('No problems found.')
+
+            const imprint = await fs.readFile(path.join(target, 'public', 'imprint.html'), 'utf-8')
+            expect(imprint).toContain('<strong>This is a placeholder.</strong>')
+            expect(imprint).toContain('<a href="/imprint.html">Imprint</a>')
+            expect(imprint).toContain('<a href="/privacy.html">Privacy</a>')
+            expect(fssync.existsSync(path.join(target, 'public', 'privacy.html'))).toBe(true)
         })
 
         it('returns 1 when a rule promoted to error fires', async () => {

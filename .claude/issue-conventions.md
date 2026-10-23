@@ -74,14 +74,14 @@ releases, plugin contract); this file only adds what a reviewer checks per diff.
   resolves plugins from the checkout's `node_modules` and the site's own fail to
   load; `nera new` takes a plain name, not a path; `nera serve` opens a browser tab on
   its own; Node 22 for the install if npm crashes:
-  `PATH=~/.nvm/versions/node/v22.22.0/bin:$PATH`). Verified 2026-10-10: a fresh
-  site builds, validates clean and has 3 `nera check` warnings. Delete `$T`
+  `PATH=~/.nvm/versions/node/v22.22.0/bin:$PATH`). Verified 2026-10-23: a fresh
+  site builds, and `nera validate` and `nera check` report no problems. Delete `$T`
   afterwards.
 - Base URL / login: http://localhost:3123/, no login.
 - Surfaces:
     | surface | url | role | how to open |
     |---|---|---|---|
-    | `template/theme/views/layouts/layout.pug`, `pages/default.pug` | `/` | visitor | open the start page |
+    | `template/theme/views/layouts/layout.pug`, `pages/default.pug` | `/`, `/imprint.html`, `/privacy.html` | visitor | open the start page; the footer links the other two |
     | starter templates (later, `--starter`) | `/` and each sample page | visitor | scaffold with `--starter <name>` in the boot command |
 
 ## Tests & hygiene
