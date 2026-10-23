@@ -61,10 +61,9 @@ finds pages the build would skip silently. Run it first.
   says nothing; `nera validate` warns (`layout-missing`). Renaming or deleting
   a layout breaks every page that uses it.
 - **The page body.** The rendered Markdown reaches the template as `content`.
-  Without a theme, `theme/views/pages/default.pug` prints it with
-  `main !{ content }` inside `block content`; with a theme, the theme's layout
-  may already hold the `<main>`. A page has exactly one `<main>`: check the
-  layout and the page template before adding one.
+  Without a theme, `theme/views/pages/default.pug` prints it in a `main`
+  element inside `block content`; with a theme, the theme's layout may hold
+  the `<main>`. A page has exactly one `<main>`: check before adding one.
 - **`public/` is wiped on every build.** Put source files in `pages/`,
   `theme/` or `config/`; anything written into `public/` by hand is lost.
 - **Site files override theme files.** If `config/app.yaml` sets `theme:`,
@@ -115,7 +114,8 @@ the URL.
 ## Getting online
 
 `npm run build` writes the finished site into `public/`. That folder is what
-gets deployed: upload its contents to any static web host.
+gets deployed: upload its contents to any static web host. Replace the
+imprint and privacy placeholders in `pages/` first, if the site has them.
 
 <!-- nera:site-notes — everything below this line belongs to the site owner; `nera update` keeps it as it is -->
 ## Notes for this site

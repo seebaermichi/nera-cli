@@ -11,12 +11,15 @@ imprint and privacy, with a menu on every page.
    live URL, e.g. `https://example.com`) once the domain is known.
 3. Write one Markdown page per topic, each with `layout: pages/default.pug`,
    a `title` and a `description`: `pages/index.md`, `pages/about.md`,
-   `pages/services.md`, `pages/opening-hours.md`, `pages/contact.md`,
-   `pages/imprint.md`, `pages/privacy.md`. Opening hours fit a Markdown
-   table.
+   `pages/services.md`, `pages/opening-hours.md`, `pages/contact.md`.
+   Opening hours fit a Markdown table. A new site already has
+   `pages/imprint.md` and `pages/privacy.md` as placeholders, linked from
+   the layout's footer: replace their text, or write them if they are
+   missing.
 4. Menu: `npm install @nera-static/plugin-navigation`, list the pages in
    `config/navigation.yaml` (`href` ending in `.html`, `name`; groups such
-   as `main:` and `footer:` for a footer menu with imprint and privacy), run
+   as `main:` and `footer:`; a footer menu replaces the layout's own
+   imprint and privacy links, so keep only one of the two), run
    `npx nera-navigation` and include a menu in
    `theme/views/layouts/layout.pug` (see the plugin README for the mixins).
 5. Contact form: follow [contact-form](contact-form.md).
