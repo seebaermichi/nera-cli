@@ -45,7 +45,7 @@ and its scripts call the CLI:
     "dev": "nera dev", "build": "nera build", "serve": "nera serve",
     "validate": "nera validate", "check": "nera build --check"
   },
-  "dependencies": { "@nera-static/nera": "^1.14.1" }
+  "dependencies": { "@nera-static/nera": "^1.16.0" }
 }
 ```
 

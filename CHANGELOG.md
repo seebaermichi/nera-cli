@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 -   A new site without a theme or starter passes `nera build --check` with zero findings. The scaffold layout starts with a skip link to `main#main` (labelled by `t('skip_to_content')`) and ends with a footer linking `/imprint.html` and `/privacy.html`, and the scaffold ships `pages/imprint.md` and `pages/privacy.md` as clearly marked placeholders to replace before publishing. The labels sit in `translations.en` in `config/app.yaml`. Existing sites are unchanged: `nera update` leaves layouts, pages and config alone.
 -   The site's `AGENTS.md` says to replace the imprint and privacy placeholders before deploying, and the `business-site` recipe of the `nera` skill starts from them; `nera update` brings both texts to existing sites.
+-   With `--theme`, `nera new` keeps the imprint and privacy placeholders and says, after "Using theme", that the theme's layout must link them (theme-blog and theme-business take `footer_links` in `config/theme.yaml`), or `nera build --check` keeps the two `legal-*` warnings. The site's `AGENTS.md` says those warnings are expected until the placeholders are filled and linked.
 
 ### Changed
 

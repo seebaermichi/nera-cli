@@ -314,6 +314,30 @@ describe('scaffoldProject with a theme', () => {
         }
     })
 
+    it('hints that the legal placeholders need a link from the theme, only with --theme', async () => {
+        const logs = []
+        const spy = vi.spyOn(console, 'log').mockImplementation((m) => logs.push(m))
+        try {
+            const themed = await scaffoldProject('themed', {
+                cwd: workdir,
+                install: false,
+                theme: 'example',
+            })
+            expect(fssync.existsSync(path.join(themed, 'pages/imprint.md'))).toBe(true)
+            expect(fssync.existsSync(path.join(themed, 'pages/privacy.md'))).toBe(true)
+            const using = logs.findIndex((l) => l.includes('Using theme "example"'))
+            expect(using).toBeGreaterThanOrEqual(0)
+            expect(logs[using + 1]).toMatch(/imprint\.md and pages\/privacy\.md are placeholders/)
+            expect(logs[using + 1]).toContain('legal-imprint-link and legal-privacy-link')
+
+            logs.length = 0
+            await scaffoldProject('plain', { cwd: workdir, install: false })
+            expect(logs.some((l) => l.includes('are placeholders'))).toBe(false)
+        } finally {
+            spy.mockRestore()
+        }
+    })
+
     it('sets theme: in app.yaml and keeps the existing config', async () => {
         const target = await scaffoldProject('themed', {
             cwd: workdir,

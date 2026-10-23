@@ -197,6 +197,14 @@ async function applyTheme(targetDir, theme) {
         await fs.writeFile(pkgPath, `${JSON.stringify(pkg, null, 4)}\n`)
     }
     console.log(`  ✓ Using theme "${theme}"${pkgName ? ` (${pkgName})` : ''}`)
+    // The scaffold's footer, which links the imprint and privacy
+    // placeholders, is a starter template and so left out with a theme.
+    console.log(
+        '  • pages/imprint.md and pages/privacy.md are placeholders: link them ' +
+            'from the theme\'s layout (theme-blog and theme-business take ' +
+            '`footer_links` in config/theme.yaml), or `nera build --check` ' +
+            'keeps warning legal-imprint-link and legal-privacy-link.'
+    )
 }
 
 // `--name`: any non-empty text without line breaks. It is written as a JSON

@@ -238,7 +238,8 @@ describe('bin/nera.js --json, as a child process', () => {
         expect(json.status).toBe(1)
         expect(json.status).toBe(cli(['check']).status)
         expect(JSON.parse(json.stdout).ok).toBe(false)
-    })
+        // Eight CLI runs, one of them a build: past the 5 s default under load.
+    }, 30_000)
 
     it('check --json without public/: the failure shape, no ❌ line', () => {
         const child = cli(['check', '--json'])
