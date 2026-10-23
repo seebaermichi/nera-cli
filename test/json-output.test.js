@@ -53,6 +53,14 @@ const writePublic = async (html) => {
 const promote = (rule) =>
     fs.writeFile(path.join(target, 'config', 'validate.yaml'), `rules:\n  ${rule}: error\n`)
 
+// A page whose image has no `alt`, so `--check` has a known finding
+// (a11y-img-alt) that does not depend on a scaffold defect.
+const addPageWithoutAlt = () =>
+    fs.writeFile(
+        path.join(target, 'pages', 'photo.md'),
+        '---\nlayout: pages/default.pug\ntitle: Photo\n---\n# Photo\n\n<img src="/photo.jpg">\n'
+    )
+
 describe('nera validate --json', () => {
     const cases = {
         clean: async () => {},
@@ -146,9 +154,10 @@ describe('nera build --json', () => {
 
     for (const [name, rule, expectedCode] of [
         ['warnings-only', null, 0],
-        ['error', 'a11y-skip-link', 1],
+        ['error', 'a11y-img-alt', 1],
     ]) {
         it(`--check, ${name}: same exit code as text mode, one { ok, results } object`, async () => {
+            await addPageWithoutAlt()
             if (rule) await promote(rule)
             process.chdir(target)
             const textCode = await runBuild(['--check'])
@@ -158,15 +167,17 @@ describe('nera build --json', () => {
 
             expect(code).toBe(textCode)
             expect(code).toBe(expectedCode)
-            expect(printedJson()).toEqual({ ok: code === 0, results: validateOutput({ cwd: target }) })
+            const results = validateOutput({ cwd: target })
+            expect(results.map((r) => r.rule)).toContain('a11y-img-alt')
+            expect(printedJson()).toEqual({ ok: code === 0, results })
         })
     }
 
     it('--check, clean: exit 0 and ok with no results', async () => {
-        // The starter's three check warnings, switched off.
+        // The scaffold's two legal check warnings, switched off.
         await fs.writeFile(
             path.join(target, 'config', 'validate.yaml'),
-            'rules:\n  a11y-skip-link: off\n  legal-imprint-link: off\n  legal-privacy-link: off\n'
+            'rules:\n  legal-imprint-link: off\n  legal-privacy-link: off\n'
         )
         process.chdir(target)
         const textCode = await runBuild(['--check'])
@@ -198,14 +209,15 @@ describe('bin/nera.js --json, as a child process', () => {
     const cli = (args) =>
         spawnSync(process.execPath, [CLI, ...args], { cwd: target, encoding: 'utf-8' })
 
-    it('build --check --json: the whole stdout is one JSON object, the build log is on stderr', () => {
+    it('build --check --json: the whole stdout is one JSON object, the build log is on stderr', async () => {
+        await addPageWithoutAlt()
         const child = cli(['build', '--check', '--json'])
 
         expect(child.status).toBe(0)
         const out = JSON.parse(child.stdout)
         expect(out.ok).toBe(true)
-        expect(out.results.map((r) => r.rule)).toContain('a11y-skip-link')
-        expect(child.stderr).toContain('Found 1 page(s) to process')
+        expect(out.results.map((r) => r.rule)).toContain('a11y-img-alt')
+        expect(child.stderr).toContain('Found 2 page(s) to process')
         expect(child.stderr).toContain('HTML created')
     })
 
@@ -219,7 +231,8 @@ describe('bin/nera.js --json, as a child process', () => {
         // check without public/ ends 1 in both modes.
         expect(cli(['check', '--json']).status).toBe(1)
 
-        await promote('a11y-skip-link')
+        await addPageWithoutAlt()
+        await promote('a11y-img-alt')
         cli(['build'])
         const json = cli(['check', '--json'])
         expect(json.status).toBe(1)

@@ -41,6 +41,8 @@ describe('new → build', () => {
         const html = await fs.readFile(out, 'utf-8')
         expect(html).toContain('Welcome to Nera')
         expect(html).toContain('<title>')
+        expect(html).toContain('<a class="skip-link" href="#main">Skip to content</a>')
+        expect(html).toContain('<main id="main">')
         // AGENTS.md / CLAUDE.md sit at the site root, outside pages/.
         const built = await fs.readdir(path.join(target, 'public'))
         expect(built.filter((n) => /^(AGENTS|CLAUDE)\./.test(n))).toEqual([])
@@ -95,7 +97,29 @@ describe('new → build', () => {
 
         const printed = () => log.mock.calls.map((c) => c.join(' ')).join('\n')
 
+        // The tests that need a finding bring their own instead of relying on
+        // a scaffold defect: a page with an image without `alt` (a11y-img-alt).
+        const addPageWithoutAlt = (target) => fs.writeFile(
+            path.join(target, 'pages', 'photo.md'),
+            '---\nlayout: pages/default.pug\ntitle: Photo\n---\n# Photo\n\n<img src="/photo.jpg">\n'
+        )
+
         it('builds, then checks the output; warnings alone return 0', async () => {
+            const target = await scaffoldProject('site', {
+                cwd: workdir,
+                install: false,
+            })
+            await addPageWithoutAlt(target)
+            process.chdir(target)
+
+            expect(await runBuild(['--check'])).toBe(0)
+            expect(fssync.existsSync(path.join(target, 'public', 'index.html')))
+                .toBe(true)
+            expect(printed()).toMatch(/public\/photo\.html\n(  .*\n)*.*a11y-img-alt/)
+            expect(printed()).toContain('not proof of compliance')
+        })
+
+        it('reports no a11y-skip-link on a fresh scaffold', async () => {
             const target = await scaffoldProject('site', {
                 cwd: workdir,
                 install: false,
@@ -103,11 +127,7 @@ describe('new → build', () => {
             process.chdir(target)
 
             expect(await runBuild(['--check'])).toBe(0)
-            expect(fssync.existsSync(path.join(target, 'public', 'index.html')))
-                .toBe(true)
-            // The starter layout has no skip link.
-            expect(printed()).toContain('a11y-skip-link')
-            expect(printed()).toContain('not proof of compliance')
+            expect(printed()).not.toContain('a11y-skip-link')
         })
 
         it('returns 1 when a rule promoted to error fires', async () => {
@@ -115,13 +135,15 @@ describe('new → build', () => {
                 cwd: workdir,
                 install: false,
             })
+            await addPageWithoutAlt(target)
             await fs.writeFile(
                 path.join(target, 'config', 'validate.yaml'),
-                'rules:\n  a11y-skip-link: error\n'
+                'rules:\n  a11y-img-alt: error\n'
             )
             process.chdir(target)
 
             expect(await runBuild(['--check'])).toBe(1)
+            expect(printed()).toContain('a11y-img-alt')
         })
 
         it('does not check without the flag', async () => {
@@ -129,10 +151,11 @@ describe('new → build', () => {
                 cwd: workdir,
                 install: false,
             })
+            await addPageWithoutAlt(target)
             process.chdir(target)
 
             expect(await runBuild()).toBe(0)
-            expect(printed()).not.toContain('a11y-skip-link')
+            expect(printed()).not.toContain('a11y-img-alt')
         })
     })
 })
