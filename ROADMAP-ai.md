@@ -967,7 +967,9 @@ severities, levels, `file` and `line` are untouched (patch).
   fix but stay page-independent, so collapsing is unchanged; legal and
   privacy fixes stay hints.
 - **Core's theme errors** are passed through; validate adds a fix only where
-  core has none (the "views does not exist" variant).
+  core has none (the "views does not exist" variant). *2026-10-23:* since
+  core 4.18.1 all three theme errors carry their own fix after ` — `, so
+  validate 1.6.2 passes them through unchanged and no longer appends one.
 - **Found on the way, fixed in the same release:** validate disagreed with
   the build on extensionless targets (checked against core 4.15.0). Pug
   appends `.pug` to an extensionless `include`, so a theme-only partial
