@@ -1208,7 +1208,10 @@ chain; npm 10.9 (Node 22.12+) installs fine. CI missed it, because it runs
   state "Node.js 22.12 or newer" in en/de/es, "How this site is built" names
   the real CI matrix (Node 22 and 24, it said 20 and 22), the four English
   tutorials that stamp `nera`/`core` are re-stamped, and the site's lockfile
-  is refreshed to core 4.17.0 / nera 1.13.0.
+  is refreshed to core 4.17.0 / nera 1.13.0. Since 2026-10-22
+  getting-started also names npm 10.9 or newer (bundled with Node 22.12) as
+  the npm floor, en/de/es (Snagio issue `01a14544-2830-73c4-9df1-188d25b093f2`,
+  nera-website `e860519`).
 
 **Done 2026-10-18 (`@nera-static/starter-business` 1.0.1 on npm):
 `@nera-static/starter-business`, the third starter.** Worked locally in six
