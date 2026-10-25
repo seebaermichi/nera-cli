@@ -419,11 +419,11 @@ describe('scaffoldProject agent instructions (AGENTS.md, CLAUDE.md)', () => {
     }
 
     // ROADMAP-ai.md L1 says "at most ~120 lines"; the --json bullet (L3)
-    // took the file to 124.
-    it('keeps AGENTS.md within 124 lines', async () => {
+    // took the file to 124, the `nera new` bullet (L5) to 127.
+    it('keeps AGENTS.md within 127 lines', async () => {
         const lines = (await read(templateDir(), 'AGENTS.md')).split('\n')
         expect(lines.at(-1)).toBe('')
-        expect(lines.length - 1).toBeLessThanOrEqual(124)
+        expect(lines.length - 1).toBeLessThanOrEqual(127)
     })
 
     it('links the docs, llms.txt and llms-full.txt', async () => {

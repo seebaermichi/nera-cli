@@ -39,6 +39,9 @@ Markdown file.
   `npx nera build --check --json` print one JSON object on stdout,
   `{ "ok", "results": [{ file, line, severity, rule, message }] }`, with
   the same exit code; the build log goes to stderr
+- Start another site from outside this one (`<name>` is a plain folder
+  name; with `--yes` or without a terminal it never asks):
+  `npx @nera-static/nera new <name> --starter <blank|blog|business|portfolio> --name "<site name>" --lang <code> --yes`
 
 ## After every change
 
@@ -56,8 +59,8 @@ finds pages the build would skip silently. Run it first.
   linked as `/a/b.html`; `pages/index.md` is `/index.html`. There are no
   pretty URLs such as `/a/b/`.
 - **A page needs `layout`.** The `layout` key in a page's frontmatter names a
-  file under `theme/views/`; the pages this site was created with use
-  `pages/default.pug`. A page without `layout` is not rendered and the build
+  file under `theme/views/`; copy it from a similar page (often
+  `pages/default.pug`). A page without `layout` is not rendered and the build
   says nothing; `nera validate` warns (`layout-missing`). Renaming or deleting
   a layout breaks every page that uses it.
 - **The page body.** The rendered Markdown reaches the template as `content`.

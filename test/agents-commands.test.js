@@ -10,36 +10,43 @@ import { skillSourceDir } from '../src/skill.js'
 // Resolved from this file, so the test passes whatever vitest's cwd is.
 const CLI = fileURLToPath(new URL('../bin/nera.js', import.meta.url))
 
-// `nera <command>`, plus a `--flag` written right after it. Case-sensitive, so
+// `nera <command>`, plus the rest of its code span: everything up to the
+// closing backtick, the end of the line or the next `nera <command>`, so a
+// flag of a later command in the same span is not counted. Case-sensitive, so
 // "Nera" in prose does not match; the lookbehind skips `nera.js.org`,
 // `npx nera-navigation` and similar, and the required space after `nera`
 // skips `pkill -f nera`.
-const COMMAND_PATTERN = /(?<![\w.-])nera ([a-z][a-z-]*)(?: (--[a-z][a-z-]*))?/g
+const COMMAND_PATTERN = /(?<![\w.-])nera ([a-z][a-z-]*)((?:(?!(?<![\w.-])nera [a-z])[^`\n])*)/g
+const FLAG_PATTERN = /(?<![\w-])--[a-z][a-z-]*/g
 
 /**
- * Every `nera <command>` an instructions text names, each with the flag
- * written right after it (or `null`).
+ * Every `nera <command>` an instructions text names, each with the
+ * `--flag`s written after it in the same code span (possibly none).
  */
 function extractCommands(text) {
-    return [...text.matchAll(COMMAND_PATTERN)].map(([, command, flag]) => ({
+    return [...text.matchAll(COMMAND_PATTERN)].map(([, command, rest]) => ({
         command,
-        flag: flag ?? null,
+        flags: rest.match(FLAG_PATTERN) ?? [],
     }))
 }
 
 /**
  * The commands (and flags) from `extractCommands` the usage text lacks.
- * A command must be a usage line (`  nera <command>`); its flag must appear
- * on one of that command's usage lines.
+ * A command must be a usage line (`  nera <command>`); each of its flags must
+ * appear on one of that command's usage lines.
  */
 function findMissing(commands, usage) {
     const missing = []
-    for (const { command, flag } of commands) {
+    for (const { command, flags } of commands) {
         const lines = usage.match(new RegExp(`^ {2}nera ${command}(?![\\w-]).*$`, 'gm')) ?? []
         if (lines.length === 0) {
             missing.push(`nera ${command}`)
-        } else if (flag && !lines.some((line) => new RegExp(`${flag}(?![\\w-])`).test(line))) {
-            missing.push(`nera ${command} ${flag}`)
+            continue
+        }
+        for (const flag of flags) {
+            if (!lines.some((line) => new RegExp(`${flag}(?![\\w-])`).test(line))) {
+                missing.push(`nera ${command} ${flag}`)
+            }
         }
     }
     return [...new Set(missing)]
@@ -93,10 +100,30 @@ beforeAll(async () => {
 })
 
 describe('extractCommands', () => {
-    it('finds nera commands and the flag right after them', () => {
+    it('finds nera commands and the flags after them', () => {
         expect(extractCommands('Run `npx nera build --check`, then `nera update` keeps it')).toEqual([
-            { command: 'build', flag: '--check' },
-            { command: 'update', flag: null },
+            { command: 'build', flags: ['--check'] },
+            { command: 'update', flags: [] },
+        ])
+    })
+
+    it('finds every flag up to the end of the code span, values included', () => {
+        const text = '`npx @nera-static/nera new site --starter blog --name "A --b" --lang de --yes` and --theme'
+        expect(extractCommands(text)).toEqual([
+            { command: 'new', flags: ['--starter', '--name', '--b', '--lang', '--yes'] },
+        ])
+    })
+
+    it('stops at the end of the line', () => {
+        expect(extractCommands('run `npx nera validate\n--json` later')).toEqual([
+            { command: 'validate', flags: [] },
+        ])
+    })
+
+    it('gives a flag to the command it follows, not an earlier one in the span', () => {
+        expect(extractCommands('`npx nera new site --yes && cd site && npx nera build --check`')).toEqual([
+            { command: 'new', flags: ['--yes'] },
+            { command: 'build', flags: ['--check'] },
         ])
     })
 
@@ -120,6 +147,11 @@ describe('findMissing', () => {
     it('reports a flag the usage lacks', () => {
         const fixture = 'Run `npx nera build --watch`.'
         expect(findMissing(extractCommands(fixture), usage)).toEqual(['nera build --watch'])
+    })
+
+    it('reports a flag the usage lacks after one it lists', () => {
+        const fixture = 'Run `npx nera new site --yes --template blog`.'
+        expect(findMissing(extractCommands(fixture), usage)).toEqual(['nera new --template'])
     })
 
     it('reports a flag listed only under another command', () => {
@@ -157,6 +189,13 @@ describe('findMissingScripts', () => {
 describe('template AGENTS.md', () => {
     it('names only commands and flags the CLI usage lists', () => {
         expect(findMissing(extractCommands(agents), usage)).toEqual([])
+    })
+
+    it('names nera new with --starter, --name, --lang and --yes', () => {
+        const flags = extractCommands(agents)
+            .filter(({ command }) => command === 'new')
+            .flatMap(({ flags }) => flags)
+        expect(flags).toEqual(expect.arrayContaining(['--starter', '--name', '--lang', '--yes']))
     })
 
     it('names only npm scripts the template package.json defines', () => {
