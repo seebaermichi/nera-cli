@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0] - 2026-10-25
+
+### Added
+
+-   The site's `AGENTS.md` names the command that starts another site from a starter, `npx @nera-static/nera new <name> --starter <blank|blog|business|portfolio> --name "<site name>" --lang <code> --yes`, and says that with `--yes` or without a terminal it never asks.
+-   The `nera` skill's first workflow step starts from an official starter with `--starter` (one line each for `blank`, `blog`, `business` and `portfolio`) and names `--name`, `--lang` and `--yes`. The `business-site`, `blog` and `portfolio` recipes start from their starter as the fast path and keep the hand-built steps, which produce different files.
+-   `nera update` brings both texts to existing sites: it refreshes the Nera part of `AGENTS.md` (the notes below the "Notes for this site" marker stay as they are) and replaces the `nera` skill.
+
+### Changed
+
+-   `AGENTS.md` no longer says that the site's pages use `pages/default.pug`, which was not true for a site created from the blog, business or portfolio starter; it says to copy the `layout` from a similar page.
+
 ## [1.17.0] - 2026-10-25
 
 ### Added
