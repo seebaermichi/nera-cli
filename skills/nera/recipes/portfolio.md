@@ -3,6 +3,16 @@
 A home page with a grid of projects, one page per project, large responsive
 images.
 
+## Fast path
+
+`npx @nera-static/nera new my-portfolio --starter portfolio` creates a
+portfolio on `@nera-static/theme-business`: project pages with image
+galleries, about, a contact form, navigation, responsive images and a
+sitemap. Read its `AGENTS.md`, then replace the sample projects and images
+and the placeholder `origin: https://example.com` in `config/app.yaml`;
+step 7 below still applies. The steps below build the portfolio by hand
+instead, with different files.
+
 ## Steps
 
 1. Scaffold: `npx @nera-static/nera new my-portfolio`, then read its

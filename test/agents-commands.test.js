@@ -6,6 +6,7 @@ import { execFileSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { templateDir } from '../src/scaffold.js'
 import { skillSourceDir } from '../src/skill.js'
+import { BUNDLED_STARTERS } from '../src/starters.js'
 
 // Resolved from this file, so the test passes whatever vitest's cwd is.
 const CLI = fileURLToPath(new URL('../bin/nera.js', import.meta.url))
@@ -217,6 +218,29 @@ describe('the Nera skill (skills/nera)', () => {
             findMissing(extractCommands(text), usage).map((m) => `${file}: ${m}`)
         )
         expect(missing).toEqual([])
+    })
+
+    it('names nera new with --starter, --name, --lang and --yes in SKILL.md', () => {
+        const [, text] = skillFiles.find(([file]) => file === 'SKILL.md')
+        const flags = extractCommands(text)
+            .filter(({ command }) => command === 'new')
+            .flatMap(({ flags }) => flags)
+        expect(flags).toEqual(expect.arrayContaining(['--starter', '--name', '--lang', '--yes']))
+    })
+
+    it('names every bundled starter in SKILL.md', () => {
+        const [, text] = skillFiles.find(([file]) => file === 'SKILL.md')
+        const missing = BUNDLED_STARTERS.filter(({ name }) => !text.includes(`\`${name}\``))
+        expect(missing.map(({ name }) => name)).toEqual([])
+    })
+
+    it.each([
+        ['recipes/business-site.md', 'business'],
+        ['recipes/blog.md', 'blog'],
+        ['recipes/portfolio.md', 'portfolio'],
+    ])('%s starts from --starter %s', (recipe, starter) => {
+        const [, text] = skillFiles.find(([file]) => file === recipe)
+        expect(text).toMatch(new RegExp(`\`npx @nera-static/nera new [\\w-]+ --starter ${starter}\``))
     })
 
     it('names only npm scripts the template package.json defines', () => {

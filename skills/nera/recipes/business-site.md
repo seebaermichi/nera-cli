@@ -3,6 +3,14 @@
 A small business presence: home, about, services, opening hours, contact,
 imprint and privacy, with a menu on every page.
 
+## Fast path
+
+`npx @nera-static/nera new my-business --starter business` creates all of
+this on `@nera-static/theme-business`: the pages, navigation, a contact form,
+responsive images, social links and a sitemap. Read its `AGENTS.md`, then
+replace the sample texts; steps 2, 8 and 9 below still apply. The steps
+below build the site by hand instead, with different files.
+
 ## Steps
 
 1. Scaffold: `npx @nera-static/nera new my-business`, then read its

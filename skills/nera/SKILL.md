@@ -22,7 +22,17 @@ Eleventy, Hugo, Astro or Jekyll; do not apply their conventions.
 
 1. **Scaffold.** `npx @nera-static/nera new my-site` creates a folder and
    installs; `npx @nera-static/nera new .` fills the current, empty folder.
-   `--theme <name>` starts from a theme; `--no-install` skips `npm install`.
+   Start from an official starter when one fits, with `--starter <name>`:
+   - `blank`: a home page, imprint and privacy placeholders, one layout
+   - `blog`: sample posts, tags, archive, prev/next, feed, sitemap
+   - `business`: home, about, services, opening hours, contact form
+   - `portfolio`: project pages with image galleries, about, contact form
+
+   `--name "<site name>"` and `--lang <code>` set `name` and `lang` in
+   `config/app.yaml`. With `--yes`, or without a terminal, it never asks:
+   `npx @nera-static/nera new my-site --starter blog --name "My Blog" --lang en --yes`.
+   `--theme <name>` starts from a theme instead (not together with
+   `--starter`, which brings its own); `--no-install` skips `npm install`.
 2. **Content.** One Markdown file per page in `pages/`, each with YAML
    frontmatter that names its `layout`. Site name, language and texts for
    templates go in `config/app.yaml`. Shared markup goes in `theme/views/`.
