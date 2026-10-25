@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 -   `AGENTS.md` no longer says that the site's pages use `pages/default.pug`, which was not true for a site created from the blog, business or portfolio starter; it says to copy the `layout` from a similar page.
+-   The `nera` skill's list of published plugins names `consent` and `feed`, and its advice not to hand-write a feature a plugin covers names a feed and a consent banner.
 
 ## [1.17.0] - 2026-10-25
 

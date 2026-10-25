@@ -61,13 +61,13 @@ and refreshes `AGENTS.md` and this skill.
 Features come from npm packages named `@nera-static/plugin-<name>`. An
 installed plugin loads on the next build, with nothing to register. Do not
 hand-write navigation, a contact form, tags, search, pagination, image
-handling or a sitemap: a plugin exists for each. The catalog:
-https://github.com/seebaermichi/nera/blob/main/PLUGINS.md
+handling, a sitemap, a feed or a consent banner: a plugin exists for each.
+The catalog: https://github.com/seebaermichi/nera/blob/main/PLUGINS.md
 
-The published plugins: canonical-links, code-blocks, contact-form, images,
-link-attributes, navigation, one-page, page-navigation, page-pagination,
-popular-content, search, simple-page-list, sitemap, social-media-links,
-stacks, statistics, tags. Each plugin's README (on npm, or
+The published plugins: canonical-links, code-blocks, consent, contact-form,
+feed, images, link-attributes, navigation, one-page, page-navigation,
+page-pagination, popular-content, search, simple-page-list, sitemap,
+social-media-links, stacks, statistics, tags. Each plugin's README (on npm, or
 `github.com/seebaermichi/nera-plugin-<name>`) lists its config keys and its
 template binary. Read it before you configure the plugin.
 

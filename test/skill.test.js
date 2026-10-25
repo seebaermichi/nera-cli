@@ -17,6 +17,30 @@ const RECIPES = [
     'custom-domain.md',
 ]
 
+// The published plugins, as `generator/PLUGINS.md` lists them (not
+// plugin-utils, which is a library). Add a new plugin here and in SKILL.md.
+const PLUGINS = [
+    'canonical-links',
+    'code-blocks',
+    'consent',
+    'contact-form',
+    'feed',
+    'images',
+    'link-attributes',
+    'navigation',
+    'one-page',
+    'page-navigation',
+    'page-pagination',
+    'popular-content',
+    'search',
+    'simple-page-list',
+    'sitemap',
+    'social-media-links',
+    'stacks',
+    'statistics',
+    'tags',
+]
+
 // Every file under dir, as paths relative to it with `/`.
 async function listFiles(dir, prefix = '') {
     const files = []
@@ -79,6 +103,13 @@ describe('the skill source (skills/nera)', () => {
             expect(fssync.existsSync(path.join(skillSourceDir(), 'recipes', recipe))).toBe(true)
             expect(links).toContain(`recipes/${recipe}`)
         }
+    })
+
+    it('names every published plugin, in order', async () => {
+        const text = await fs.readFile(path.join(skillSourceDir(), 'SKILL.md'), 'utf-8')
+        const match = /^The published plugins: ([^.]+)\./m.exec(text)
+        expect(match).not.toBeNull()
+        expect(match[1].split(/,\s+/)).toEqual(PLUGINS)
     })
 
     it('has only relative links that resolve to a file', async () => {
