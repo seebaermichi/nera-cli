@@ -21,4 +21,10 @@ export const BUNDLED_STARTERS = [
         label: 'Business',
         description: 'A ready-to-edit Nera site for a small business on @nera-static/theme-business: home, about, services, opening hours, a contact form, navigation, responsive images, social links, a sitemap and imprint and privacy placeholders. One small script for the contact form.',
     },
+    {
+        name: 'portfolio',
+        package: '@nera-static/starter-portfolio',
+        label: 'Portfolio',
+        description: 'A ready-to-edit Nera portfolio for a designer on @nera-static/theme-business: home, projects with image galleries, about, a contact form, navigation, responsive images, social links, a sitemap and imprint and privacy placeholders. One small script for the contact form.',
+    },
 ]
