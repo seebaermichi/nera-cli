@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+-   Groundwork for `nera publish`, which is not available yet: the GitHub sign-in it will use is kept in the operating system's keychain, through the new optional dependency `@napi-rs/keyring`. Where there is no keychain (headless Linux, CI, or an install that skipped the optional dependency), it goes to `~/.config/nera/credentials.json`, readable only by you. `NERA_GITHUB_TOKEN` takes precedence over both and is never written.
+
 ## [1.18.0] - 2026-10-25
 
 ### Added
