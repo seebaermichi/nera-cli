@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 -   The bundled starter list, which `nera new` shows when the npm registry cannot be reached, offers `portfolio` (`@nera-static/starter-portfolio`): a designer's portfolio on `@nera-static/theme-business` with project pages, image galleries, a contact form and a sitemap.
+-   The README names the `portfolio` starter next to `blank`, `blog` and `business`.
 
 ## [1.16.1] - 2026-10-23
 

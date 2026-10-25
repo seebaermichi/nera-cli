@@ -134,7 +134,8 @@ depends on still updates through npm).
 `--starter` takes:
 
 - a starter name: `blank` → `@nera-static/starter-blank`, `blog` →
-  `@nera-static/starter-blog`, `business` → `@nera-static/starter-business`;
+  `@nera-static/starter-blog`, `business` → `@nera-static/starter-business`,
+  `portfolio` → `@nera-static/starter-portfolio`;
 - a package name: `@acme/starter-shop`, or unscoped `nera-starter-shop`;
 - a GitHub URL: `https://github.com/owner/repo` (optionally `.git`, `#ref`),
   or `github:owner/repo#ref`;
@@ -167,10 +168,12 @@ default. Every question has a flag (`--starter`, `--name`, `--lang`); with
 
 The official starters: `blank` (`@nera-static/starter-blank`, one accessible
 layout, no theme), `blog` (`@nera-static/starter-blog`, a blog on
-`@nera-static/theme-blog` with tags, an archive, an Atom feed and a sitemap)
-and `business` (`@nera-static/starter-business`, a small-business site on
+`@nera-static/theme-blog` with tags, an archive, an Atom feed and a sitemap),
+`business` (`@nera-static/starter-business`, a small-business site on
 `@nera-static/theme-business` with services, opening hours and a contact
-form).
+form) and `portfolio` (`@nera-static/starter-portfolio`, a designer's
+portfolio on `@nera-static/theme-business` with projects in image galleries,
+an about page and a contact form).
 
 ## Checking the built site
 
