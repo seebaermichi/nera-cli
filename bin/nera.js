@@ -6,6 +6,7 @@ import { runServe } from '../src/commands/serve.js'
 import { runUpdate } from '../src/commands/update.js'
 import { runValidate } from '../src/commands/validate.js'
 import { runCheck } from '../src/commands/check.js'
+import { runPublish } from '../src/commands/publish.js'
 
 const [, , command, ...rest] = process.argv
 const json = rest.includes('--json')
@@ -45,6 +46,10 @@ try {
         break
     case 'check':
         process.exitCode = runCheck({ json })
+        break
+    // Left out of the usage text until a target makes it usable (D6).
+    case 'publish':
+        process.exitCode = await runPublish(rest)
         break
     default:
         console.log(usage)
