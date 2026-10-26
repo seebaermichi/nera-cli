@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 -   Groundwork for `nera publish`, which is not available yet: the GitHub sign-in it will use is kept in the operating system's keychain, through the new optional dependency `@napi-rs/keyring`. Where there is no keychain (headless Linux, CI, or an install that skipped the optional dependency), it goes to `~/.config/nera/credentials.json`, readable only by you. `NERA_GITHUB_TOKEN` takes precedence over both and is never written.
+-   More groundwork for `nera publish`, the part every host will share. It still cannot publish a site: no host (GitHub Pages or Netlify) is included, so `nera publish` stops with an error saying that no publish target is available, and the command stays out of `nera --help` and `AGENTS.md`. What is in place:
+    -   Sign-in through the "Nera Static" GitHub App's device flow: the CLI says who runs the app, links nera.js.org and explains how to create a GitHub account if you have none (it waits, it never creates one). It prints the code, opens github.com/login/device in a terminal, prints "Signed in as `<login>`", and refreshes an expired token by itself. `nera publish --sign-out` deletes the stored token and links the GitHub page where you revoke the app.
+    -   Before the app touches a repository, the CLI says what it may do and sends you to its installation page if it is not installed, then waits.
+    -   The repository is created under your account (named after the site folder, or `--repo <name>`; public unless `--private`, which GitHub Pages only serves on a paid plan), or the one recorded in `config/publish.yaml` is reused. A name that is already taken is an error that names `--repo`.
+    -   A generated `.github/workflows/deploy.yml` builds the site (`npm ci`, `nera build`) and deploys it on every push to `main`. Once you remove its generated header line, the file is yours and `nera publish` leaves it alone.
+    -   The site is committed and pushed with git when it is installed, else through the GitHub API, so git is not required. The token never appears in a command line, `.git/config` or a remote URL, and a remote that changed elsewhere is never overwritten.
+    -   The Actions run for the pushed commit is followed until it finishes; a failure names the failing step, shows an excerpt of its log up to the first error and suggests a fix.
+    -   `--json` prints one JSON object on stdout and logs on stderr. With `--yes` or without a terminal, nothing is ever asked.
 
 ## [1.18.0] - 2026-10-25
 
