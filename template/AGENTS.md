@@ -119,6 +119,8 @@ the URL.
 `npm run build` writes the site into `public/`: upload its contents to any
 static web host. Replace the imprint and privacy placeholders in `pages/`
 first, if any; `legal-*` warnings are expected until they are filled and linked.
+Do not use `npx nera publish` yet: it stops with "No publish target
+is available" until a following release adds GitHub Pages and Netlify.
 
 <!-- nera:site-notes — everything below this line belongs to the site owner; `nera update` keeps it as it is -->
 ## Notes for this site

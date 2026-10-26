@@ -48,6 +48,9 @@ Eleventy, Hugo, Astro or Jekyll; do not apply their conventions.
 6. **Deploy.** `npm run build` writes the finished site into `public/`.
    Upload the contents of `public/` to any static host. See
    [custom-domain](recipes/custom-domain.md) for a domain of your own.
+   `npx nera publish` will do this through GitHub once a hosting target
+   (GitHub Pages, Netlify) is included, in a following release; this
+   version has none and stops with "No publish target is available".
 
 Repeat steps 2–5 for every change. For machine-readable results, add `--json`:
 `npx nera validate --json`, `npx nera check --json`,

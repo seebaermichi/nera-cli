@@ -141,8 +141,8 @@ describe('extractCommands', () => {
 
 describe('findMissing', () => {
     it('reports a command the usage lacks', () => {
-        const fixture = 'Deploy with `npx nera publish`, then run `npx nera validate`.'
-        expect(findMissing(extractCommands(fixture), usage)).toEqual(['nera publish'])
+        const fixture = 'Deploy with `npx nera deploy`, then run `npx nera validate`.'
+        expect(findMissing(extractCommands(fixture), usage)).toEqual(['nera deploy'])
     })
 
     it('reports a flag the usage lacks', () => {

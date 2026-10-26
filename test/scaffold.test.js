@@ -419,11 +419,12 @@ describe('scaffoldProject agent instructions (AGENTS.md, CLAUDE.md)', () => {
     }
 
     // ROADMAP-ai.md L1 says "at most ~120 lines"; the --json bullet (L3)
-    // took the file to 124, the `nera new` bullet (L5) to 127.
-    it('keeps AGENTS.md within 127 lines', async () => {
+    // took the file to 124, the `nera new` bullet (L5) to 127, the
+    // `nera publish` caveat (L6) to 129.
+    it('keeps AGENTS.md within 129 lines', async () => {
         const lines = (await read(templateDir(), 'AGENTS.md')).split('\n')
         expect(lines.at(-1)).toBe('')
-        expect(lines.length - 1).toBeLessThanOrEqual(127)
+        expect(lines.length - 1).toBeLessThanOrEqual(129)
     })
 
     it('links the docs, llms.txt and llms-full.txt', async () => {
@@ -447,7 +448,9 @@ describe('scaffoldProject agent instructions (AGENTS.md, CLAUDE.md)', () => {
 
     it('names only commands and folders that exist today', async () => {
         const text = await read(templateDir(), 'AGENTS.md')
-        expect(text).not.toMatch(/nera publish/)
+        // `nera publish` exists, but has no hosting target yet (L6): the
+        // file must not send an agent to it without saying so.
+        expect(text).toMatch(/Do not use `npx nera publish` yet: it stops with "No publish target\nis available"/)
         expect(text).not.toMatch(/(^|[^/])\bplugins\/<name>/m)
     })
 })

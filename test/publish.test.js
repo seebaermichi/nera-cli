@@ -578,10 +578,10 @@ describe('bin/nera.js publish, as a child process', () => {
             env: { ...process.env, NERA_GITHUB_TOKEN: '' },
         })
 
-    it('is dispatched, but not in the usage text yet', () => {
+    it('is dispatched and in the usage text, which says no target is included yet', () => {
         const help = cli([])
         expect(help.status).toBe(0)
-        expect(help.stdout).not.toContain('nera publish')
+        expect(help.stdout).toMatch(/^ {2}nera publish .*no hosting target is included yet/m)
 
         const text = cli(['publish'])
         expect(text.status).toBe(1)
