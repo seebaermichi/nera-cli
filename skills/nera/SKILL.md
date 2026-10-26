@@ -48,9 +48,12 @@ Eleventy, Hugo, Astro or Jekyll; do not apply their conventions.
 6. **Deploy.** `npm run build` writes the finished site into `public/`.
    Upload the contents of `public/` to any static host. See
    [custom-domain](recipes/custom-domain.md) for a domain of your own.
-   `npx nera publish` will do this through GitHub once a hosting target
-   (GitHub Pages, Netlify) is included, in a following release; this
-   version has none and stops with "No publish target is available".
+   Or `npx nera publish --yes` puts it on GitHub Pages: it signs in to
+   GitHub (the site owner enters the code it prints), creates (or
+   reuses) the repository and the deploy workflow, sets `base_path` and
+   prints the live URL (`--json` for a JSON object).
+   `--domain <host>` sets a custom domain and checks its DNS. Netlify
+   follows in a later release.
 
 Repeat steps 2–5 for every change. For machine-readable results, add `--json`:
 `npx nera validate --json`, `npx nera check --json`,
@@ -91,8 +94,8 @@ page to open next.
 - [Search](recipes/search.md): client-side search over the site
 - [Images](recipes/images.md): responsive AVIF/WebP images
 - [Multilingual site](recipes/multilingual.md): a second language
-- [Custom domain](recipes/custom-domain.md): DNS, GitHub Pages `CNAME`,
-  `base_path`
+- [Custom domain](recipes/custom-domain.md): DNS, GitHub Pages
+  `--domain`, `base_path`
 
 ## Docs
 

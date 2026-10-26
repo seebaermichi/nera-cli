@@ -22,7 +22,7 @@ Usage:
   nera update        update Nera packages (or migrate a cloned site with --migrate)
   nera validate      check the site (layouts, includes, YAML) before publish (--json for machine-readable output)
   nera check         check the built public/ (accessibility, privacy, legal hints) (--json for machine-readable output)
-  nera publish       publish the site through GitHub (--target <id>, --repo <name>, --private, --yes to never ask, --json, --sign-out); no hosting target is included yet, GitHub Pages and Netlify arrive in a following release
+  nera publish       publish the site through GitHub to GitHub Pages (--target github-pages, the default; --domain <host> for a custom domain, --repo <name>, --private, --yes to never ask, --json, --sign-out); Netlify arrives in a following release
 `
 
 try {

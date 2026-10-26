@@ -13,11 +13,15 @@ the domain is set at the host and at the domain registrar.
    usually a `CNAME` record for `www` pointing at the host and `A`/`AAAA`
    records (or `ALIAS`) for the bare domain. Copy them from the host's own
    docs; they differ per host. DNS can take hours to spread.
-4. **GitHub Pages:** it needs a file named `CNAME` (no extension) at the
-   root of the deployed site, holding only the domain (`www.example.com`).
-   Never write it into `public/`, which every build deletes. Put it in
-   `theme/assets/CNAME`: every file in `theme/assets/` is copied to the root
-   of `public/` on each build, so it ends up at `public/CNAME`.
+4. **GitHub Pages through `nera publish`:** run
+   `npx nera publish --yes --domain www.example.com`. It sets the domain in
+   the Pages settings, removes `base_path`, checks the DNS on every publish
+   and prints the records to set when they are missing (`A`/`AAAA` for a
+   bare domain, a `CNAME` to `<user>.github.io` otherwise). Steps 2 and 5 are done for you; set
+   the records of step 3 yourself.
+   No `CNAME` file is needed: GitHub ignores it for a site an Actions
+   workflow deploys. Only a Pages site deployed from a branch uses one; put
+   it in `theme/assets/CNAME` (never in `public/`, which every build deletes).
 5. **`base_path`:** leave it unset for a custom domain or any site served
    from the root. Set `base_path: /<repo>` in `config/app.yaml` only for a
    site served under a sub-path, such as a GitHub project page at
@@ -30,8 +34,8 @@ the domain is set at the host and at the domain registrar.
 
 ## Files touched
 
-`theme/assets/CNAME` (GitHub Pages), `config/app.yaml` (`origin`,
-`base_path`), DNS settings outside the site.
+`config/app.yaml` (`origin`, `base_path`), DNS settings outside the site,
+`theme/assets/CNAME` only for a Pages site deployed from a branch.
 
 ## Read next
 

@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
--   Groundwork for `nera publish`, which is not available yet: the GitHub sign-in it will use is kept in the operating system's keychain, through the new optional dependency `@napi-rs/keyring`. Where there is no keychain (headless Linux, CI, or an install that skipped the optional dependency), it goes to `~/.config/nera/credentials.json`, readable only by you. `NERA_GITHUB_TOKEN` takes precedence over both and is never written.
--   More groundwork for `nera publish`, the part every host will share. It still cannot publish a site: no host (GitHub Pages or Netlify) is included, so `nera publish` stops with an error saying that no publish target is available. `nera --help`, the README, the site's `AGENTS.md` and the `nera` skill name the command and its flags (`--target`, `--repo`, `--private`, `--yes`, `--json`, `--sign-out`) and say that GitHub Pages and Netlify arrive in a following release. What is in place:
+-   The GitHub sign-in of `nera publish` is kept in the operating system's keychain, through the new optional dependency `@napi-rs/keyring`. Where there is no keychain (headless Linux, CI, or an install that skipped the optional dependency), it goes to `~/.config/nera/credentials.json`, readable only by you. `NERA_GITHUB_TOKEN` takes precedence over both and is never written.
+-   `nera publish`, the part every host shares. `nera --help`, the README, the site's `AGENTS.md` and the `nera` skill name the command and its flags (`--target`, `--repo`, `--domain`, `--private`, `--yes`, `--json`, `--sign-out`). What is in place:
     -   Sign-in through the "Nera Static" GitHub App's device flow: the CLI says who runs the app, links nera.js.org and explains how to create a GitHub account if you have none (it waits, it never creates one). It prints the code, opens github.com/login/device in a terminal, prints "Signed in as `<login>`", and refreshes an expired token by itself. `nera publish --sign-out` deletes the stored token and links the GitHub page where you revoke the app.
     -   Before the app touches a repository, the CLI says what it may do and sends you to its installation page if it is not installed, then waits.
     -   The repository is created under your account (named after the site folder, or `--repo <name>`; public unless `--private`, which GitHub Pages only serves on a paid plan), or the one recorded in `config/publish.yaml` is reused. A name that is already taken is an error that names `--repo`.
@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     -   The site is committed and pushed with git when it is installed, else through the GitHub API, so git is not required. The token never appears in a command line, `.git/config` or a remote URL, and a remote that changed elsewhere is never overwritten.
     -   The Actions run for the pushed commit is followed until it finishes; a failure names the failing step, shows an excerpt of its log up to the first error and suggests a fix.
     -   `--json` prints one JSON object on stdout and logs on stderr. With `--yes` or without a terminal, nothing is ever asked.
+-   `nera publish` deploys to GitHub Pages (`--target github-pages`, and the default when no target is named). Netlify arrives in a following release.
+    -   GitHub Pages is switched on for the repository with the GitHub Actions build type before the first push. A Pages site that already exists is reused; one that deployed from a branch is switched to GitHub Actions, with a log line. On a free plan GitHub refuses Pages for a private repository, and the error says so.
+    -   The deploy job of the generated workflow hands the built `public/` folder to GitHub Pages (`configure-pages`, `upload-pages-artifact`, `deploy-pages`) in the `github-pages` environment.
+    -   `base_path` in `config/app.yaml` follows the address GitHub Pages reports: `/<repo>` for a project page, removed for a `<user>.github.io` repository or a custom domain. Comments and the other keys stay as they are, and a change is logged.
+    -   `--domain <host>` sets the site's custom domain in the GitHub Pages settings; no `CNAME` file is written, since GitHub ignores one for a site an Actions workflow deploys. A URL, a path, a port, an IP address or a `github.io` name is refused before sign-in, saying what to pass. A later run without `--domain` keeps the domain.
+    -   Whenever the Pages site has a custom domain, its DNS is checked: `A` (and optional `AAAA`) records for a bare domain, a `CNAME` to `<user>.github.io` for any other. Missing or wrong records are printed with what to set; they never stop the publish, since DNS changes take hours to spread.
+    -   The live URL is printed (`Live at …`) and is the `url` of the `--json` object.
 
 ## [1.18.0] - 2026-10-25
 
