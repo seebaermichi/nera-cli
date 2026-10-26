@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createGitHubClient, GITHUB_API } from '../src/publish/github.js'
+import { createGitHubClient, GitHubError, GITHUB_API } from '../src/publish/github.js'
 import {
     waitForRun,
     watchDeploy,
@@ -8,6 +8,7 @@ import {
     DeployError,
     RUN_POLL_MS,
     RUN_TIMEOUT_MS,
+    TRANSIENT_RETRIES,
     EXCERPT_LINES,
     WORKFLOW_PATH,
 } from '../src/publish/status.js'
@@ -23,6 +24,7 @@ const REPOSITORY = 'octo/site'
 const SHA = 'a'.repeat(40)
 const OTHER_SHA = 'b'.repeat(40)
 const adapter = { id: 'fake-host', label: 'Fake Host' }
+const OFFLINE = 'offline'
 
 const run = (id, overrides = {}) => ({
     id,
@@ -35,7 +37,9 @@ const run = (id, overrides = {}) => ({
 })
 
 // A fake Actions API. `polls` is the list of run lists answered one per
-// poll (the last one repeats); `jobs` and `logs` answer the failure report.
+// poll (the last one repeats); a number in their place is an HTTP status to
+// answer that poll with, OFFLINE a network failure. `jobs` and `logs` answer
+// the failure report.
 function fakeActions({ polls = [[]], jobs = [], logs = {} } = {}) {
     const requests = []
     let poll = 0
@@ -45,6 +49,8 @@ function fakeActions({ polls = [[]], jobs = [], logs = {} } = {}) {
         let match
         if (route.startsWith(`GET /repos/${REPOSITORY}/actions/runs?`)) {
             const runs = polls[Math.min(poll++, polls.length - 1)]
+            if (runs === OFFLINE) throw new TypeError('fetch failed')
+            if (typeof runs === 'number') return jsonResponse(runs, { message: `Status ${runs}` })
             return jsonResponse(200, { total_count: runs.length, workflow_runs: runs })
         }
         if ((match = route.match(/\/actions\/runs\/(\d+)\/jobs/))) {
@@ -134,6 +140,55 @@ describe('waitForRun', () => {
         const error = await waitForRun({ client: github.client, repository: REPOSITORY, sha: SHA, log: () => {}, ...fakeClock() }).catch((err) => err)
         expect(error.message).toContain('No deploy run started within 15 minutes')
         expect(error.details.run).toBe(`https://github.com/${REPOSITORY}/actions`)
+    })
+})
+
+describe('waitForRun — transient errors', () => {
+    const wait = (github, clock = fakeClock()) =>
+        waitForRun({ client: github.client, repository: REPOSITORY, sha: SHA, log: () => {}, ...clock })
+
+    it('retries up to TRANSIENT_RETRIES 5xx or network errors in a row at the poll interval, then resolves', async () => {
+        // A good answer in between resets the count.
+        const github = fakeActions({
+            polls: [503, OFFLINE, [run(7, { status: 'in_progress', conclusion: null })], ...Array(TRANSIENT_RETRIES).fill(502), [run(7)]],
+        })
+        const clock = fakeClock()
+        expect((await wait(github, clock)).id).toBe(7)
+        expect(clock.sleeps).toEqual(Array(2 + 1 + TRANSIENT_RETRIES).fill(RUN_POLL_MS))
+    })
+
+    it('one more in a row: a DeployError with the run\'s address and GitHub\'s message', async () => {
+        const github = fakeActions({ polls: [[run(7, { status: 'queued', conclusion: null })], 503] })
+        const error = await wait(github).catch((err) => err)
+        expect(error).toBeInstanceOf(DeployError)
+        expect(error.message).toBe(`Following the deploy failed: GitHub answered 503 to GET /repos/${REPOSITORY}/actions/runs?head_sha=${SHA}&per_page=100: Status 503. Follow it at https://github.com/${REPOSITORY}/actions/runs/7, then run nera publish again once it is done.`)
+        expect(error.details).toEqual({ run: `https://github.com/${REPOSITORY}/actions/runs/7`, hint: 'Run nera publish again once the run is done.' })
+        expect(github.requests).toHaveLength(1 + TRANSIENT_RETRIES + 1)
+    })
+
+    it('before any run is seen, the DeployError points at the Actions page', async () => {
+        const github = fakeActions({ polls: [OFFLINE] })
+        const error = await wait(github).catch((err) => err)
+        expect(error.message).toContain('Could not reach GitHub: fetch failed')
+        expect(error.details.run).toBe(`https://github.com/${REPOSITORY}/actions`)
+    })
+
+    it.each([401, 403, 404, 422])('a %i is not retried: GitHub\'s error is rethrown at once', async (status) => {
+        const github = fakeActions({ polls: [status] })
+        const clock = fakeClock()
+        const error = await wait(github, clock).catch((err) => err)
+        expect(error).toBeInstanceOf(GitHubError)
+        expect(error.status).toBe(status)
+        expect(github.requests).toHaveLength(1)
+        expect(clock.sleeps).toEqual([])
+    })
+
+    it('the deadline still ends the wait while errors and good answers alternate', async () => {
+        const github = fakeActions({ polls: Array.from({ length: RUN_TIMEOUT_MS / RUN_POLL_MS + 1 }, (_, i) => (i % 2 ? 503 : [])) })
+        const clock = fakeClock()
+        const error = await wait(github, clock).catch((err) => err)
+        expect(error.message).toContain('No deploy run started within 15 minutes')
+        expect(clock.now()).toBe(RUN_TIMEOUT_MS)
     })
 })
 

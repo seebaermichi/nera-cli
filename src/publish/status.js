@@ -1,5 +1,5 @@
 import path from 'path'
-import { GITHUB_WEB } from './github.js'
+import { GitHubError, GITHUB_WEB } from './github.js'
 import { parseRepository } from './site-config.js'
 import { BUILD_JOB_ID, BUILD_STEPS, WORKFLOW_FILE } from './workflow.js'
 
@@ -16,6 +16,10 @@ export const RUN_TIMEOUT_MS = 15 * 60_000
 
 // The workflow's path as the Actions API reports it (`/`, on every OS).
 export const WORKFLOW_PATH = WORKFLOW_FILE.split(path.sep).join('/')
+
+// A poll that fails this many times in a row on a transient error (a 5xx or
+// no connection) ends the wait; fewer are retried at the poll interval.
+export const TRANSIENT_RETRIES = 3
 
 // At most this many log lines in the excerpt.
 export const EXCERPT_LINES = 20
@@ -57,11 +61,18 @@ async function findRun(client, { owner, name }, sha) {
     return runs.reduce((newest, run) => (newest === null || run.id > newest.id ? run : newest), null)
 }
 
+// An error worth polling again: GitHub could not be reached (status 0) or
+// answered 5xx. A 4xx (a revoked token, a missing repository) is not, so it is
+// never retried into a timeout.
+const isTransient = (error) => error instanceof GitHubError && (error.status === 0 || error.status >= 500)
+
 // Wait for the deploy run of the commit `sha` in `repository` (`owner/name`)
 // to complete, polling every RUN_POLL_MS. Resolves the completed run as
-// GitHub lists it (`id`, `conclusion`, `html_url`, …). Throws a DeployError
-// with the run's address (the repository's Actions page while no run has
-// started) after RUN_TIMEOUT_MS.
+// GitHub lists it (`id`, `conclusion`, `html_url`, …). Up to TRANSIENT_RETRIES
+// transient errors in a row are retried; the next one throws a DeployError
+// with GitHub's message. Throws a DeployError after RUN_TIMEOUT_MS. Both carry
+// the run's address, the repository's Actions page while no run has started.
+// Any other error is rethrown as is.
 export async function waitForRun({
     client,
     repository,
@@ -72,20 +83,36 @@ export async function waitForRun({
 } = {}) {
     const repo = parseRepository(repository)
     const deadline = now() + RUN_TIMEOUT_MS
+    const hint = 'Run nera publish again once the run is done.'
+    const addressOf = (run) => run?.html_url ?? `${GITHUB_WEB}/${repository}/actions`
+    let run = null
+    let failures = 0
     let announced = null
     for (;;) {
-        const run = await findRun(client, repo, sha)
+        try {
+            run = await findRun(client, repo, sha)
+            failures = 0
+        } catch (error) {
+            if (!isTransient(error)) throw error
+            if (++failures > TRANSIENT_RETRIES) {
+                throw new DeployError(`Following the deploy failed: ${error.message}. Follow it at ${addressOf(run)}, then run nera publish again once it is done.`, {
+                    run: addressOf(run),
+                    hint,
+                })
+            }
+        }
+        // After a failed poll `run` is the last good answer: announced
+        // already, and not completed, or it would have been returned.
         if (run && announced !== run.id) {
             log(`Deploying: ${run.html_url}`)
             announced = run.id
         }
         if (run?.status === 'completed') return run
         if (now() >= deadline) {
-            const address = run?.html_url ?? `${GITHUB_WEB}/${repository}/actions`
             const what = run ? 'The deploy run did not finish' : 'No deploy run started'
-            throw new DeployError(`${what} within ${RUN_TIMEOUT_MS / 60_000} minutes. Follow it at ${address}, then run nera publish again once it is done.`, {
-                run: address,
-                hint: 'Run nera publish again once the run is done.',
+            throw new DeployError(`${what} within ${RUN_TIMEOUT_MS / 60_000} minutes. Follow it at ${addressOf(run)}, then run nera publish again once it is done.`, {
+                run: addressOf(run),
+                hint,
             })
         }
         await sleep(RUN_POLL_MS)

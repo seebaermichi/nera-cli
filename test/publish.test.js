@@ -435,8 +435,9 @@ async function makeSite() {
 describe('publishSite — end to end over a fake GitHub', () => {
     // runPublish with the real pipeline; only GitHub, the token store and the
     // clock are fakes, and commits go through the API path (no git needed).
-    function publishEndToEnd(args, github) {
+    function publishEndToEnd(args, github, adapterOverrides = {}) {
         const { adapter, contexts } = recordingAdapter(github.events)
+        Object.assign(adapter, adapterOverrides)
         const result = runPublish(['--target', 'fake-host', ...args], {
             cwd: site,
             stdin: pipe,
@@ -530,12 +531,14 @@ describe('publishSite — end to end over a fake GitHub', () => {
         expect(logged()).not.toContain('Live at')
     })
 
-    it('--json failure: { ok: false, error, deploy } with the excerpt and hint, exit 1', async () => {
+    it('--json failure: { ok: false, error, repository, sha, deploy } with the excerpt and hint, exit 1', async () => {
         const github = fakeGitHub({ conclusion: 'failure' })
         const { result } = publishEndToEnd(['--repo', REPO, '--json'], github)
         expect(await result).toBe(1)
         const object = printedJson()
         expect(object.ok).toBe(false)
+        expect(object.repository).toBe(REPOSITORY)
+        expect(object.sha).toBe(github.git.refs.main)
         expect(object.error).toContain('Error: Layout "post.pug" not found')
         expect(object.deploy).toEqual({
             run: `https://github.com/${REPOSITORY}/actions/runs/100`,
@@ -544,6 +547,26 @@ describe('publishSite — end to end over a fake GitHub', () => {
             excerpt: 'Error: Layout "post.pug" not found',
             hint: expect.stringContaining('Run nera build in the site folder'),
         })
+    })
+
+    it('--json failure before the push: the repository, no sha', async () => {
+        const github = fakeGitHub()
+        const { result } = publishEndToEnd(['--repo', REPO, '--json'], github, {
+            setUp: async () => {
+                throw new Error('The host refused the site.')
+            },
+        })
+        expect(await result).toBe(1)
+        expect(printedJson()).toEqual({ ok: false, error: 'The host refused the site.', repository: REPOSITORY })
+    })
+
+    it('--json failure before the repository is known: neither repository nor sha', async () => {
+        const github = fakeGitHub()
+        const fetch = github.fetch
+        github.fetch = async (url, init) => (url.endsWith('/user') ? jsonResponse(401, { message: 'Bad credentials' }) : fetch(url, init))
+        const { result } = publishEndToEnd(['--repo', REPO, '--json'], github)
+        expect(await result).toBe(1)
+        expect(printedJson()).toEqual({ ok: false, error: 'GitHub answered 401 to GET /user: Bad credentials' })
     })
 })
 

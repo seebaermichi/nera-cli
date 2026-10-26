@@ -39,11 +39,17 @@ export function parsePublishArgs(args = []) {
 
 // The `--json` object: `{ ok: true, url, repository, sha, run }` from the
 // pipeline (`{ ok: true, signedOut }` for --sign-out), `{ ok: false, error }`
-// on failure, plus `deploy: { run, job?, step?, excerpt?, hint }` when the
-// Actions run failed or did not finish (status.js).
+// on failure, plus the `repository` and `sha` the pipeline had reached
+// (publishSite's `published`), and `deploy: { run, job?, step?, excerpt?,
+// hint }` when the Actions run failed or did not finish (status.js).
 export const PUBLISH_ENVELOPE = {
     success: (result) => ({ ok: true, ...result }),
-    failure: (error) => (error.details ? { ok: false, error: error.message, deploy: error.details } : { ok: false, error: error.message }),
+    failure: (error) => ({
+        ok: false,
+        error: error.message,
+        ...error.published,
+        ...(error.details ? { deploy: error.details } : {}),
+    }),
 }
 
 // Lazily loaded, so the keyring binding is touched only by a sign-out.
@@ -65,7 +71,8 @@ async function defaultDeleteToken() {
 // Every adapter method gets the same host context: `{ cwd, client,
 // repository, installation, user, options, interactive, log }`, where
 // `repository` is what ensureRepository resolved (its `created` is true on
-// the first run).
+// the first run). A failure is rethrown with `published: { repository?,
+// sha? }`, what the pipeline had reached.
 export async function publishSite({ cwd, adapter, options, config, interactive, env }, deps = {}) {
     const [auth, credentials, github, repository, workflow, commit, status, siteConfig] = await Promise.all([
         import('../publish/auth.js'),
@@ -90,31 +97,41 @@ export async function publishSite({ cwd, adapter, options, config, interactive, 
     } = deps
     const clock = { sleep, now, log }
 
-    const tokens = await auth.ensureToken({ readToken, saveToken, fetch, open, tty: interactive, ...clock })
-    const client = github.createGitHubClient({ token: tokens.accessToken, fetch })
-    const user = await client.get('/user')
-    const installation = await repository.ensureInstallation({ client, login: user.login, open, tty: interactive, ...clock })
-    const repo = await repository.ensureRepository({ client, cwd, options, config, log })
-    if (config.target !== adapter.id) await siteConfig.writePublishConfig({ target: adapter.id }, cwd)
+    // What the pipeline has reached, for the `--json` object of a failure:
+    // the repository once it is known, the pushed commit once it is pushed.
+    const published = {}
+    try {
+        const tokens = await auth.ensureToken({ readToken, saveToken, fetch, open, tty: interactive, ...clock })
+        const client = github.createGitHubClient({ token: tokens.accessToken, fetch })
+        const user = await client.get('/user')
+        const installation = await repository.ensureInstallation({ client, login: user.login, open, tty: interactive, ...clock })
+        const repo = await repository.ensureRepository({ client, cwd, options, config, log })
+        published.repository = repo.repository
+        if (config.target !== adapter.id) await siteConfig.writePublishConfig({ target: adapter.id }, cwd)
 
-    const host = { cwd, client, repository: repo, installation, user, options, interactive, log }
-    await adapter.setUp(host)
-    log((await workflow.writeWorkflow(adapter, host, cwd)).message)
+        const host = { cwd, client, repository: repo, installation, user, options, interactive, log }
+        await adapter.setUp(host)
+        log((await workflow.writeWorkflow(adapter, host, cwd)).message)
 
-    const pushed = await commit.commitAndPush({
-        client,
-        token: tokens.accessToken,
-        repository: repo.repository,
-        user,
-        created: repo.created,
-        cwd,
-        useGit,
-        exec,
-        env,
-        log,
-    })
-    const run = await status.watchDeploy({ client, repository: repo.repository, sha: pushed.sha, adapter, ...clock })
-    return { url: await adapter.liveUrl(host), repository: repo.repository, sha: pushed.sha, run: run.html_url }
+        const pushed = await commit.commitAndPush({
+            client,
+            token: tokens.accessToken,
+            repository: repo.repository,
+            user,
+            created: repo.created,
+            cwd,
+            useGit,
+            exec,
+            env,
+            log,
+        })
+        published.sha = pushed.sha
+        const run = await status.watchDeploy({ client, repository: repo.repository, sha: pushed.sha, adapter, ...clock })
+        return { url: await adapter.liveUrl(host), repository: repo.repository, sha: pushed.sha, run: run.html_url }
+    } catch (error) {
+        if (error instanceof Error) error.published = published
+        throw error
+    }
 }
 
 // Remove the stored GitHub token. Revoking the app's access is GitHub's, so
