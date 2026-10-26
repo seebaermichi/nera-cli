@@ -71,9 +71,10 @@ async function defaultDeleteToken() {
 // - `ctx`: what runPublish hands every pipeline (see there)
 // - `deps`: the collaborators the modules take, for tests: `fetch`,
 //   `readToken`/`saveToken` (credentials.js), `sleep`/`now`, `open`,
-//   `useGit`/`exec` (commit.js) and `log`
+//   `useGit`/`exec` (commit.js), `resolver` (the DNS check of pages.js) and
+//   `log`
 // Every adapter method gets the same host context: `{ cwd, client,
-// repository, installation, user, options, interactive, log }`, where
+// repository, installation, user, options, interactive, log, resolver }`, where
 // `repository` is what ensureRepository resolved (its `created` is true on
 // the first run). A failure is rethrown with `published: { repository?,
 // sha? }`, what the pipeline had reached.
@@ -97,6 +98,7 @@ export async function publishSite({ cwd, adapter, options, config, interactive, 
         open,
         useGit,
         exec,
+        resolver,
         log = (line) => console.log(line),
     } = deps
     const clock = { sleep, now, log }
@@ -113,7 +115,7 @@ export async function publishSite({ cwd, adapter, options, config, interactive, 
         published.repository = repo.repository
         if (config.target !== adapter.id) await siteConfig.writePublishConfig({ target: adapter.id }, cwd)
 
-        const host = { cwd, client, repository: repo, installation, user, options, interactive, log }
+        const host = { cwd, client, repository: repo, installation, user, options, interactive, log, resolver }
         await adapter.setUp(host)
         log((await workflow.writeWorkflow(adapter, host, cwd)).message)
 

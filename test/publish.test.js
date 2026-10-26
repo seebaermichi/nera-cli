@@ -17,6 +17,7 @@ import { PUBLISH_STATE } from '../src/publish/commit.js'
 import { WORKFLOW_PATH } from '../src/publish/status.js'
 import { BUILD_STEPS, GENERATED_HEADER } from '../src/publish/workflow.js'
 import { fakeGitData, jsonResponse } from './helpers/fake-github.js'
+import { fakeResolver } from './helpers/fake-dns.js'
 
 // The `nera publish` contract (ROADMAP-ai.md L6): flags, the TTY rule, the
 // target registry, config/publish.yaml and the --json object. The pipeline is
@@ -372,6 +373,8 @@ function fakeGitHub({ conclusion = 'success' } = {}) {
     const runs = []
     let created = false
     let nextRun = 100
+    // The repository's Pages site, once the github-pages adapter enabled it.
+    let pages = null
     const repoObject = () => ({
         full_name: REPOSITORY,
         owner: { login: OWNER },
@@ -400,6 +403,19 @@ function fakeGitHub({ conclusion = 'success' } = {}) {
             created = true
             git.autoInit()
             return jsonResponse(201, repoObject())
+        }
+        if (route === `GET /repos/${REPOSITORY}/pages`) return pages ? jsonResponse(200, pages) : jsonResponse(404, { message: 'Not Found' })
+        if (route === `POST /repos/${REPOSITORY}/pages`) {
+            events.push('enable pages')
+            pages = { html_url: `https://${OWNER}.github.io/${REPO}/`, build_type: JSON.parse(init.body).build_type, cname: null }
+            return jsonResponse(201, pages)
+        }
+        if (route === `PUT /repos/${REPOSITORY}/pages`) {
+            const { cname } = JSON.parse(init.body)
+            events.push(`set domain ${cname}`)
+            // GitHub reports http until the certificate for the domain is issued.
+            Object.assign(pages, { cname, html_url: `http://${cname}/` })
+            return jsonResponse(204)
         }
         if (route.startsWith(`GET /repos/${REPOSITORY}/actions/runs?`)) {
             events.push('poll run')
@@ -457,32 +473,37 @@ async function makeSite() {
     }
 }
 
+// runPublish with the real pipeline over `targets`; only GitHub, DNS, the
+// token store and the clock are fakes, and commits go through the API
+// path (no git needed).
+const runPipeline = (args, github, targets, resolver) => runPublish(args, {
+    cwd: site,
+    stdin: pipe,
+    stdout: pipe,
+    env: {},
+    targets,
+    publish: (ctx) => publishSite(ctx, {
+        fetch: github.fetch,
+        readToken: async () => ({ accessToken: TOKEN, source: 'env' }),
+        saveToken: async () => {
+            throw new Error('an env token is never saved')
+        },
+        sleep: async () => {},
+        now: () => 0,
+        open: () => {
+            throw new Error('no browser without a terminal')
+        },
+        useGit: false,
+        resolver,
+    }),
+})
+
 describe('publishSite — end to end over a fake GitHub', () => {
-    // runPublish with the real pipeline; only GitHub, the token store and the
-    // clock are fakes, and commits go through the API path (no git needed).
+    // runPipeline with a recording fake-host adapter.
     function publishEndToEnd(args, github, adapterOverrides = {}) {
         const { adapter, contexts } = recordingAdapter(github.events)
         Object.assign(adapter, adapterOverrides)
-        const result = runPublish(['--target', 'fake-host', ...args], {
-            cwd: site,
-            stdin: pipe,
-            stdout: pipe,
-            env: {},
-            targets: createRegistry([adapter]),
-            publish: (ctx) => publishSite(ctx, {
-                fetch: github.fetch,
-                readToken: async () => ({ accessToken: TOKEN, source: 'env' }),
-                saveToken: async () => {
-                    throw new Error('an env token is never saved')
-                },
-                sleep: async () => {},
-                now: () => 0,
-                open: () => {
-                    throw new Error('no browser without a terminal')
-                },
-                useGit: false,
-            }),
-        })
+        const result = runPipeline(['--target', 'fake-host', ...args], github, createRegistry([adapter]))
         return { result, contexts }
     }
 
@@ -592,6 +613,59 @@ describe('publishSite — end to end over a fake GitHub', () => {
         const { result } = publishEndToEnd(['--repo', REPO, '--json'], github)
         expect(await result).toBe(1)
         expect(printedJson()).toEqual({ ok: false, error: 'GitHub answered 401 to GET /user: Bad credentials' })
+    })
+})
+
+describe('publishSite with the github-pages adapter — end to end over a fake GitHub', () => {
+    // As publishEndToEnd, with the real registry (github-pages, the default
+    // target) and a DNS stub answering `records` (helpers/fake-dns.js).
+    function publishToPages(args, github, records = {}) {
+        const resolver = fakeResolver(records)
+        return { result: runPipeline(args, github, createRegistry(), resolver), lookups: resolver.lookups }
+    }
+    const stderr = () => error.mock.calls.flat().join('\n')
+
+    beforeEach(makeSite)
+
+    it('enables Pages before the push, commits base_path and the Pages job, prints the Pages address', async () => {
+        const github = fakeGitHub()
+        const { result, lookups } = publishToPages(['--repo', REPO], github)
+        expect(await result).toBe(0)
+
+        expect(github.events.filter((event, i, all) => event !== all[i - 1])).toEqual([
+            'installation', 'create repository', 'enable pages', 'push', 'poll run',
+        ])
+        expect(await readPublishConfig(site)).toEqual({ repository: REPOSITORY, target: 'github-pages' })
+        const published = github.git.filesOf(github.git.refs.main)
+        expect(published['config/app.yaml'].content).toBe(`name: My Site\nbase_path: /${REPO}\n`)
+        const workflow = published['.github/workflows/deploy.yml'].content
+        expect(workflow).toContain('uses: actions/deploy-pages@v5')
+        expect(workflow).toContain('name: github-pages')
+        expect(lookups).toEqual([])
+        expect(logged()).toContain(`Live at https://${OWNER}.github.io/${REPO}/`)
+        expect(logged()).not.toContain(TOKEN)
+    })
+
+    it('--domain --json: the domain set before the push, no base_path, the DNS report on stderr only', async () => {
+        const github = fakeGitHub()
+        const { result, lookups } = publishToPages(['--repo', REPO, '--domain', 'WWW.Example.com', '--json'], github, { A: ['203.0.113.7'] })
+        expect(await result).toBe(0)
+
+        expect(github.events.indexOf('set domain www.example.com')).toBeGreaterThan(github.events.indexOf('enable pages'))
+        expect(github.events.indexOf('set domain www.example.com')).toBeLessThan(github.events.indexOf('push'))
+        expect(github.git.filesOf(github.git.refs.main)['config/app.yaml'].content).toBe('name: My Site\n')
+        expect(lookups.sort()).toEqual(['A www.example.com', 'AAAA www.example.com', 'CNAME www.example.com'])
+
+        expect(printedJson()).toEqual({
+            ok: true,
+            url: 'http://www.example.com/',
+            repository: REPOSITORY,
+            sha: github.git.refs.main,
+            run: `https://github.com/${REPOSITORY}/actions/runs/100`,
+        })
+        expect(log).not.toHaveBeenCalled()
+        expect(stderr()).toContain('DNS for www.example.com does not point to GitHub Pages yet: it has A 203.0.113.7.')
+        expect(stderr()).toContain(`  CNAME  www.example.com  ${OWNER}.github.io`)
     })
 })
 
