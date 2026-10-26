@@ -46,6 +46,7 @@
         "@nera-static/core": "^4.12.0",
         "@nera-static/validate": "^1.2.0",
         "chokidar": "^5.0.0",
+        "ignore": "^7.0.12",
         "semver": "^7.8.5",
         "vite": "^8.1.5",
         "yaml": "^2.9.1"
