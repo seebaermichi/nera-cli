@@ -77,8 +77,9 @@ export async function postOAuth(path, params, { fetch: fetchImpl = globalThis.fe
 
 // A REST client for api.github.com acting with `token`. `request(method,
 // path, body?)` resolves the parsed JSON (null for an empty answer such as
-// 204) and throws a GitHubError naming the call and GitHub's message for any
-// status outside 2xx; get/post/put/patch/delete are shorthands.
+// 204) and throws a GitHubError naming the call, GitHub's message and the
+// reasons in its `errors` list for any status outside 2xx;
+// get/post/put/patch/delete are shorthands.
 export function createGitHubClient({ token, fetch: fetchImpl = globalThis.fetch } = {}) {
     if (typeof token !== 'string' || token === '') {
         throw new TypeError('createGitHubClient needs a token')
@@ -100,7 +101,12 @@ export function createGitHubClient({ token, fetch: fetchImpl = globalThis.fetch 
         const response = await send(fetchImpl, `${GITHUB_API}${path}`, init, secrets)
         const data = await readJson(response)
         if (!response.ok) {
-            const detail = data?.message ?? response.statusText
+            // A 422 names the actual problem in `errors`, e.g. "name already
+            // exists on this account" under "Repository creation failed."
+            const reasons = Array.isArray(data?.errors)
+                ? data.errors.map((e) => (typeof e === 'string' ? e : e?.message)).filter(Boolean)
+                : []
+            const detail = [data?.message ?? response.statusText, ...reasons.map((r) => `(${r})`)].join(' ')
             throw new GitHubError(redact(`GitHub answered ${response.status} to ${method} ${path}: ${detail}`, secrets), {
                 status: response.status,
             })

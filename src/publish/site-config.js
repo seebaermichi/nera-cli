@@ -13,6 +13,29 @@ import { parseDocument } from 'yaml'
 export const PUBLISH_CONFIG = path.join('config', 'publish.yaml')
 const KEYS = ['target', 'repository']
 
+// GitHub's rules for an account name and a repository name. A repository
+// name is letters, digits, `.`, `-` and `_`, at most 100 characters, neither
+// `.` nor `..`, and GitHub strips a trailing `.git`, so that is refused too.
+const OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/
+const REPO_NAME_PATTERN = /^[A-Za-z0-9._-]{1,100}$/
+
+export function isValidRepoName(name) {
+    return typeof name === 'string'
+        && REPO_NAME_PATTERN.test(name)
+        && name !== '.' && name !== '..'
+        && !name.toLowerCase().endsWith('.git')
+}
+
+// `owner/name` split into `{ owner, name }`; throws, naming the file, when
+// the value is not of that form.
+export function parseRepository(value) {
+    const parts = typeof value === 'string' ? value.split('/') : []
+    if (parts.length !== 2 || !OWNER_PATTERN.test(parts[0]) || !isValidRepoName(parts[1])) {
+        throw new Error(`${PUBLISH_CONFIG}: "repository" must be owner/name, got ${JSON.stringify(value)}`)
+    }
+    return { owner: parts[0], name: parts[1] }
+}
+
 export function publishConfigFile(cwd = process.cwd()) {
     return path.join(cwd, PUBLISH_CONFIG)
 }
@@ -54,6 +77,7 @@ export async function readPublishConfig(cwd = process.cwd()) {
         if (typeof value[key] !== 'string' || value[key] === '') {
             throw new Error(`${PUBLISH_CONFIG}: "${key}" must be a text value`)
         }
+        if (key === 'repository') parseRepository(value[key])
         config[key] = value[key]
     }
     return config
@@ -71,6 +95,7 @@ export async function writePublishConfig(updates, cwd = process.cwd()) {
         if (typeof value !== 'string' || value === '') {
             throw new TypeError(`${PUBLISH_CONFIG}: "${key}" must be a non-empty string`)
         }
+        if (key === 'repository') parseRepository(value)
         doc.set(key, value)
     }
     await fs.mkdir(path.dirname(file), { recursive: true })
