@@ -1,6 +1,9 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import fs from 'fs/promises'
+import os from 'os'
+import path from 'path'
 import { parseDocument } from 'yaml'
-import { githubPages, BUILD_TYPE } from '../src/publish/pages.js'
+import { githubPages, BUILD_TYPE, APP_CONFIG, basePathOf, writeBasePath } from '../src/publish/pages.js'
 import { assertAdapter } from '../src/publish/targets.js'
 import { createGitHubClient, GitHubError, GITHUB_API } from '../src/publish/github.js'
 import { PRIVATE_NOTE } from '../src/publish/repository.js'
@@ -56,11 +59,32 @@ function fakeGitHub(routes) {
 }
 
 // The host context publishSite hands every adapter method, with a log that
-// records its lines.
-function host(client, repo = repository()) {
+// records its lines. `cwd` is the temp site of the test.
+function host(client, repo = repository(), cwd = site) {
     const lines = []
-    return { ctx: { client, repository: repo, log: (line) => lines.push(line) }, lines }
+    return { ctx: { cwd, client, repository: repo, log: (line) => lines.push(line) }, lines }
 }
+
+const APP_YAML = `# The site's settings
+lang: en
+name: My Nera Site # shown in the title
+`
+
+// A temp site with config/app.yaml for every test; tests that need another
+// file content write it.
+let site
+const appYaml = () => fs.readFile(path.join(site, APP_CONFIG), 'utf-8')
+const writeAppYaml = (text) => fs.writeFile(path.join(site, APP_CONFIG), text)
+
+beforeEach(async () => {
+    site = await fs.mkdtemp(path.join(os.tmpdir(), 'nera-publish-pages-'))
+    await fs.mkdir(path.join(site, 'config'))
+    await writeAppYaml(APP_YAML)
+})
+
+afterEach(async () => {
+    await fs.rm(site, { recursive: true, force: true })
+})
 
 describe('githubPages adapter', () => {
     it('has the adapter interface', () => {
@@ -131,7 +155,10 @@ describe('githubPages.setUp', () => {
         expect(requests.map((r) => r.route)).toEqual([PAGES, ENABLE])
         expect(requests[1].body).toEqual({ build_type: BUILD_TYPE })
         expect(BUILD_TYPE).toBe('workflow')
-        expect(lines).toEqual(['Switching on GitHub Pages for octo/site…'])
+        expect(lines).toEqual([
+            'Switching on GitHub Pages for octo/site…',
+            'Set base_path to /site in config/app.yaml: https://octo.github.io/site/ serves the site below /site.',
+        ])
     })
 
     it('reuses a Pages site that already deploys with GitHub Actions', async () => {
@@ -158,7 +185,10 @@ describe('githubPages.setUp', () => {
         expect(site.html_url).toBe('https://octo.github.io/site/')
         expect(requests.map((r) => r.route)).toEqual([PAGES, SWITCH])
         expect(requests[1].body).toEqual({ build_type: 'workflow' })
-        expect(lines).toEqual(['GitHub Pages of octo/site deployed from a branch; switching it to GitHub Actions, which the Nera workflow deploys with.'])
+        expect(lines).toEqual([
+            'GitHub Pages of octo/site deployed from a branch; switching it to GitHub Actions, which the Nera workflow deploys with.',
+            'Set base_path to /site in config/app.yaml: https://octo.github.io/site/ serves the site below /site.',
+        ])
     })
 
     it.each([
@@ -220,6 +250,130 @@ describe('githubPages.setUp', () => {
         const error = await githubPages.setUp(ctx).catch((err) => err)
         expect(error).toBeInstanceOf(GitHubError)
         expect(error.status).toBe(403)
+    })
+})
+
+describe('githubPages.setUp: base_path follows the Pages address', () => {
+    const setUpWith = async (pages) => {
+        const { client } = fakeGitHub({ [PAGES]: () => [200, pages] })
+        const { ctx, lines } = host(client)
+        await githubPages.setUp(ctx)
+        return lines.slice(1)
+    }
+
+    it('sets base_path for a project page, keeping comments and the other keys', async () => {
+        const lines = await setUpWith(pagesSite())
+
+        expect(await appYaml()).toBe(`${APP_YAML}base_path: /site\n`)
+        expect(lines).toEqual(['Set base_path to /site in config/app.yaml: https://octo.github.io/site/ serves the site below /site.'])
+    })
+
+    it('replaces a wrong base_path in place', async () => {
+        await writeAppYaml('lang: en\nbase_path: /old # set by hand\nname: Site\n')
+
+        await setUpWith(pagesSite())
+        expect(await appYaml()).toBe('lang: en\nbase_path: /site # set by hand\nname: Site\n')
+    })
+
+    it.each([
+        ['a user.github.io repository', 'https://octo.github.io/'],
+        ['a custom domain', 'https://example.com/'],
+        ['a custom domain without a trailing slash', 'https://example.com'],
+    ])('removes base_path for %s', async (_, htmlUrl) => {
+        await writeAppYaml('# settings\nlang: en\nbase_path: /site\nname: Site # title\n')
+
+        const lines = await setUpWith(pagesSite({ html_url: htmlUrl }))
+        expect(await appYaml()).toBe('# settings\nlang: en\nname: Site # title\n')
+        expect(lines).toEqual([`Removed base_path from config/app.yaml: ${htmlUrl} serves the site from the root.`])
+    })
+
+    it.each([['\'\''], ['/']])('removes a root base_path of %s rather than keeping it', async (value) => {
+        await writeAppYaml(`lang: en\nbase_path: ${value}\n`)
+
+        await setUpWith(pagesSite({ html_url: 'https://example.com/' }))
+        expect(await appYaml()).toBe('lang: en\n')
+    })
+
+    it.each([
+        ['already right', 'https://octo.github.io/site/', 'lang: en # kept as it is\nbase_path: /site\n'],
+        ['spelled the way core normalises', 'https://octo.github.io/site/', 'lang: en\nbase_path: site/\n'],
+        ['absent for a root-served site', 'https://example.com/', APP_YAML],
+    ])('leaves config/app.yaml untouched when base_path is %s', async (_, htmlUrl, text) => {
+        await writeAppYaml(text)
+        const before = (await fs.stat(path.join(site, APP_CONFIG))).mtimeMs
+
+        const lines = await setUpWith(pagesSite({ html_url: htmlUrl }))
+        expect(await appYaml()).toBe(text)
+        expect((await fs.stat(path.join(site, APP_CONFIG))).mtimeMs).toBe(before)
+        expect(lines).toEqual([])
+    })
+
+    it('fails, naming the file, when the site has no config/app.yaml', async () => {
+        await fs.rm(path.join(site, APP_CONFIG))
+
+        await expect(setUpWith(pagesSite())).rejects.toThrow(
+            'config/app.yaml is missing; nera publish needs the site\'s config to set base_path.',
+        )
+    })
+
+    it('fails, naming the file, when config/app.yaml is not a mapping', async () => {
+        await writeAppYaml('- just\n- a list\n')
+
+        await expect(setUpWith(pagesSite())).rejects.toThrow('config/app.yaml must be a mapping of keys to values')
+    })
+
+    it('fails when GitHub reports no address for the Pages site', async () => {
+        await expect(setUpWith(pagesSite({ html_url: null }))).rejects.toThrow(
+            'GitHub reported no address for the GitHub Pages site, so base_path cannot be set.',
+        )
+        expect(await appYaml()).toBe(APP_YAML)
+    })
+})
+
+describe('basePathOf', () => {
+    it.each([
+        ['https://octo.github.io/site/', '/site'],
+        ['https://octo.github.io/site', '/site'],
+        ['https://octo.github.io/', ''],
+        ['https://example.com', ''],
+        ['https://example.com/docs//', '/docs'],
+    ])('%s → %j', (htmlUrl, expected) => {
+        expect(basePathOf(htmlUrl)).toBe(expected)
+    })
+})
+
+describe('writeBasePath', () => {
+    it('resolves whether the file changed', async () => {
+        await expect(writeBasePath(site, '/site')).resolves.toBe(true)
+        await expect(writeBasePath(site, '/site')).resolves.toBe(false)
+        await expect(writeBasePath(site, '')).resolves.toBe(true)
+        await expect(writeBasePath(site, '')).resolves.toBe(false)
+        expect(await appYaml()).toBe(APP_YAML)
+    })
+
+    it.each([
+        ['4-space', '    '],
+        ['2-space', '  '],
+    ])('keeps the rest of a %s file as written', async (_, pad) => {
+        const long = 'A description that runs well past the eighty characters yaml folds lines at by default'
+        const text = `lang: en\ndescription: ${long}\nlist: [a, b]\nfolders:\n${pad}plugins: ./plugins\ntranslations:\n${pad}en:\n${pad}${pad}imprint: Imprint\n`
+        await writeAppYaml(text)
+
+        await expect(writeBasePath(site, '/site')).resolves.toBe(true)
+        expect(await appYaml()).toBe(`${text}base_path: /site\n`)
+    })
+
+    it('replaces a base_path that is not text', async () => {
+        await writeAppYaml('base_path: 42\n')
+
+        await expect(writeBasePath(site, '/site')).resolves.toBe(true)
+        expect(await appYaml()).toBe('base_path: /site\n')
+    })
+
+    it('fails, naming the file, on invalid YAML', async () => {
+        await writeAppYaml('lang: [en\n')
+
+        await expect(writeBasePath(site, '/site')).rejects.toThrow(/^config\/app\.yaml is not valid YAML: /)
     })
 })
 
