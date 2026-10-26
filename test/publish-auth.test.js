@@ -460,6 +460,17 @@ describe('github.js', () => {
         expect(error.message).toBe('Could not reach GitHub: getaddrinfo ENOTFOUND api.github.com')
     })
 
+    it('getText resolves the answer as text and throws like request on a failure', async () => {
+        const fetch = async (url) => (url.endsWith('/logs')
+            ? { ok: true, status: 200, statusText: 'OK', text: async () => 'line 1\nline 2\n' }
+            : jsonResponse(404, { message: 'Not Found' }))
+        const client = createGitHubClient({ token: ACCESS, fetch })
+        expect(await client.getText('/repos/me/site/actions/jobs/7/logs')).toBe('line 1\nline 2\n')
+        const error = await client.getText('/repos/me/site/actions/jobs/8').catch((err) => err)
+        expect(error).toBeInstanceOf(GitHubError)
+        expect(error.message).toBe('GitHub answered 404 to GET /repos/me/site/actions/jobs/8: Not Found')
+    })
+
     it('refuses to build a client without a token', () => {
         expect(() => createGitHubClient({ token: '' })).toThrow(TypeError)
     })

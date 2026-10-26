@@ -37,11 +37,13 @@ export function parsePublishArgs(args = []) {
     return options
 }
 
-// The `--json` object: `{ ok: true, url?, repository? }` from the pipeline
-// (`{ ok: true, signedOut }` for --sign-out), `{ ok: false, error }` on failure.
+// The `--json` object: `{ ok: true, url, repository, sha, run }` from the
+// pipeline (`{ ok: true, signedOut }` for --sign-out), `{ ok: false, error }`
+// on failure, plus `deploy: { run, job?, step?, excerpt?, hint }` when the
+// Actions run failed or did not finish (status.js).
 export const PUBLISH_ENVELOPE = {
     success: (result) => ({ ok: true, ...result }),
-    failure: (error) => ({ ok: false, error: error.message }),
+    failure: (error) => (error.details ? { ok: false, error: error.message, deploy: error.details } : { ok: false, error: error.message }),
 }
 
 // Lazily loaded, so the keyring binding is touched only by a sign-out.
@@ -50,10 +52,69 @@ async function defaultDeleteToken() {
     return deleteToken()
 }
 
-// The end-to-end pipeline (sign-in, repository, workflow, push, run) is still
-// being built; until then publishing stops here with a clear message.
-async function defaultPublish({ adapter }) {
-    throw new Error(`Publishing to ${adapter.label} is not available in this version of Nera yet.`)
+// The end-to-end pipeline, in the order of D5: sign in → the app's
+// installation → the repository → `adapter.setUp` → the deploy workflow →
+// commit and push → the Actions run for the pushed commit. The host is set
+// up before the first push, so the workflow's push trigger finds it ready.
+// Its modules are imported here, so the keyring and git are never loaded by
+// another command. Resolves `{ url, repository, sha, run }`.
+// - `ctx`: what runPublish hands every pipeline (see there)
+// - `deps`: the collaborators the modules take, for tests: `fetch`,
+//   `readToken`/`saveToken` (credentials.js), `sleep`/`now`, `open`,
+//   `useGit`/`exec` (commit.js) and `log`
+// Every adapter method gets the same host context: `{ cwd, client,
+// repository, installation, user, options, interactive, log }`, where
+// `repository` is what ensureRepository resolved (its `created` is true on
+// the first run).
+export async function publishSite({ cwd, adapter, options, config, interactive, env }, deps = {}) {
+    const [auth, credentials, github, repository, workflow, commit, status, siteConfig] = await Promise.all([
+        import('../publish/auth.js'),
+        import('../publish/credentials.js'),
+        import('../publish/github.js'),
+        import('../publish/repository.js'),
+        import('../publish/workflow.js'),
+        import('../publish/commit.js'),
+        import('../publish/status.js'),
+        import('../publish/site-config.js'),
+    ])
+    const {
+        fetch = globalThis.fetch,
+        readToken = () => credentials.readToken({ env }),
+        saveToken,
+        sleep,
+        now,
+        open,
+        useGit,
+        exec,
+        log = (line) => console.log(line),
+    } = deps
+    const clock = { sleep, now, log }
+
+    const tokens = await auth.ensureToken({ readToken, saveToken, fetch, open, tty: interactive, ...clock })
+    const client = github.createGitHubClient({ token: tokens.accessToken, fetch })
+    const user = await client.get('/user')
+    const installation = await repository.ensureInstallation({ client, login: user.login, open, tty: interactive, ...clock })
+    const repo = await repository.ensureRepository({ client, cwd, options, config, log })
+    if (config.target !== adapter.id) await siteConfig.writePublishConfig({ target: adapter.id }, cwd)
+
+    const host = { cwd, client, repository: repo, installation, user, options, interactive, log }
+    await adapter.setUp(host)
+    log((await workflow.writeWorkflow(adapter, host, cwd)).message)
+
+    const pushed = await commit.commitAndPush({
+        client,
+        token: tokens.accessToken,
+        repository: repo.repository,
+        user,
+        created: repo.created,
+        cwd,
+        useGit,
+        exec,
+        env,
+        log,
+    })
+    const run = await status.watchDeploy({ client, repository: repo.repository, sha: pushed.sha, adapter, ...clock })
+    return { url: await adapter.liveUrl(host), repository: repo.repository, sha: pushed.sha, run: run.html_url }
 }
 
 // Remove the stored GitHub token. Revoking the app's access is GitHub's, so
@@ -75,10 +136,10 @@ async function signOut({ deleteToken, env }) {
 // injectable so tests need no network, keychain or terminal:
 // - `targets`: the adapter registry (targets.js)
 // - `deleteToken`: removes the stored token (credentials.js)
-// - `publish(ctx)`: the pipeline; resolves `{ url?, repository? }`. `ctx` is
-//   `{ cwd, adapter, options, config, interactive }`; `interactive` is false
-//   without a terminal, with --yes and with --json, and nothing may be asked
-//   then.
+// - `publish(ctx)`: the pipeline (publishSite); resolves `{ url?, … }`.
+//   `ctx` is `{ cwd, adapter, options, config, interactive, env }`;
+//   `interactive` is false without a terminal, with --yes and with --json,
+//   and nothing may be asked then.
 // Text mode rethrows a failure, which the bin prints as ❌ with exit 1;
 // `--json` prints one object instead (PUBLISH_ENVELOPE).
 export async function runPublish(args = [], {
@@ -88,7 +149,7 @@ export async function runPublish(args = [], {
     env = process.env,
     targets = createRegistry(),
     deleteToken = defaultDeleteToken,
-    publish = defaultPublish,
+    publish = publishSite,
 } = {}) {
     const body = async () => {
         const options = parsePublishArgs(args)
@@ -100,7 +161,7 @@ export async function runPublish(args = [], {
         // In --json mode stdout belongs to the one object, so no question
         // could be shown there either.
         const interactive = shouldPrompt({ yes: options.yes || options.json, stdin, stdout })
-        return publish({ cwd, adapter, options, config, interactive })
+        return publish({ cwd, adapter, options, config, interactive, env })
     }
 
     if (args.includes('--json')) return runJson(body, PUBLISH_ENVELOPE)

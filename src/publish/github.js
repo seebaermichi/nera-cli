@@ -79,14 +79,19 @@ export async function postOAuth(path, params, { fetch: fetchImpl = globalThis.fe
 // path, body?)` resolves the parsed JSON (null for an empty answer such as
 // 204) and throws a GitHubError naming the call, GitHub's message and the
 // reasons in its `errors` list for any status outside 2xx;
-// get/post/put/patch/delete are shorthands.
+// get/post/put/patch/delete are shorthands. `getText(path)` resolves the
+// answer as text, for the endpoints that redirect to a plain-text download
+// (a job's log); fetch follows the redirect and drops the Authorization
+// header on the way to the other host.
 export function createGitHubClient({ token, fetch: fetchImpl = globalThis.fetch } = {}) {
     if (typeof token !== 'string' || token === '') {
         throw new TypeError('createGitHubClient needs a token')
     }
     const secrets = [token]
 
-    async function request(method, path, body) {
+    // The response for a call; throws a GitHubError for a status outside
+    // 2xx.
+    async function call(method, path, body) {
         const headers = {
             Accept: 'application/vnd.github+json',
             Authorization: `Bearer ${token}`,
@@ -99,8 +104,8 @@ export function createGitHubClient({ token, fetch: fetchImpl = globalThis.fetch 
             init.body = JSON.stringify(body)
         }
         const response = await send(fetchImpl, `${GITHUB_API}${path}`, init, secrets)
-        const data = await readJson(response)
         if (!response.ok) {
+            const data = await readJson(response)
             // A 422 names the actual problem in `errors`, e.g. "name already
             // exists on this account" under "Repository creation failed."
             const reasons = Array.isArray(data?.errors)
@@ -111,11 +116,14 @@ export function createGitHubClient({ token, fetch: fetchImpl = globalThis.fetch 
                 status: response.status,
             })
         }
-        return data
+        return response
     }
+
+    const request = async (method, path, body) => readJson(await call(method, path, body))
 
     return {
         request,
+        getText: async (path) => (await call('GET', path)).text(),
         get: (path) => request('GET', path),
         post: (path, body) => request('POST', path, body),
         put: (path, body) => request('PUT', path, body),

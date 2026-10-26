@@ -4,13 +4,18 @@ import fs from 'fs/promises'
 import os from 'os'
 import { spawnSync } from 'child_process'
 import { fileURLToPath } from 'url'
-import { parsePublishArgs, runPublish, REVOKE_URL } from '../src/commands/publish.js'
+import { parsePublishArgs, runPublish, publishSite, REVOKE_URL } from '../src/commands/publish.js'
 import { assertAdapter, createRegistry, TARGETS } from '../src/publish/targets.js'
 import {
     readPublishConfig,
     writePublishConfig,
     publishConfigFile,
 } from '../src/publish/site-config.js'
+import { GITHUB_API } from '../src/publish/github.js'
+import { PUBLISH_STATE } from '../src/publish/commit.js'
+import { WORKFLOW_PATH } from '../src/publish/status.js'
+import { BUILD_STEPS, GENERATED_HEADER } from '../src/publish/workflow.js'
+import { fakeGitData, jsonResponse } from './helpers/fake-github.js'
 
 // The `nera publish` contract (ROADMAP-ai.md L6): flags, the TTY rule, the
 // target registry, config/publish.yaml and the --json object. The pipeline is
@@ -235,14 +240,6 @@ describe('runPublish', () => {
         await expect(result).rejects.toThrow('Name a target with --target <id>')
     })
 
-    it('the default pipeline stops with a clear message', async () => {
-        const result = runPublish(['--target', 'fake-host'], {
-            cwd: site,
-            targets: createRegistry([fakeAdapter()]),
-        })
-        await expect(result).rejects.toThrow('Publishing to Fake Host is not available in this version of Nera yet.')
-    })
-
     describe('the TTY rule: interactive only on a terminal without --yes or --json', () => {
         const cases = [
             ['terminal', [], tty, tty, true],
@@ -330,6 +327,222 @@ describe('runPublish', () => {
             expect(await result).toBe(0)
             expect(printedJson()).toEqual({ ok: true, signedOut: true })
             expect(error.mock.calls.flat().join('\n')).toContain(REVOKE_URL)
+        })
+    })
+})
+
+// A fake GitHub for the whole pipeline: the account, the app's installation,
+// repository creation, the Git Data API (helpers/fake-github.js) and an
+// Actions API that starts one run of the deploy workflow for every new head
+// of main. `conclusion` is what that run ends with; `events` records the
+// GitHub side of the D5 order next to the adapter's calls.
+const OWNER = 'octo'
+const REPO = 'my-site'
+const REPOSITORY = `${OWNER}/${REPO}`
+const TOKEN = 'ghu_fake_access_token'
+
+function fakeGitHub({ conclusion = 'success' } = {}) {
+    const git = fakeGitData({ repository: REPOSITORY, token: TOKEN })
+    const events = []
+    const runs = []
+    let created = false
+    let nextRun = 100
+    const repoObject = () => ({
+        full_name: REPOSITORY,
+        owner: { login: OWNER },
+        name: REPO,
+        private: false,
+        default_branch: 'main',
+        html_url: `https://github.com/${REPOSITORY}`,
+    })
+    // A queued run for a head that has none yet, completed one poll later.
+    const startRun = () => {
+        if (!git.refs.main || runs.some((run) => run.head_sha === git.refs.main)) return
+        const id = nextRun++
+        runs.push({ id, head_sha: git.refs.main, path: WORKFLOW_PATH, status: 'queued', conclusion: null, html_url: `https://github.com/${REPOSITORY}/actions/runs/${id}` })
+    }
+
+    const fetch = async (url, init) => {
+        const route = `${init.method} ${url.slice(GITHUB_API.length)}`
+        if (route === 'GET /user') return jsonResponse(200, { login: OWNER, id: 4242 })
+        if (route === 'GET /user/installations?per_page=100') {
+            events.push('installation')
+            return jsonResponse(200, { installations: [{ id: 1, app_slug: 'nera-static', account: { login: OWNER } }] })
+        }
+        if (route === `GET /repos/${REPOSITORY}`) return created ? jsonResponse(200, repoObject()) : jsonResponse(404, { message: 'Not Found' })
+        if (route === 'POST /user/repos') {
+            events.push('create repository')
+            created = true
+            git.autoInit()
+            return jsonResponse(201, repoObject())
+        }
+        if (route.startsWith(`GET /repos/${REPOSITORY}/actions/runs?`)) {
+            events.push('poll run')
+            for (const run of runs) {
+                if (run.status === 'queued') run.status = 'in_progress'
+                else if (run.status === 'in_progress') Object.assign(run, { status: 'completed', conclusion })
+            }
+            startRun()
+            // GitHub's own head_sha filter, so a wrong sha finds nothing.
+            const sha = new URL(url).searchParams.get('head_sha')
+            return jsonResponse(200, { workflow_runs: runs.filter((run) => run.head_sha === sha).map((run) => ({ ...run })) })
+        }
+        const jobs = route.match(/\/actions\/runs\/(\d+)\/jobs/)
+        if (jobs) {
+            return jsonResponse(200, { jobs: [{ id: Number(jobs[1]) * 10, name: 'build', conclusion: 'failure', steps: [{ name: BUILD_STEPS.render, conclusion: 'failure' }] }] })
+        }
+        if (/\/actions\/jobs\/\d+\/logs$/.test(route)) {
+            return { ok: true, status: 200, statusText: 'OK', text: async () => '2026-10-26T10:00:01.0000000Z ##[error]Layout "post.pug" not found\n' }
+        }
+        if (route === `PATCH /repos/${REPOSITORY}/git/refs/heads/main`) events.push('push')
+        return git.fetch(url, init)
+    }
+    return { fetch, git, events, runs }
+}
+
+// An adapter that records its calls into `events`.
+function recordingAdapter(events) {
+    const contexts = []
+    const adapter = fakeAdapter('fake-host', {
+        setUp: async (ctx) => {
+            events.push('setUp')
+            contexts.push(ctx)
+        },
+        deployJob: () => {
+            events.push('deployJob')
+            return { permissions: { pages: 'write' }, job: { 'runs-on': 'ubuntu-latest', steps: [{ run: 'echo deploy' }] } }
+        },
+        liveUrl: (ctx) => {
+            events.push('liveUrl')
+            return `https://${ctx.repository.owner}.fake-host.example/${ctx.repository.name}/`
+        },
+    })
+    return { adapter, contexts }
+}
+
+async function makeSite() {
+    const files = {
+        'package.json': '{ "name": "my-site", "private": true }\n',
+        'config/app.yaml': 'name: My Site\n',
+        'pages/index.md': '---\nlayout: pages/default.pug\n---\n# Hello\n',
+    }
+    for (const [file, content] of Object.entries(files)) {
+        await fs.mkdir(path.dirname(path.join(site, file)), { recursive: true })
+        await fs.writeFile(path.join(site, file), content)
+    }
+}
+
+describe('publishSite — end to end over a fake GitHub', () => {
+    // runPublish with the real pipeline; only GitHub, the token store and the
+    // clock are fakes, and commits go through the API path (no git needed).
+    function publishEndToEnd(args, github) {
+        const { adapter, contexts } = recordingAdapter(github.events)
+        const result = runPublish(['--target', 'fake-host', ...args], {
+            cwd: site,
+            stdin: pipe,
+            stdout: pipe,
+            env: {},
+            targets: createRegistry([adapter]),
+            publish: (ctx) => publishSite(ctx, {
+                fetch: github.fetch,
+                readToken: async () => ({ accessToken: TOKEN, source: 'env' }),
+                saveToken: async () => {
+                    throw new Error('an env token is never saved')
+                },
+                sleep: async () => {},
+                now: () => 0,
+                open: () => {
+                    throw new Error('no browser without a terminal')
+                },
+                useGit: false,
+            }),
+        })
+        return { result, contexts }
+    }
+
+    beforeEach(makeSite)
+
+    it('first run: the D5 order, the repository and target recorded, the workflow committed, the live URL printed', async () => {
+        const github = fakeGitHub()
+        const { result, contexts } = publishEndToEnd(['--repo', REPO], github)
+        expect(await result).toBe(0)
+
+        expect(github.events.filter((event, i, all) => event !== all[i - 1])).toEqual([
+            'installation', 'create repository', 'setUp', 'deployJob', 'push', 'poll run', 'liveUrl',
+        ])
+        expect(contexts[0].repository).toMatchObject({ repository: REPOSITORY, created: true })
+        expect(contexts[0].interactive).toBe(false)
+        expect(await readPublishConfig(site)).toEqual({ repository: REPOSITORY, target: 'fake-host' })
+
+        const published = github.git.filesOf(github.git.refs.main)
+        expect(Object.keys(published).sort()).toEqual([
+            '.github/workflows/deploy.yml', 'config/app.yaml', 'config/publish.yaml', 'package.json', 'pages/index.md',
+        ])
+        expect(published['.github/workflows/deploy.yml'].content.startsWith(GENERATED_HEADER)).toBe(true)
+        expect(published['config/publish.yaml'].content).toContain(`repository: ${REPOSITORY}`)
+        expect(published['config/publish.yaml'].content).toContain('target: fake-host')
+
+        expect(logged()).toContain(`Deploying: https://github.com/${REPOSITORY}/actions/runs/100`)
+        expect(logged()).toContain(`Live at https://${OWNER}.fake-host.example/${REPO}/`)
+        expect(logged()).not.toContain(TOKEN)
+    })
+
+    it('a later run reuses the repository, publishes the change and polls the run for the new commit', async () => {
+        const github = fakeGitHub()
+        expect(await publishEndToEnd(['--repo', REPO], github).result).toBe(0)
+        const first = github.git.refs.main
+        github.events.length = 0
+
+        await fs.writeFile(path.join(site, 'pages/index.md'), '---\nlayout: pages/default.pug\n---\n# Changed\n')
+        const { result, contexts } = publishEndToEnd([], github)
+        expect(await result).toBe(0)
+
+        expect(github.events).not.toContain('create repository')
+        expect(contexts[0].repository.created).toBe(false)
+        const second = github.git.refs.main
+        expect(second).not.toBe(first)
+        expect(github.git.filesOf(second)['pages/index.md'].content).toContain('# Changed')
+        expect(JSON.parse(await fs.readFile(path.join(site, PUBLISH_STATE), 'utf-8')).sha).toBe(second)
+        // The earlier run is still listed for the first sha; the new one is polled.
+        expect(github.runs.map((run) => run.head_sha)).toEqual([first, second])
+        expect(logged()).toContain(`Deploying: https://github.com/${REPOSITORY}/actions/runs/101`)
+    })
+
+    it('--json success: one { ok, url, repository, sha, run } object, exit 0', async () => {
+        const github = fakeGitHub()
+        const { result } = publishEndToEnd(['--repo', REPO, '--json'], github)
+        expect(await result).toBe(0)
+        expect(printedJson()).toEqual({
+            ok: true,
+            url: `https://${OWNER}.fake-host.example/${REPO}/`,
+            repository: REPOSITORY,
+            sha: github.git.refs.main,
+            run: `https://github.com/${REPOSITORY}/actions/runs/100`,
+        })
+        expect(log).not.toHaveBeenCalled()
+    })
+
+    it('a failed run: text mode throws the report; no live URL', async () => {
+        const github = fakeGitHub({ conclusion: 'failure' })
+        const { result } = publishEndToEnd(['--repo', REPO], github)
+        await expect(result).rejects.toThrow(`The deploy failed at the step "Render site" of the job "build": https://github.com/${REPOSITORY}/actions/runs/100`)
+        expect(github.events).not.toContain('liveUrl')
+        expect(logged()).not.toContain('Live at')
+    })
+
+    it('--json failure: { ok: false, error, deploy } with the excerpt and hint, exit 1', async () => {
+        const github = fakeGitHub({ conclusion: 'failure' })
+        const { result } = publishEndToEnd(['--repo', REPO, '--json'], github)
+        expect(await result).toBe(1)
+        const object = printedJson()
+        expect(object.ok).toBe(false)
+        expect(object.error).toContain('Error: Layout "post.pug" not found')
+        expect(object.deploy).toEqual({
+            run: `https://github.com/${REPOSITORY}/actions/runs/100`,
+            job: 'build',
+            step: BUILD_STEPS.render,
+            excerpt: 'Error: Layout "post.pug" not found',
+            hint: expect.stringContaining('Run nera build in the site folder'),
         })
     })
 })
