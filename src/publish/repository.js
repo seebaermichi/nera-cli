@@ -116,6 +116,11 @@ function nameToCreate({ cwd, options, configured }) {
     return folder
 }
 
+// The error for a repository on the account that Nera Static cannot use:
+// GitHub hides it from the installation (404, then 422 "already exists" on
+// create) or lists it without push permission.
+const unreachable = (name) => new Error(`Your repository ${name} exists, but Nera Static cannot reach it. Add it to the app's installation at https://github.com/settings/installations, or choose another name with --repo <name>.`)
+
 // The configured repository as GitHub has it, or null when GitHub answers
 // 404 (deleted, renamed away or no longer reachable by the app).
 async function fetchRepository(client, { owner, name }) {
@@ -130,8 +135,10 @@ async function fetchRepository(client, { owner, name }) {
 // The site's GitHub repository. The one in config/publish.yaml is reused
 // while GitHub still has it (unless `--repo` names another); otherwise a new
 // one is created with `auto_init` (D5), public unless `options.private`, and
-// recorded in config/publish.yaml. A name already taken on the account is an
-// error with a --repo hint. Resolves `{ repository, owner, name, private,
+// recorded in config/publish.yaml. A reused one GitHub reports with
+// `permissions.push: false` is an error, nothing is created (a missing
+// `permissions` field counts as pushable). A name already taken on the
+// account is an error with a --repo hint. Resolves `{ repository, owner, name, private,
 // defaultBranch, htmlUrl, created }`.
 // - `client`: a github.js client acting with the user's token
 // - `options`: the parsed `nera publish` flags (`repo`, `private`)
@@ -150,6 +157,7 @@ export async function ensureRepository({
     if (reuse) {
         const repo = await fetchRepository(client, configured)
         if (repo) {
+            if (repo.permissions?.push === false) throw unreachable(repo.name)
             log(`Publishing to the repository ${repo.full_name}`)
             return summarize(repo, false)
         }
@@ -170,9 +178,7 @@ export async function ensureRepository({
         if (err instanceof GitHubError && err.status === 422 && /already exists/i.test(err.message)) {
             // GitHub answers 404 for a repository the installation does not
             // include, so the "deleted" one above may still be there.
-            if (configuredMissing) {
-                throw new Error(`Your repository ${name} exists, but Nera Static cannot reach it. Add it to the app's installation at https://github.com/settings/installations, or choose another name with --repo <name>.`)
-            }
+            if (configuredMissing) throw unreachable(name)
             throw new Error(`You already have a repository named ${name} on GitHub. Choose another name with --repo <name>.`)
         }
         throw err

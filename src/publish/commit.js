@@ -21,6 +21,10 @@ export const DEFAULT_MESSAGE = 'Publish the site with nera publish'
 // `{ repository, sha }`. A cache, git-ignored by the scaffold.
 export const PUBLISH_STATE = path.join('.nera-cache', 'publish.json')
 
+// The text of `.nera-publish`, the file that starts an empty repository on
+// the API path; the first publish's tree replaces it.
+export const BOOTSTRAP_TEXT = 'Started by nera publish; the first publish replaces this file.\n'
+
 // Top-level paths never published, whatever the site's .gitignore says:
 // dependencies, the build output (CI builds it), caches and the env file
 // that may hold secrets.
@@ -246,8 +250,12 @@ async function pushWithApi({ client, cwd, repo, repository, head, recorded, mess
     if (head === null) {
         // GitHub's Git Data API cannot write into an empty repository; one
         // file through the contents API starts it, and the full tree below
-        // replaces it.
-        const started = await client.put(`/repos/${repo.owner}/${repo.name}/contents/.nera-publish`, { message: 'Start the repository', content: '' })
+        // replaces it. The file is not empty, so starting does not depend on
+        // GitHub accepting empty content.
+        const started = await client.put(`/repos/${repo.owner}/${repo.name}/contents/.nera-publish`, {
+            message: 'Start the repository',
+            content: Buffer.from(BOOTSTRAP_TEXT).toString('base64'),
+        })
         head = started.commit.sha
         recorded = head
         // Recorded now, so a retry after a later failure may still publish.

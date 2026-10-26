@@ -21,6 +21,10 @@ import { readPublishConfig, writePublishConfig, isValidRepoName, parseRepository
 const TOKEN = 'ghu_fake_access_token'
 const START = 1_800_000_000_000
 
+// The error for octo/site when Nera Static cannot use it, on both paths: no
+// push permission when reused, and "already exists" after a 404.
+const REACH_ERROR = 'Your repository site exists, but Nera Static cannot reach it. Add it to the app\'s installation at https://github.com/settings/installations, or choose another name with --repo <name>.'
+
 const jsonResponse = (status, body) => ({
     ok: status >= 200 && status < 300,
     status,
@@ -202,7 +206,7 @@ describe('ensureRepository', () => {
         expect(await readPublishConfig(site)).toEqual({ repository: 'octo/blog.v2' })
     })
 
-    it('reuses the repository in config/publish.yaml while GitHub has it', async () => {
+    it('reuses the repository in config/publish.yaml while GitHub has it, also with no permissions field', async () => {
         await writePublishConfig({ target: 'fake-host', repository: 'octo/site' }, site)
         const { client, requests } = fakeGitHub({
             'GET /repos/octo/site': () => [200, repoObject('octo', 'site', { default_branch: 'trunk' })],
@@ -211,6 +215,28 @@ describe('ensureRepository', () => {
 
         expect(requests.map((r) => r.route)).toEqual(['GET /repos/octo/site'])
         expect(result).toMatchObject({ repository: 'octo/site', defaultBranch: 'trunk', created: false })
+    })
+
+    it('reuses a configured repository whose permissions report push', async () => {
+        await writePublishConfig({ repository: 'octo/site' }, site)
+        const { client } = fakeGitHub({
+            'GET /repos/octo/site': () => [200, repoObject('octo', 'site', { permissions: { admin: false, push: true, pull: true } })],
+        })
+        const result = await ensureRepository({ client, cwd: site, config: await readPublishConfig(site), log: () => {} })
+        expect(result).toMatchObject({ repository: 'octo/site', created: false })
+    })
+
+    it('a configured repository without push permission is the reach error, and nothing is created', async () => {
+        await writePublishConfig({ repository: 'octo/site' }, site)
+        const { client, requests } = fakeGitHub({
+            'GET /repos/octo/site': () => [200, repoObject('octo', 'site', { permissions: { admin: false, push: false, pull: true } })],
+            'POST /user/repos': created,
+        })
+        const error = await ensureRepository({ client, cwd: site, config: await readPublishConfig(site), log: () => {} }).catch((err) => err)
+
+        expect(error.message).toBe(REACH_ERROR)
+        expect(requests.map((r) => r.route)).toEqual(['GET /repos/octo/site'])
+        expect(await readPublishConfig(site)).toEqual({ repository: 'octo/site' })
     })
 
     it('re-creates a configured repository that was deleted on GitHub instead of crashing', async () => {
@@ -232,7 +258,7 @@ describe('ensureRepository', () => {
             'POST /user/repos': () => [422, { message: 'Repository creation failed.', errors: [{ message: 'name already exists on this account' }] }],
         })
         await expect(ensureRepository({ client, cwd: site, config: await readPublishConfig(site), log: () => {} }))
-            .rejects.toThrow(/cannot reach it.*settings\/installations.*--repo/)
+            .rejects.toThrow(REACH_ERROR)
     })
 
     it('creates a new repository when --repo names another than the configured one', async () => {

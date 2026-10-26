@@ -12,6 +12,7 @@ import {
     ALWAYS_EXCLUDED,
     PUBLISH_STATE,
     DEFAULT_MESSAGE,
+    BOOTSTRAP_TEXT,
 } from '../src/publish/commit.js'
 import { createGitHubClient, GITHUB_API } from '../src/publish/github.js'
 import { fakeGitData, jsonResponse } from './helpers/fake-github.js'
@@ -417,6 +418,16 @@ describe('commitAndPush through the GitHub API', () => {
         expect(result.changed).toBe(true)
         expect(Object.keys(github.filesOf(result.sha)).sort()).toEqual(PUBLISHED)
         expect(routes(github, 'PUT')).toHaveLength(1)
+    })
+
+    it('starts an empty repository with a non-empty file', async () => {
+        const github = fakeGitData()
+        await apiPublish(github, { created: true })
+        const [put] = routes(github, 'PUT')
+        expect(put.route).toBe(`PUT /repos/${REPOSITORY}/contents/.nera-publish`)
+        expect(put.body.content).not.toBe('')
+        expect(Buffer.from(put.body.content, 'base64').toString()).toBe(BOOTSTRAP_TEXT)
+        expect(BOOTSTRAP_TEXT.trim()).not.toBe('')
     })
 
     it('publishes on a retry after a failure that followed starting an empty repository', async () => {
