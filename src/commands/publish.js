@@ -1,6 +1,7 @@
 import { runJson } from '../json-output.js'
 import { createRegistry } from '../publish/targets.js'
 import { readPublishConfig } from '../publish/site-config.js'
+import { normalizeDomain } from '../publish/domain.js'
 
 // `nera publish` (ROADMAP-ai.md L6): from a site folder to a live URL. This
 // module is the command's contract: its flags, the TTY rule, the target
@@ -8,14 +9,16 @@ import { readPublishConfig } from '../publish/site-config.js'
 // collaborator, so the CLI, the wizard and the MCP tools share one pipeline.
 
 // Options that take a value, as `--opt <value>` or `--opt=<value>`.
-const VALUE_OPTIONS = { '--target': 'target', '--repo': 'repo' }
+const VALUE_OPTIONS = { '--target': 'target', '--repo': 'repo', '--domain': 'domain' }
 const SWITCHES = { '--private': 'private', '--yes': 'yes', '--json': 'json', '--sign-out': 'signOut' }
 
 export const REVOKE_URL = 'https://github.com/settings/apps/authorizations'
 
-// `nera publish [--target <id>] [--repo <name>] [--private] [--yes] [--json]
-// [--sign-out]`. Unlike `nera new`, an unknown flag or a stray argument is an
-// error: a mistyped `--repos` must not publish to a repository nobody named.
+// `nera publish [--target <id>] [--repo <name>] [--domain <host>] [--private]
+// [--yes] [--json] [--sign-out]`. Unlike `nera new`, an unknown flag or a
+// stray argument is an error: a mistyped `--repos` must not publish to a
+// repository nobody named. `--domain` is normalized here (domain.js), so a
+// bad value fails before any sign-in or network call.
 export function parsePublishArgs(args = []) {
     const options = { private: false, yes: false, json: false, signOut: false }
     for (let i = 0; i < args.length; i++) {
@@ -34,6 +37,7 @@ export function parsePublishArgs(args = []) {
             throw new Error(`Unknown argument for nera publish: ${arg}`)
         }
     }
+    if (options.domain !== undefined) options.domain = normalizeDomain(options.domain)
     return options
 }
 

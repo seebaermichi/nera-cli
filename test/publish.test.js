@@ -84,10 +84,11 @@ describe('parsePublishArgs', () => {
 
     it('reads every flag, values as `--opt v` and `--opt=v`', () => {
         expect(parsePublishArgs([
-            '--target', 'github-pages', '--repo=my-site', '--private', '--yes', '--json', '--sign-out',
+            '--target', 'github-pages', '--repo=my-site', '--domain', 'Example.com', '--private', '--yes', '--json', '--sign-out',
         ])).toEqual({
             target: 'github-pages',
             repo: 'my-site',
+            domain: 'example.com',
             private: true,
             yes: true,
             json: true,
@@ -99,6 +100,13 @@ describe('parsePublishArgs', () => {
         expect(() => parsePublishArgs(['--target'])).toThrow('--target needs a value')
         expect(() => parsePublishArgs(['--repo='])).toThrow('--repo needs a value')
         expect(() => parsePublishArgs(['--repo', '--yes'])).toThrow('--repo needs a value')
+        expect(() => parsePublishArgs(['--domain'])).toThrow('--domain needs a value')
+        expect(() => parsePublishArgs(['--domain='])).toThrow('--domain needs a value')
+    })
+
+    it('--domain is normalized while parsing, so a bad host fails before anything else', () => {
+        expect(parsePublishArgs(['--domain=WWW.Example.com.']).domain).toBe('www.example.com')
+        expect(() => parsePublishArgs(['--domain', 'https://x.de'])).toThrow('without the scheme')
     })
 
     it('an unknown flag or a stray argument is an error', () => {
@@ -232,6 +240,12 @@ describe('runPublish', () => {
     it('an unknown target fails before the pipeline runs, naming the registered ids', async () => {
         const { result, calls } = publishWith(['--target', 'nope'])
         await expect(result).rejects.toThrow('Unknown publish target "nope". Available targets: fake-host.')
+        expect(calls).toHaveLength(0)
+    })
+
+    it('an invalid --domain fails before the target lookup and the pipeline', async () => {
+        const { result, calls } = publishWith(['--target', 'nope', '--domain', 'https://x.de'])
+        await expect(result).rejects.toThrow('--domain "https://x.de": pass the host name without the scheme')
         expect(calls).toHaveLength(0)
     })
 
