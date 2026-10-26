@@ -5,8 +5,8 @@
 //
 // `id` is what `--target` and `config/publish.yaml` name, `label` the name
 // shown to people. `setUp` prepares the host before the first push, `deployJob`
-// returns the deploy job of the generated workflow, `liveUrl` the site's
-// address. A new host is one adapter added to TARGETS; nothing else changes.
+// returns `{ permissions, job }` for the generated workflow (workflow.js),
+// `liveUrl` the site's address. A new host is one adapter added to TARGETS; nothing else changes.
 
 const ADAPTER_METHODS = ['setUp', 'deployJob', 'liveUrl']
 const ID_PATTERN = /^[a-z][a-z0-9-]*$/
