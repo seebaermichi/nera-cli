@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest'
+import { parseDocument } from 'yaml'
 import { githubPages, BUILD_TYPE } from '../src/publish/pages.js'
 import { assertAdapter } from '../src/publish/targets.js'
 import { createGitHubClient, GitHubError, GITHUB_API } from '../src/publish/github.js'
 import { PRIVATE_NOTE } from '../src/publish/repository.js'
+import { renderWorkflow, BUILD_ARTIFACT, BUILD_JOB_ID } from '../src/publish/workflow.js'
 
 // The GitHub Pages adapter of `nera publish` (ROADMAP-ai.md L6 step 4).
 // GitHub is a stub behind the real github.js client: no test uses the
@@ -66,9 +68,54 @@ describe('githubPages adapter', () => {
         expect(githubPages.id).toBe('github-pages')
         expect(githubPages.label).toBe('GitHub Pages')
     })
+})
 
-    it('does not contribute a deploy job yet', () => {
-        expect(() => githubPages.deployJob({})).toThrow('The GitHub Pages deploy job is not available in this version of Nera yet.')
+describe('githubPages.deployJob, in the rendered workflow', () => {
+    const rendered = async () => {
+        const text = await renderWorkflow(githubPages, {})
+        const doc = parseDocument(text)
+        expect(doc.errors).toEqual([])
+        return doc.toJS()
+    }
+
+    it('names the workflow after GitHub Pages and keeps the shared build job', async () => {
+        const workflow = await rendered()
+        expect(workflow.name).toBe('Deploy to GitHub Pages')
+        expect(Object.keys(workflow.jobs)).toEqual([BUILD_JOB_ID, 'deploy'])
+        expect(workflow.permissions).toEqual({ contents: 'read' })
+        expect(workflow.jobs[BUILD_JOB_ID].permissions).toBeUndefined()
+    })
+
+    it('deploys after the build with the scopes deploy-pages needs, in the github-pages environment', async () => {
+        const { deploy } = (await rendered()).jobs
+        expect(deploy.needs).toBe(BUILD_JOB_ID)
+        expect(deploy['runs-on']).toBe('ubuntu-latest')
+        expect(deploy.permissions).toEqual({ contents: 'read', pages: 'write', 'id-token': 'write' })
+        expect(deploy.environment).toEqual({
+            name: 'github-pages',
+            url: '${{ steps.deployment.outputs.page_url }}',
+        })
+    })
+
+    it('downloads the build artifact into public, configures, uploads and deploys it', async () => {
+        const workflow = await rendered()
+        const { steps } = workflow.jobs.deploy
+        expect(steps.map((step) => step.uses)).toEqual([
+            'actions/download-artifact@v8',
+            'actions/configure-pages@v6',
+            'actions/upload-pages-artifact@v5',
+            'actions/deploy-pages@v5',
+        ])
+        const upload = workflow.jobs[BUILD_JOB_ID].steps.find((step) => step.uses?.startsWith('actions/upload-artifact@'))
+        expect(steps[0].with).toEqual({ name: BUILD_ARTIFACT, path: upload.with.path })
+        expect(upload.with).toMatchObject({ name: BUILD_ARTIFACT, path: 'public' })
+        expect(steps[2].with).toEqual({ path: 'public' })
+        expect(steps[3].id).toBe('deployment')
+    })
+
+    it('needs no secret or token', async () => {
+        const text = await renderWorkflow(githubPages, {})
+        expect(text).not.toMatch(/secrets\.|github_token|gh[opsu]_/i)
     })
 })
 

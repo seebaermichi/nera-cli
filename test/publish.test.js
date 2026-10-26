@@ -12,6 +12,7 @@ import {
     publishConfigFile,
 } from '../src/publish/site-config.js'
 import { GITHUB_API } from '../src/publish/github.js'
+import { githubPages } from '../src/publish/pages.js'
 import { PUBLISH_STATE } from '../src/publish/commit.js'
 import { WORKFLOW_PATH } from '../src/publish/status.js'
 import { BUILD_STEPS, GENERATED_HEADER } from '../src/publish/workflow.js'
@@ -117,9 +118,11 @@ describe('parsePublishArgs', () => {
 })
 
 describe('target registry', () => {
-    it('registers no real target yet', () => {
-        expect(TARGETS).toEqual([])
-        expect(createRegistry().ids()).toEqual([])
+    it('registers GitHub Pages, the default when no target is named', () => {
+        expect(TARGETS).toEqual([githubPages])
+        expect(createRegistry().ids()).toEqual(['github-pages'])
+        expect(createRegistry().resolve('github-pages')).toBe(githubPages)
+        expect(createRegistry().resolve(undefined)).toBe(githubPages)
     })
 
     it('resolves a registered adapter by id', () => {
@@ -129,19 +132,26 @@ describe('target registry', () => {
         expect(registry.resolve('a-host')).toBe(a)
     })
 
-    it('an unknown or missing id names the registered ids', () => {
+    it('an unknown id names the registered ids', () => {
         const registry = createRegistry([fakeAdapter('a-host'), fakeAdapter('b-host')])
         expect(() => registry.resolve('nope')).toThrow(
             'Unknown publish target "nope". Available targets: a-host, b-host.'
         )
-        expect(() => registry.resolve(undefined)).toThrow(
-            'Name a target with --target <id>. Available targets: a-host, b-host.'
-        )
+    })
+
+    it('a missing or empty id resolves the first registered adapter', () => {
+        const a = fakeAdapter('a-host')
+        const registry = createRegistry([a, fakeAdapter('b-host')])
+        expect(registry.resolve(undefined)).toBe(a)
+        expect(registry.resolve('')).toBe(a)
     })
 
     it('with nothing registered, says so', () => {
         expect(() => createRegistry([]).resolve('github-pages')).toThrow(
             'No publish target is available in this version of Nera yet.'
+        )
+        expect(() => createRegistry([]).resolve(undefined)).toThrow(
+            'Name a target with --target <id>. No publish target is available in this version of Nera yet.'
         )
     })
 
@@ -249,9 +259,10 @@ describe('runPublish', () => {
         expect(calls).toHaveLength(0)
     })
 
-    it('no target anywhere: asks for --target', async () => {
-        const { result } = publishWith([])
-        await expect(result).rejects.toThrow('Name a target with --target <id>')
+    it('no target anywhere: the first registered target, the default', async () => {
+        const { result, calls } = publishWith([], { targets: createRegistry([fakeAdapter('a-host'), fakeAdapter('b-host')]) })
+        expect(await result).toBe(0)
+        expect(calls[0].adapter.id).toBe('a-host')
     })
 
     describe('the TTY rule: interactive only on a terminal without --yes or --json', () => {
@@ -592,23 +603,24 @@ describe('bin/nera.js publish, as a child process', () => {
             env: { ...process.env, NERA_GITHUB_TOKEN: '' },
         })
 
-    it('is dispatched and in the usage text, which says no target is included yet', () => {
+    // An unknown target fails before sign-in, so no child touches the
+    // keychain or the network.
+    it('is dispatched and in the usage text; an unknown target names github-pages', () => {
         const help = cli([])
         expect(help.status).toBe(0)
-        expect(help.stdout).toMatch(/^ {2}nera publish .*no hosting target is included yet/m)
+        expect(help.stdout).toMatch(/^ {2}nera publish /m)
 
-        const text = cli(['publish'])
+        const text = cli(['publish', '--target', 'nope'])
         expect(text.status).toBe(1)
-        expect(text.stderr).toContain('❌ Name a target with --target <id>.')
-        expect(text.stderr).toContain('No publish target is available in this version of Nera yet.')
+        expect(text.stderr).toContain('❌ Unknown publish target "nope". Available targets: github-pages.')
     })
 
     it('--json: the whole stdout is one object, exit 1 as in text mode, no ❌ line', () => {
-        const child = cli(['publish', '--json'])
+        const child = cli(['publish', '--target', 'nope', '--json'])
         expect(child.status).toBe(1)
         expect(JSON.parse(child.stdout)).toEqual({
             ok: false,
-            error: 'Name a target with --target <id>. No publish target is available in this version of Nera yet.',
+            error: 'Unknown publish target "nope". Available targets: github-pages.',
         })
         expect(child.stderr).not.toContain('❌')
     })

@@ -17,6 +17,8 @@ export const WORKFLOW_FILE = path.join('.github', 'workflows', 'deploy.yml')
 
 // The artifact the build job uploads; a deploy job downloads it by this name.
 export const BUILD_ARTIFACT = 'site'
+// The folder `npm run build` renders into, which the artifact holds.
+export const BUILD_OUTPUT = 'public'
 
 // The shared build job's id and the names of its steps, as the Actions API
 // reports them; status.js picks its fix hint by them.
@@ -61,7 +63,7 @@ const BUILD_JOB = `    ${BUILD_JOB_ID}:
               uses: actions/upload-artifact@v7
               with:
                   name: ${BUILD_ARTIFACT}
-                  path: public
+                  path: ${BUILD_OUTPUT}
                   if-no-files-found: error`
 
 // The adapter's deploy job, checked: `{ permissions, job }`, where

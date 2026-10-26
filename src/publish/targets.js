@@ -1,3 +1,5 @@
+import { githubPages } from './pages.js'
+
 // The hosts `nera publish` can deploy to (ROADMAP-ai.md L6, D6). A target
 // adapter is a plain object:
 //
@@ -11,9 +13,9 @@
 const ADAPTER_METHODS = ['setUp', 'deployJob', 'liveUrl']
 const ID_PATTERN = /^[a-z][a-z0-9-]*$/
 
-// The registered adapters. Empty until the GitHub Pages and Netlify adapters
-// land (their own issues).
-export const TARGETS = []
+// The registered adapters. The first is the default when no target is named
+// (D6: GitHub Pages); Netlify follows in its own issue.
+export const TARGETS = [githubPages]
 
 // Throw when `adapter` does not have the interface above; return it otherwise.
 export function assertAdapter(adapter) {
@@ -36,8 +38,9 @@ export function assertAdapter(adapter) {
 }
 
 // A registry over `adapters`, each checked by assertAdapter, ids unique.
-// `ids()` lists them in registration order; `resolve(id)` returns the adapter
-// or throws a message naming the registered ids.
+// `ids()` lists them in registration order; `resolve(id)` returns the adapter,
+// the first registered one when `id` is missing, or throws a message naming
+// the registered ids.
 export function createRegistry(adapters = TARGETS) {
     const byId = new Map()
     for (const adapter of adapters) {
@@ -58,6 +61,8 @@ export function createRegistry(adapters = TARGETS) {
         ids,
         resolve(id) {
             if (id === undefined || id === '') {
+                const [first] = byId.values()
+                if (first) return first
                 throw new Error(`Name a target with --target <id>. ${available()}`)
             }
             const adapter = byId.get(id)

@@ -1,5 +1,6 @@
 import { GitHubError } from './github.js'
 import { PRIVATE_NOTE } from './repository.js'
+import { BUILD_ARTIFACT, BUILD_OUTPUT } from './workflow.js'
 
 // The GitHub Pages target of `nera publish` (ROADMAP-ai.md L6 step 4): the
 // site is built and deployed by the generated Actions workflow, so Pages runs
@@ -72,10 +73,37 @@ async function liveUrl({ client, repository }) {
     return pages.html_url
 }
 
-// Not available yet: the adapter joins TARGETS once it contributes the
-// deploy job.
+// The deploy job of the generated workflow (D5): fetch the `public/` folder
+// the build job uploaded, hand it to Pages and deploy it. `pages: write` and
+// `id-token: write` are what deploy-pages needs; the `github-pages`
+// environment shows the deployment's address on the run. Action majors follow
+// nera-website's workflow; download-artifact@v8 pairs with the build job's
+// upload-artifact@v7.
 function deployJob() {
-    throw new Error('The GitHub Pages deploy job is not available in this version of Nera yet.')
+    return {
+        permissions: { pages: 'write', 'id-token': 'write' },
+        job: {
+            'runs-on': 'ubuntu-latest',
+            environment: {
+                name: 'github-pages',
+                url: '${{ steps.deployment.outputs.page_url }}',
+            },
+            steps: [
+                {
+                    name: 'Download the built site',
+                    uses: 'actions/download-artifact@v8',
+                    with: { name: BUILD_ARTIFACT, path: BUILD_OUTPUT },
+                },
+                { name: 'Configure Pages', uses: 'actions/configure-pages@v6' },
+                {
+                    name: 'Upload Pages artifact',
+                    uses: 'actions/upload-pages-artifact@v5',
+                    with: { path: BUILD_OUTPUT },
+                },
+                { name: 'Deploy to GitHub Pages', id: 'deployment', uses: 'actions/deploy-pages@v5' },
+            ],
+        },
+    }
 }
 
 export const githubPages = {
