@@ -411,10 +411,15 @@ function fakeGitHub({ conclusion = 'success' } = {}) {
             return jsonResponse(201, pages)
         }
         if (route === `PUT /repos/${REPOSITORY}/pages`) {
-            const { cname } = JSON.parse(init.body)
-            events.push(`set domain ${cname}`)
+            const body = JSON.parse(init.body)
+            if (body.https_enforced !== undefined) {
+                events.push(`enforce https ${body.https_enforced}`)
+                Object.assign(pages, { https_enforced: body.https_enforced })
+                return jsonResponse(204)
+            }
+            events.push(`set domain ${body.cname}`)
             // GitHub reports http until the certificate for the domain is issued.
-            Object.assign(pages, { cname, html_url: `http://${cname}/` })
+            Object.assign(pages, { cname: body.cname, html_url: `http://${body.cname}/` })
             return jsonResponse(204)
         }
         if (route.startsWith(`GET /repos/${REPOSITORY}/actions/runs?`)) {
@@ -666,6 +671,9 @@ describe('publishSite with the github-pages adapter — end to end over a fake G
         expect(log).not.toHaveBeenCalled()
         expect(stderr()).toContain('DNS for www.example.com does not point to GitHub Pages yet: it has A 203.0.113.7.')
         expect(stderr()).toContain(`  CNAME  www.example.com  ${OWNER}.github.io`)
+        // A domain set in this run has no certificate yet: HTTPS waits for a later run.
+        expect(github.events).not.toContain('enforce https true')
+        expect(stderr()).toContain('HTTPS is not enforced for www.example.com yet')
     })
 })
 

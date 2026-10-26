@@ -99,6 +99,10 @@ afterEach(async () => {
     await fs.rm(site, { recursive: true, force: true })
 })
 
+// The line setUp logs while GitHub has no certificate for the custom domain.
+const httpsLater = (domain) =>
+    `HTTPS is not enforced for ${domain} yet: GitHub issues its certificate once the DNS records point to GitHub Pages, and running nera publish again then switches HTTPS on.`
+
 describe('githubPages adapter', () => {
     it('has the adapter interface', () => {
         expect(assertAdapter(githubPages)).toBe(githubPages)
@@ -186,6 +190,7 @@ describe('githubPages.setUp', () => {
         expect(lines).toEqual([
             'GitHub Pages is already on for octo/site',
             'DNS for example.com is set up: it points to GitHub Pages.',
+            httpsLater('example.com'),
         ])
     })
 
@@ -420,6 +425,7 @@ describe('githubPages.setUp: --domain', () => {
             ...PAGES_A.map((ip) => `  A     example.com  ${ip}`),
             ...PAGES_AAAA.map((ip) => `  AAAA  example.com  ${ip}  (optional, for IPv6)`),
             'DNS changes can take a few hours to spread; the publish goes on, and every nera publish checks again.',
+            httpsLater('example.com'),
         ])
     })
 
@@ -431,7 +437,7 @@ describe('githubPages.setUp: --domain', () => {
 
         await githubPages.setUp(ctx)
         expect(requests.map((r) => r.route)).toEqual([PAGES])
-        expect(lines.at(-1)).toBe('DNS for www.example.com is set up: it points to GitHub Pages.')
+        expect(lines.slice(-2)).toEqual(['DNS for www.example.com is set up: it points to GitHub Pages.', httpsLater('www.example.com')])
     })
 
     it('a new Pages site gets the domain after it is enabled', async () => {
@@ -482,6 +488,83 @@ describe('githubPages.setUp: --domain', () => {
         expect(error).toBeInstanceOf(GitHubError)
         expect(error.status).toBe(400)
         expect(await appYaml()).toBe(APP_YAML)
+    })
+})
+
+describe('githubPages.setUp: HTTPS for a custom domain', () => {
+    const DOMAIN = 'www.example.com'
+    const domainSite = (extra = {}) => pagesSite({ cname: DOMAIN, html_url: `http://${DOMAIN}/`, https_enforced: false, ...extra })
+    const certificate = (state) => ({ https_certificate: { state, description: `Certificate ${state}`, domains: [DOMAIN] } })
+    const setUp = async (routes, options) => {
+        const github = fakeGitHub(routes)
+        const { ctx, lines } = host(github.client, repository(), undefined, { options, resolver: fakeResolver({ CNAME: ['octo.github.io'] }) })
+        const result = await githubPages.setUp(ctx)
+        return { result, lines, requests: github.requests }
+    }
+    const puts = (requests) => requests.filter((r) => r.route === SWITCH).map((r) => r.body)
+
+    it('the certificate is approved and HTTPS not enforced: one PUT of https_enforced alone, and a log line', async () => {
+        const { result, lines, requests } = await setUp({
+            [PAGES]: () => [200, domainSite(certificate('approved'))],
+            [SWITCH]: () => [204],
+        })
+        expect(puts(requests)).toEqual([{ https_enforced: true }])
+        expect(lines.at(-1)).toBe(`HTTPS is now enforced for ${DOMAIN}: GitHub has its certificate.`)
+        expect(result).toMatchObject({ cname: DOMAIN, https_enforced: true })
+    })
+
+    it('HTTPS already enforced: no PUT and no HTTPS line', async () => {
+        const { lines, requests } = await setUp({
+            [PAGES]: () => [200, domainSite({ ...certificate('approved'), https_enforced: true })],
+        })
+        expect(puts(requests)).toEqual([])
+        expect(lines.join('\n')).not.toContain('HTTPS')
+    })
+
+    it.each([
+        ['a pending certificate', certificate('authorization_pending')],
+        ['no certificate', {}],
+        ['a certificate of null', { https_certificate: null }],
+    ])('%s: no PUT, the "run again" line', async (_, extra) => {
+        const { lines, requests } = await setUp({ [PAGES]: () => [200, domainSite(extra)] })
+        expect(puts(requests)).toEqual([])
+        expect(lines.at(-1)).toBe(httpsLater(DOMAIN))
+    })
+
+    it.each([404, 422])('GitHub refuses the PUT with %i: no throw, the "run again" line', async (status) => {
+        const { result, lines, requests } = await setUp({
+            [PAGES]: () => [200, domainSite(certificate('approved'))],
+            [SWITCH]: () => [status, { message: 'The certificate does not exist yet' }],
+        })
+        expect(puts(requests)).toEqual([{ https_enforced: true }])
+        expect(lines.at(-1)).toBe(httpsLater(DOMAIN))
+        expect(result.https_enforced).toBe(false)
+    })
+
+    it('lets any other error of the PUT through unchanged', async () => {
+        const error = await setUp({
+            [PAGES]: () => [200, domainSite(certificate('approved'))],
+            [SWITCH]: () => [500, { message: 'Server Error' }],
+        }).catch((err) => err)
+        expect(error).toBeInstanceOf(GitHubError)
+        expect(error.status).toBe(500)
+    })
+
+    it('a domain set in this run takes the "run again" path, even when the old domain had an approved certificate', async () => {
+        const { result, lines, requests } = await setUp({
+            [PAGES]: () => [200, pagesSite({ cname: 'old.example.com', html_url: 'https://old.example.com/', https_enforced: true, ...certificate('approved') })],
+            [SWITCH]: () => [204],
+        }, { domain: DOMAIN })
+        expect(puts(requests)).toEqual([{ cname: DOMAIN }])
+        expect(lines.at(-1)).toBe(httpsLater(DOMAIN))
+        expect(result).not.toHaveProperty('https_certificate')
+        expect(result).not.toHaveProperty('https_enforced')
+    })
+
+    it('a site without a custom domain: no PUT and no HTTPS line', async () => {
+        const { lines, requests } = await setUp({ [PAGES]: () => [200, pagesSite(certificate('approved'))] })
+        expect(puts(requests)).toEqual([])
+        expect(lines.join('\n')).not.toContain('HTTPS')
     })
 })
 

@@ -32,6 +32,13 @@ const NO_RECORDS = ['ENOTFOUND', 'ENODATA']
 const LOOKUP_TIMEOUT = 5000
 const LOOKUP_TRIES = 2
 
+// The `https_certificate.state` of a Pages site whose certificate GitHub has
+// issued, so HTTPS can be enforced; the states before it are pending ones.
+const CERTIFICATE_READY = 'approved'
+// What GitHub answers a request to enforce HTTPS while the certificate is
+// still pending: a refusal that a later run gets past, not a failure.
+const HTTPS_NOT_YET = [404, 422]
+
 const pagesPath = (repository) => `/repos/${repository.owner}/${repository.name}/pages`
 
 // The repository's Pages site as GitHub has it, or null when GitHub answers
@@ -130,9 +137,10 @@ async function followPagesAddress(site, { cwd, log }) {
 // (`options.domain`) becomes the site's custom domain (D1). Then `base_path`
 // in config/app.yaml follows the site's address (D2), before the first push
 // commits it, and when the site has a custom domain its DNS is checked and
-// reported (D6). Resolves the Pages site as GitHub describes it (`html_url`,
-// `build_type`, `cname`, …). `resolver` stands in for the node:dns/promises
-// Resolver of the DNS check, for tests.
+// reported (D6) and HTTPS enforced once GitHub has its certificate. Resolves
+// the Pages site as GitHub describes it (`html_url`, `build_type`, `cname`,
+// …). `resolver` stands in for the node:dns/promises Resolver of the DNS
+// check, for tests.
 async function setUp({
     client,
     repository,
@@ -153,19 +161,52 @@ async function setUp({
             resolver: resolver ?? new Resolver({ timeout: LOOKUP_TIMEOUT, tries: LOOKUP_TRIES }),
         })
         reportDns(dns, log)
+        site = await enforceHttps({ client, repository, site, log })
     }
     return site
 }
 
+// Switch on "Enforce HTTPS" for the Pages site's custom domain once GitHub has
+// issued its certificate; until then log that a later run does it. Never
+// waits and never fails the publish over a pending certificate. The PUT
+// carries `https_enforced` alone, so the custom domain stays. Resolves `site`,
+// marked enforced when it now is.
+async function enforceHttps({ client, repository, site, log }) {
+    if (site.https_enforced) return site
+    const domain = site.cname.toLowerCase()
+    const later = `HTTPS is not enforced for ${domain} yet: GitHub issues its certificate once the DNS records point to GitHub Pages, and running nera publish again then switches HTTPS on.`
+    // A site whose domain was just set is GitHub's to certify: it has no
+    // certificate yet (setDomain reports none).
+    if (site.https_certificate?.state !== CERTIFICATE_READY) {
+        log(later)
+        return site
+    }
+    try {
+        await client.put(pagesPath(repository), { https_enforced: true })
+    } catch (err) {
+        if (err instanceof GitHubError && HTTPS_NOT_YET.includes(err.status)) {
+            log(later)
+            return site
+        }
+        throw err
+    }
+    log(`HTTPS is now enforced for ${domain}: GitHub has its certificate.`)
+    return { ...site, https_enforced: true }
+}
+
 // Make `domain` the Pages site's custom domain (D1: through the API, since
 // GitHub ignores a CNAME file for a site an Actions workflow deploys).
-// Resolves `site` as served from the domain's root; GitHub answers the PUT
-// with no body, and reading the site back right away may still report the
-// old address.
+// Resolves `site` as served from the domain's root, without the previous
+// domain's certificate and HTTPS setting, since the new domain has neither
+// yet; GitHub answers the PUT with no body, and reading the site back right
+// away may still report the old address.
 async function setDomain({ client, repository, site, domain, log }) {
     log(`Setting the custom domain ${domain} for GitHub Pages of ${repository.repository}…`)
     await client.put(pagesPath(repository), { cname: domain })
-    return { ...site, cname: domain, html_url: `https://${domain}/` }
+    const next = { ...site, cname: domain, html_url: `https://${domain}/` }
+    delete next.https_certificate
+    delete next.https_enforced
+    return next
 }
 
 // The enabling half of setUp: resolves the Pages site, now on `workflow`.
