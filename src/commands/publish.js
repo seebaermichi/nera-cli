@@ -13,6 +13,7 @@ const VALUE_OPTIONS = { '--target': 'target', '--repo': 'repo', '--domain': 'dom
 const SWITCHES = { '--private': 'private', '--yes': 'yes', '--json': 'json', '--sign-out': 'signOut' }
 
 export const REVOKE_URL = 'https://github.com/settings/apps/authorizations'
+export const NETLIFY_REVOKE_URL = 'https://app.netlify.com/user/applications'
 
 // `nera publish [--target <id>] [--repo <name>] [--domain <host>] [--private]
 // [--yes] [--json] [--sign-out]`. Unlike `nera new`, an unknown flag or a
@@ -42,7 +43,7 @@ export function parsePublishArgs(args = []) {
 }
 
 // The `--json` object: `{ ok: true, url, repository, sha, run }` from the
-// pipeline (`{ ok: true, signedOut }` for --sign-out), `{ ok: false, error }`
+// pipeline (`{ ok: true, signedOut, removed }` for --sign-out), `{ ok: false, error }`
 // on failure, plus the `repository` and `sha` the pipeline had reached
 // (publishSite's `published`), and `deploy: { run, job?, step?, excerpt?,
 // hint }` when the Actions run failed or did not finish (status.js).
@@ -57,9 +58,9 @@ export const PUBLISH_ENVELOPE = {
 }
 
 // Lazily loaded, so the keyring binding is touched only by a sign-out.
-async function defaultDeleteToken() {
+async function defaultDeleteToken(options) {
     const { deleteToken } = await import('../publish/credentials.js')
-    return deleteToken()
+    return deleteToken(options)
 }
 
 // The end-to-end pipeline, in the order of D5: sign in → the app's
@@ -70,14 +71,17 @@ async function defaultDeleteToken() {
 // another command. Resolves `{ url, repository, sha, run }`.
 // - `ctx`: what runPublish hands every pipeline (see there)
 // - `deps`: the collaborators the modules take, for tests: `fetch`,
-//   `readToken`/`saveToken` (credentials.js), `sleep`/`now`, `open`,
-//   `useGit`/`exec` (commit.js), `resolver` (the DNS check of pages.js) and
-//   `log`
+//   `readToken`/`saveToken` (credentials.js, the GitHub account),
+//   `readNetlifyToken`/`saveNetlifyToken` (the Netlify account), `sleep`/
+//   `now`, `open`, `useGit`/`exec` (commit.js), `resolver` (the DNS check of
+//   pages.js) and `log`
 // Every adapter method gets the same host context: `{ cwd, client,
-// repository, installation, user, options, interactive, log, resolver }`, where
-// `repository` is what ensureRepository resolved (its `created` is true on
-// the first run). A failure is rethrown with `published: { repository?,
-// sha? }`, what the pipeline had reached.
+// repository, installation, user, options, config, interactive, log,
+// resolver, fetch, sleep, now, open, readNetlifyToken, saveNetlifyToken }`,
+// where `client` is the GitHub client, `config` config/publish.yaml as read
+// before the run and `repository` what ensureRepository resolved (its
+// `created` is true on the first run). A failure is rethrown with
+// `published: { repository?, sha? }`, what the pipeline had reached.
 export async function publishSite({ cwd, adapter, options, config, interactive, env }, deps = {}) {
     const [auth, credentials, github, repository, workflow, commit, status, siteConfig] = await Promise.all([
         import('../publish/auth.js'),
@@ -99,6 +103,8 @@ export async function publishSite({ cwd, adapter, options, config, interactive, 
         useGit,
         exec,
         resolver,
+        readNetlifyToken = () => credentials.readToken({ account: 'netlify', env }),
+        saveNetlifyToken,
         log = (line) => console.log(line),
     } = deps
     const clock = { sleep, now, log }
@@ -115,7 +121,24 @@ export async function publishSite({ cwd, adapter, options, config, interactive, 
         published.repository = repo.repository
         if (config.target !== adapter.id) await siteConfig.writePublishConfig({ target: adapter.id }, cwd)
 
-        const host = { cwd, client, repository: repo, installation, user, options, interactive, log, resolver }
+        const host = {
+            cwd,
+            client,
+            repository: repo,
+            installation,
+            user,
+            options,
+            config,
+            interactive,
+            log,
+            resolver,
+            fetch,
+            sleep,
+            now,
+            open,
+            readNetlifyToken,
+            saveNetlifyToken,
+        }
         await adapter.setUp(host)
         log((await workflow.writeWorkflow(adapter, host, cwd)).message)
 
@@ -140,25 +163,37 @@ export async function publishSite({ cwd, adapter, options, config, interactive, 
     }
 }
 
-// Remove the stored GitHub token. Revoking the app's access is GitHub's, so
-// the message sends the user there. Returns `{ signedOut }`, true when a token
-// was removed.
+// Remove the stored GitHub and Netlify tokens. Revoking the apps' access is
+// the hosts' business, so the messages send the user there. Returns
+// `{ signedOut, removed }`: signedOut is true when a token was removed,
+// `removed` names the accounts whose token was.
 async function signOut({ deleteToken, env }) {
-    const signedOut = await deleteToken()
-    console.log(signedOut
+    const github = await deleteToken({ account: 'github' })
+    const netlify = await deleteToken({ account: 'netlify' })
+    console.log(github
         ? 'Signed out: the GitHub token stored on this computer was removed.'
         : 'No GitHub token was stored on this computer.')
     console.log(`To revoke Nera Static's access to your GitHub account, go to ${REVOKE_URL}`)
     if (env.NERA_GITHUB_TOKEN) {
         console.log('NERA_GITHUB_TOKEN is still set in your environment; unset it to stop using that token.')
     }
-    return { signedOut }
+    if (netlify) {
+        console.log('Signed out of Netlify: the Netlify token stored on this computer was removed.')
+        console.log(`To revoke Nera CLI's access to your Netlify account, go to ${NETLIFY_REVOKE_URL}`)
+    } else {
+        console.log('No Netlify token was stored on this computer.')
+    }
+    if (env.NERA_NETLIFY_TOKEN) {
+        console.log('NERA_NETLIFY_TOKEN is still set in your environment; unset it to stop using that token.')
+    }
+    const removed = [github && 'github', netlify && 'netlify'].filter(Boolean)
+    return { signedOut: removed.length > 0, removed }
 }
 
 // Run `nera publish` and return the exit code. Every collaborator is
 // injectable so tests need no network, keychain or terminal:
 // - `targets`: the adapter registry (targets.js)
-// - `deleteToken`: removes the stored token (credentials.js)
+// - `deleteToken({ account })`: removes an account's stored token (credentials.js)
 // - `publish(ctx)`: the pipeline (publishSite); resolves `{ url?, … }`.
 //   `ctx` is `{ cwd, adapter, options, config, interactive, env }`;
 //   `interactive` is false without a terminal, with --yes and with --json,

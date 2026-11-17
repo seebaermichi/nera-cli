@@ -4,7 +4,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import { spawnSync } from 'child_process'
 import { fileURLToPath } from 'url'
-import { parsePublishArgs, runPublish, publishSite, REVOKE_URL } from '../src/commands/publish.js'
+import { parsePublishArgs, runPublish, publishSite, REVOKE_URL, NETLIFY_REVOKE_URL } from '../src/commands/publish.js'
 import { assertAdapter, createRegistry, TARGETS } from '../src/publish/targets.js'
 import {
     readPublishConfig,
@@ -13,11 +13,14 @@ import {
 } from '../src/publish/site-config.js'
 import { GITHUB_API } from '../src/publish/github.js'
 import { githubPages } from '../src/publish/pages.js'
+import { netlify } from '../src/publish/netlify.js'
 import { PUBLISH_STATE } from '../src/publish/commit.js'
 import { WORKFLOW_PATH } from '../src/publish/status.js'
 import { BUILD_STEPS, GENERATED_HEADER } from '../src/publish/workflow.js'
 import { fakeGitData, jsonResponse } from './helpers/fake-github.js'
 import { fakeResolver } from './helpers/fake-dns.js'
+import { fakeNetlify } from './helpers/fake-netlify.js'
+import { NETLIFY_API } from '../src/publish/netlify-api.js'
 
 // The `nera publish` contract (ROADMAP-ai.md L6): flags, the TTY rule, the
 // target registry, config/publish.yaml and the --json object. The pipeline is
@@ -119,11 +122,13 @@ describe('parsePublishArgs', () => {
 })
 
 describe('target registry', () => {
-    it('registers GitHub Pages, the default when no target is named', () => {
-        expect(TARGETS).toEqual([githubPages])
-        expect(createRegistry().ids()).toEqual(['github-pages'])
+    it('registers GitHub Pages, the default when no target is named, then Netlify', () => {
+        expect(TARGETS).toEqual([githubPages, netlify])
+        expect(createRegistry().ids()).toEqual(['github-pages', 'netlify'])
         expect(createRegistry().resolve('github-pages')).toBe(githubPages)
+        expect(createRegistry().resolve('netlify')).toBe(netlify)
         expect(createRegistry().resolve(undefined)).toBe(githubPages)
+        expect(createRegistry().resolve('')).toBe(githubPages)
     })
 
     it('resolves a registered adapter by id', () => {
@@ -207,6 +212,32 @@ describe('config/publish.yaml', () => {
         expect(await fs.readFile(publishConfigFile(site), 'utf-8')).toBe('# only a comment\n\ntarget: a-host\n')
     })
 
+    it('writes and reads the netlify section, keeping its other keys', async () => {
+        await fs.mkdir(path.join(site, 'config'))
+        await fs.writeFile(publishConfigFile(site), 'target: netlify\nnetlify:\n    note: mine\n')
+        expect(await writePublishConfig({ netlify: { site_id: 'abc-123' } }, site)).toEqual({
+            target: 'netlify',
+            netlify: { site_id: 'abc-123' },
+        })
+        expect(await fs.readFile(publishConfigFile(site), 'utf-8')).toBe(
+            'target: netlify\nnetlify:\n    note: mine\n    site_id: abc-123\n'
+        )
+        await fs.writeFile(publishConfigFile(site), 'netlify:\n')
+        expect(await writePublishConfig({ netlify: { site_id: 'def' } }, site)).toEqual({ netlify: { site_id: 'def' } })
+    })
+
+    it('a netlify section that is not a mapping, or a site_id that is not text, is an error', async () => {
+        await fs.mkdir(path.join(site, 'config'))
+        await fs.writeFile(publishConfigFile(site), 'netlify: abc\n')
+        await expect(readPublishConfig(site)).rejects.toThrow('config/publish.yaml: "netlify" must be a mapping')
+        await expect(writePublishConfig({ netlify: { site_id: 'x' } }, site)).rejects.toThrow('"netlify" must be a mapping')
+        await fs.writeFile(publishConfigFile(site), 'netlify:\n    site_id: 3\n')
+        await expect(readPublishConfig(site)).rejects.toThrow('"netlify.site_id" must be a text value')
+        await expect(writePublishConfig({ netlify: { token: 'x' } }, site)).rejects.toThrow('Unknown config/publish.yaml key "netlify.token"')
+        await expect(writePublishConfig({ netlify: { site_id: '' } }, site)).rejects.toThrow('non-empty string')
+        await expect(writePublishConfig({ netlify: 'x' }, site)).rejects.toThrow('"netlify" must be a mapping')
+    })
+
     it('refuses an unknown key or an empty value', async () => {
         await expect(writePublishConfig({ token: 'x' }, site)).rejects.toThrow('Unknown config/publish.yaml key "token"')
         await expect(writePublishConfig({ target: '' }, site)).rejects.toThrow('non-empty string')
@@ -287,25 +318,42 @@ describe('runPublish', () => {
     })
 
     describe('--sign-out', () => {
-        it('deletes the stored token and says revoking is done on GitHub', async () => {
+        it('deletes the stored GitHub and Netlify tokens and says revoking is done on each host', async () => {
             const deleteToken = vi.fn(async () => true)
             const { result, calls } = publishWith(['--sign-out'], { deleteToken })
             expect(await result).toBe(0)
-            expect(deleteToken).toHaveBeenCalledOnce()
+            expect(deleteToken.mock.calls).toEqual([[{ account: 'github' }], [{ account: 'netlify' }]])
             expect(calls).toHaveLength(0)
             expect(logged()).toContain('the GitHub token stored on this computer was removed')
             expect(logged()).toContain(REVOKE_URL)
+            expect(logged()).toContain('the Netlify token stored on this computer was removed')
+            expect(logged()).toContain(NETLIFY_REVOKE_URL)
         })
 
-        it('with nothing stored, says so; a set NERA_GITHUB_TOKEN is named', async () => {
+        it('a Netlify token alone: GitHub had none, the Netlify one is removed', async () => {
+            const { result } = publishWith(['--sign-out', '--json'], {
+                deleteToken: async ({ account }) => account === 'netlify',
+            })
+            expect(await result).toBe(0)
+            expect(printedJson()).toEqual({ ok: true, signedOut: true, removed: ['netlify'] })
+            const messages = error.mock.calls.flat().join('\n')
+            expect(messages).toContain('No GitHub token was stored on this computer.')
+            expect(messages).toContain(NETLIFY_REVOKE_URL)
+        })
+
+        it('with nothing stored, says so; a set NERA_GITHUB_TOKEN or NERA_NETLIFY_TOKEN is named', async () => {
             const { result } = publishWith(['--sign-out'], {
                 deleteToken: async () => false,
-                env: { NERA_GITHUB_TOKEN: 'ghu_fake_env' },
+                env: { NERA_GITHUB_TOKEN: 'ghu_fake_env', NERA_NETLIFY_TOKEN: 'nfp_fake_env' },
             })
             expect(await result).toBe(0)
             expect(logged()).toContain('No GitHub token was stored on this computer.')
+            expect(logged()).toContain('No Netlify token was stored on this computer.')
+            expect(logged()).not.toContain(NETLIFY_REVOKE_URL)
             expect(logged()).toContain('NERA_GITHUB_TOKEN is still set')
+            expect(logged()).toContain('NERA_NETLIFY_TOKEN is still set')
             expect(logged()).not.toContain('ghu_fake_env')
+            expect(logged()).not.toContain('nfp_fake_env')
         })
 
         it('needs no target and ignores a broken config/publish.yaml', async () => {
@@ -351,7 +399,7 @@ describe('runPublish', () => {
         it('--sign-out: { ok: true, signedOut }, the messages on stderr', async () => {
             const { result } = publishWith(['--sign-out', '--json'], { deleteToken: async () => true })
             expect(await result).toBe(0)
-            expect(printedJson()).toEqual({ ok: true, signedOut: true })
+            expect(printedJson()).toEqual({ ok: true, signedOut: true, removed: ['github', 'netlify'] })
             expect(error.mock.calls.flat().join('\n')).toContain(REVOKE_URL)
         })
     })
@@ -375,6 +423,8 @@ function fakeGitHub({ conclusion = 'success' } = {}) {
     let nextRun = 100
     // The repository's Pages site, once the github-pages adapter enabled it.
     let pages = null
+    // The repository's Actions secrets as sent: { NAME: { encrypted_value, key_id } }.
+    const secrets = {}
     const repoObject = () => ({
         full_name: REPOSITORY,
         owner: { login: OWNER },
@@ -422,6 +472,15 @@ function fakeGitHub({ conclusion = 'success' } = {}) {
             Object.assign(pages, { cname: body.cname, html_url: `http://${body.cname}/` })
             return jsonResponse(204)
         }
+        if (route === `GET /repos/${REPOSITORY}/actions/secrets/public-key`) {
+            return jsonResponse(200, { key_id: 'fake-key-id', key: Buffer.alloc(32, 9).toString('base64') })
+        }
+        const secret = route.match(/^PUT \/repos\/[^/]+\/[^/]+\/actions\/secrets\/([A-Z_]+)$/)
+        if (secret) {
+            events.push(`store secret ${secret[1]}`)
+            secrets[secret[1]] = JSON.parse(init.body)
+            return jsonResponse(201)
+        }
         if (route.startsWith(`GET /repos/${REPOSITORY}/actions/runs?`)) {
             events.push('poll run')
             for (const run of runs) {
@@ -443,7 +502,7 @@ function fakeGitHub({ conclusion = 'success' } = {}) {
         if (route === `PATCH /repos/${REPOSITORY}/git/refs/heads/main`) events.push('push')
         return git.fetch(url, init)
     }
-    return { fetch, git, events, runs }
+    return { fetch, git, events, runs, secrets }
 }
 
 // An adapter that records its calls into `events`.
@@ -677,6 +736,114 @@ describe('publishSite with the github-pages adapter — end to end over a fake G
     })
 })
 
+describe('publishSite with the netlify adapter — end to end over a fake GitHub and Netlify', () => {
+    const NETLIFY_TOKEN = 'nfp_fake_netlify_token'
+
+    // runPublish with the real registry over one fetch that routes Netlify's
+    // API to `netlifyHost` and everything else to `github`.
+    const publishToNetlify = (args, github, netlifyHost) => runPublish(['--target', 'netlify', ...args], {
+        cwd: site,
+        stdin: pipe,
+        stdout: pipe,
+        env: {},
+        publish: (ctx) => publishSite(ctx, {
+            fetch: (url, init) => (url.startsWith(NETLIFY_API) ? netlifyHost.fetch(url, init) : github.fetch(url, init)),
+            readToken: async () => ({ accessToken: TOKEN, source: 'env' }),
+            readNetlifyToken: async () => ({ accessToken: NETLIFY_TOKEN, source: 'env' }),
+            saveToken: async () => {
+                throw new Error('an env token is never saved')
+            },
+            saveNetlifyToken: async () => {
+                throw new Error('an env token is never saved')
+            },
+            sleep: async () => {},
+            now: () => Date.UTC(2026, 10, 17),
+            open: () => {
+                throw new Error('no browser without a terminal')
+            },
+            useGit: false,
+        }),
+    })
+    // The GitHub and Netlify events in one order: Netlify's are pushed into
+    // GitHub's list as they happen.
+    const linked = (github, netlifyHost) => {
+        const push = netlifyHost.events.push.bind(netlifyHost.events)
+        netlifyHost.events.push = (...items) => {
+            github.events.push(...items)
+            return push(...items)
+        }
+    }
+
+    beforeEach(makeSite)
+
+    it('first run: the site created and both secrets stored before the push, site_id committed, the Netlify address printed', async () => {
+        const github = fakeGitHub()
+        const netlifyHost = fakeNetlify({ token: NETLIFY_TOKEN })
+        linked(github, netlifyHost)
+        expect(await publishToNetlify(['--repo', REPO], github, netlifyHost)).toBe(0)
+
+        const order = github.events.filter((event, i, all) => event !== all[i - 1])
+        expect(order).toEqual([
+            'installation', 'create repository', `create site ${REPO}`,
+            'store secret NETLIFY_AUTH_TOKEN', 'store secret NETLIFY_SITE_ID', 'push', 'poll run',
+        ])
+        expect(Object.keys(github.secrets)).toEqual(['NETLIFY_AUTH_TOKEN', 'NETLIFY_SITE_ID'])
+        for (const sent of Object.values(github.secrets)) {
+            expect(sent.key_id).toBe('fake-key-id')
+            expect(sent.encrypted_value).not.toContain(NETLIFY_TOKEN)
+        }
+
+        expect(await readPublishConfig(site)).toEqual({ repository: REPOSITORY, target: 'netlify', netlify: { site_id: 'site-1' } })
+        const published = github.git.filesOf(github.git.refs.main)
+        expect(published['config/publish.yaml'].content).toContain('site_id: site-1')
+        const workflow = published['.github/workflows/deploy.yml'].content
+        expect(workflow).toContain('name: Deploy to Netlify')
+        expect(workflow).toContain('NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}')
+        expect(workflow).not.toContain('deploy-pages')
+        for (const file of Object.values(published)) expect(file.content).not.toContain(NETLIFY_TOKEN)
+
+        expect(logged()).toContain(`Created the Netlify site ${REPO}.`)
+        expect(logged()).toContain('Netlify\'s free plan has 300 credits a month')
+        expect(netlifyHost.events.some((event) => event.startsWith('list deploys'))).toBe(false)
+        expect(logged()).toContain(`Live at https://${REPO}.netlify.app`)
+        expect(logged()).not.toContain(TOKEN)
+        expect(logged()).not.toContain(NETLIFY_TOKEN)
+    })
+
+    it('a later run reuses site_id, stores the secrets again and checks the credits instead of the budget note', async () => {
+        const github = fakeGitHub()
+        const netlifyHost = fakeNetlify({ token: NETLIFY_TOKEN })
+        expect(await publishToNetlify(['--repo', REPO], github, netlifyHost)).toBe(0)
+        github.events.length = 0
+        log.mockClear()
+
+        await fs.writeFile(path.join(site, 'pages/index.md'), '---\nlayout: pages/default.pug\n---\n# Changed\n')
+        expect(await publishToNetlify([], github, netlifyHost)).toBe(0)
+        expect(netlifyHost.events.filter((event) => event.startsWith('create site'))).toHaveLength(1)
+        expect(github.events.filter((event) => event.startsWith('store secret'))).toEqual([
+            'store secret NETLIFY_AUTH_TOKEN', 'store secret NETLIFY_SITE_ID',
+        ])
+        expect(netlifyHost.events.at(-1)).toBe('list deploys production=true&per_page=100')
+        expect(logged()).toContain(`Using the Netlify site ${REPO}.`)
+        expect(logged()).not.toContain('Netlify\'s free plan has')
+        expect(await readPublishConfig(site)).toMatchObject({ netlify: { site_id: 'site-1' } })
+    })
+
+    it('a switch from github-pages to netlify removes base_path and replaces the Pages job', async () => {
+        const github = fakeGitHub()
+        expect(await runPipeline(['--repo', REPO], github, createRegistry(), fakeResolver())).toBe(0)
+        expect(await fs.readFile(path.join(site, 'config/app.yaml'), 'utf-8')).toBe(`name: My Site\nbase_path: /${REPO}\n`)
+
+        const netlifyHost = fakeNetlify({ token: NETLIFY_TOKEN })
+        expect(await publishToNetlify([], github, netlifyHost)).toBe(0)
+        const published = github.git.filesOf(github.git.refs.main)
+        expect(published['config/app.yaml'].content).toBe('name: My Site\n')
+        expect(published['.github/workflows/deploy.yml'].content).not.toContain('deploy-pages')
+        expect(await readPublishConfig(site)).toMatchObject({ target: 'netlify', netlify: { site_id: 'site-1' } })
+        expect(logged()).toContain('Removed base_path from config/app.yaml: Netlify serves the site from the root.')
+    })
+})
+
 describe('bin/nera.js publish, as a child process', () => {
     const cli = (args) =>
         spawnSync(process.execPath, [CLI, ...args], {
@@ -687,14 +854,14 @@ describe('bin/nera.js publish, as a child process', () => {
 
     // An unknown target fails before sign-in, so no child touches the
     // keychain or the network.
-    it('is dispatched and in the usage text; an unknown target names github-pages', () => {
+    it('is dispatched and in the usage text; an unknown target names github-pages and netlify', () => {
         const help = cli([])
         expect(help.status).toBe(0)
         expect(help.stdout).toMatch(/^ {2}nera publish /m)
 
         const text = cli(['publish', '--target', 'nope'])
         expect(text.status).toBe(1)
-        expect(text.stderr).toContain('❌ Unknown publish target "nope". Available targets: github-pages.')
+        expect(text.stderr).toContain('❌ Unknown publish target "nope". Available targets: github-pages, netlify.')
     })
 
     it('--json: the whole stdout is one object, exit 1 as in text mode, no ❌ line', () => {
@@ -702,7 +869,7 @@ describe('bin/nera.js publish, as a child process', () => {
         expect(child.status).toBe(1)
         expect(JSON.parse(child.stdout)).toEqual({
             ok: false,
-            error: 'Unknown publish target "nope". Available targets: github-pages.',
+            error: 'Unknown publish target "nope". Available targets: github-pages, netlify.',
         })
         expect(child.stderr).not.toContain('❌')
     })

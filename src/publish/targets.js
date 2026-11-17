@@ -1,4 +1,5 @@
 import { githubPages } from './pages.js'
+import { netlify } from './netlify.js'
 
 // The hosts `nera publish` can deploy to (ROADMAP-ai.md L6, D6). A target
 // adapter is a plain object:
@@ -14,8 +15,8 @@ const ADAPTER_METHODS = ['setUp', 'deployJob', 'liveUrl']
 const ID_PATTERN = /^[a-z][a-z0-9-]*$/
 
 // The registered adapters. The first is the default when no target is named
-// (D6: GitHub Pages); Netlify follows in its own issue.
-export const TARGETS = [githubPages]
+// (D6: GitHub Pages).
+export const TARGETS = [githubPages, netlify]
 
 // Throw when `adapter` does not have the interface above; return it otherwise.
 export function assertAdapter(adapter) {

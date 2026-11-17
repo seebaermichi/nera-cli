@@ -6,12 +6,18 @@ import { parseDocument } from 'yaml'
 //
 //   target: github-pages
 //   repository: owner/name
+//   netlify:
+//       site_id: <the Netlify site's id>    (the netlify target only)
 //
 // Committed with the site, so the CLI, the hosted MCP and Nera Pro read the
 // same. Holds no secret: tokens live in the keychain (credentials.js).
 
 export const PUBLISH_CONFIG = path.join('config', 'publish.yaml')
 const KEYS = ['target', 'repository']
+// Keys that hold a mapping of text values, and the keys each mapping knows.
+const SECTIONS = { netlify: ['site_id'] }
+
+const isMapping = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 
 // GitHub's rules for an account name and a repository name. A repository
 // name is letters, digits, `.`, `-` and `_`, at most 100 characters, neither
@@ -65,9 +71,10 @@ async function readDocument(file) {
     return doc
 }
 
-// The known keys of the site's publish config, as `{ target?, repository? }`;
-// `{}` when the file does not exist or is empty. A key that is set must be a
-// non-empty string.
+// The known keys of the site's publish config, as `{ target?, repository?,
+// netlify?: { site_id? } }`; `{}` when the file does not exist or is empty. A
+// key that is set must be a non-empty string; a section must be a mapping,
+// and one without a known key is left out.
 export async function readPublishConfig(cwd = process.cwd()) {
     const doc = await readDocument(publishConfigFile(cwd))
     const value = doc?.toJS() ?? {}
@@ -80,25 +87,63 @@ export async function readPublishConfig(cwd = process.cwd()) {
         if (key === 'repository') parseRepository(value[key])
         config[key] = value[key]
     }
+    for (const [section, keys] of Object.entries(SECTIONS)) {
+        if (value[section] === undefined || value[section] === null) continue
+        if (!isMapping(value[section])) throw new Error(`${PUBLISH_CONFIG}: "${section}" must be a mapping`)
+        const entries = {}
+        for (const key of keys) {
+            const entry = value[section][key]
+            if (entry === undefined || entry === null) continue
+            if (typeof entry !== 'string' || entry === '') {
+                throw new Error(`${PUBLISH_CONFIG}: "${section}.${key}" must be a text value`)
+            }
+            entries[key] = entry
+        }
+        if (Object.keys(entries).length > 0) config[section] = entries
+    }
     return config
 }
 
+// `value` checked as the non-empty string `name` must be.
+function assertText(name, value) {
+    if (typeof value !== 'string' || value === '') {
+        throw new TypeError(`${PUBLISH_CONFIG}: "${name}" must be a non-empty string`)
+    }
+}
+
 // Set the given keys in the site's publish config, creating the file when it
-// is missing. Comments and keys the CLI does not know are kept. Returns the
-// config as readPublishConfig reads it afterwards.
+// is missing; a section (`netlify: { site_id }`) sets the keys it names and
+// keeps its others. Comments and keys the CLI does not know are kept.
+// Returns the config as readPublishConfig reads it afterwards.
 export async function writePublishConfig(updates, cwd = process.cwd()) {
     const file = publishConfigFile(cwd)
+    const text = (await readIfExists(file)) ?? ''
     const doc = (await readDocument(file)) ?? parseDocument('')
     if (doc.contents === null) doc.contents = doc.createNode({})
     for (const [key, value] of Object.entries(updates)) {
-        if (!KEYS.includes(key)) throw new TypeError(`Unknown ${PUBLISH_CONFIG} key "${key}"`)
-        if (typeof value !== 'string' || value === '') {
-            throw new TypeError(`${PUBLISH_CONFIG}: "${key}" must be a non-empty string`)
+        if (Object.hasOwn(SECTIONS, key)) {
+            if (!isMapping(value)) throw new TypeError(`${PUBLISH_CONFIG}: "${key}" must be a mapping`)
+            for (const [entry, entryValue] of Object.entries(value)) {
+                if (!SECTIONS[key].includes(entry)) throw new TypeError(`Unknown ${PUBLISH_CONFIG} key "${key}.${entry}"`)
+                assertText(`${key}.${entry}`, entryValue)
+            }
+            const current = doc.toJS()?.[key]
+            if (current === undefined || current === null) {
+                doc.set(key, doc.createNode({}))
+            } else if (!isMapping(current)) {
+                throw new Error(`${PUBLISH_CONFIG}: "${key}" must be a mapping`)
+            }
+            for (const [entry, entryValue] of Object.entries(value)) doc.setIn([key, entry], entryValue)
+            continue
         }
+        if (!KEYS.includes(key)) throw new TypeError(`Unknown ${PUBLISH_CONFIG} key "${key}"`)
+        assertText(key, value)
         if (key === 'repository') parseRepository(value)
         doc.set(key, value)
     }
     await fs.mkdir(path.dirname(file), { recursive: true })
-    await fs.writeFile(file, doc.toString())
+    // A section keeps the nesting indent the user's file already has.
+    const indent = /^( +)[^\s#-]/m.exec(text)?.[1].length ?? 2
+    await fs.writeFile(file, doc.toString({ indent }))
     return readPublishConfig(cwd)
 }
