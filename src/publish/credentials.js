@@ -3,22 +3,39 @@ import os from 'os'
 import path from 'path'
 import { randomBytes } from 'crypto'
 
-// Where `nera publish` keeps the GitHub token set: the OS keychain first,
-// a 0600 file when the keychain is missing or fails (headless Linux, CI, a
-// failed optional install), and NERA_GITHUB_TOKEN above both, read-only.
-// The token set is { accessToken, refreshToken?, expiresAt?,
-// refreshTokenExpiresAt? }, the times in milliseconds since the epoch.
-// Nothing here logs, prints or throws a message that contains a token.
+// Where `nera publish` keeps its token sets, one per account (`github` or
+// `netlify`): the OS keychain first, a 0600 file when the keychain is missing
+// or fails (headless Linux, CI, a failed optional install), and the
+// account's environment variable above both, read-only. A token set is
+// { accessToken, refreshToken?, expiresAt?, refreshTokenExpiresAt? }, the
+// times in milliseconds since the epoch (a Netlify token has no refresh
+// token and does not expire). Nothing here logs, prints or throws a message
+// that contains a token.
 
 export const KEYCHAIN_SERVICE = 'nera'
-export const KEYCHAIN_ACCOUNT = 'github'
-export const TOKEN_ENV = 'NERA_GITHUB_TOKEN'
+
+// Per account: the keychain account name, the fallback file's name and the
+// environment variable that overrides both. The GitHub entries are the ones
+// 1.19.0 shipped and must not change, or a stored sign-in is lost.
+export const ACCOUNTS = {
+    github: { keychainAccount: 'github', fileName: 'credentials.json', env: 'NERA_GITHUB_TOKEN' },
+    netlify: { keychainAccount: 'netlify', fileName: 'netlify-credentials.json', env: 'NERA_NETLIFY_TOKEN' },
+}
+export const KEYCHAIN_ACCOUNT = ACCOUNTS.github.keychainAccount
+export const TOKEN_ENV = ACCOUNTS.github.env
+export const NETLIFY_TOKEN_ENV = ACCOUNTS.netlify.env
 
 const TOKEN_FIELDS = ['accessToken', 'refreshToken', 'expiresAt', 'refreshTokenExpiresAt']
 
-// The fallback file under the given home directory.
-export function credentialsFile(homedir = os.homedir()) {
-    return path.join(homedir, '.config', 'nera', 'credentials.json')
+// The account's entry in ACCOUNTS; a TypeError for an unknown account.
+function accountEntry(account) {
+    if (!Object.hasOwn(ACCOUNTS, account)) throw new TypeError(`Unknown credentials account: ${account}`)
+    return ACCOUNTS[account]
+}
+
+// The account's fallback file under the given home directory.
+export function credentialsFile(homedir = os.homedir(), account = 'github') {
+    return path.join(homedir, '.config', 'nera', accountEntry(account).fileName)
 }
 
 // The keyring module, imported only when a token is read or written, so
@@ -27,17 +44,32 @@ function defaultLoadKeyring() {
     return import('@napi-rs/keyring')
 }
 
-// Options shared by the three functions; each one is injectable so tests
-// never touch the real keychain, home directory or environment.
-function resolveOptions({ env = process.env, homedir = os.homedir(), loadKeyring = defaultLoadKeyring } = {}) {
-    return { env, file: credentialsFile(homedir), loadKeyring }
+// Options shared by the three functions: `account` ('github', the default,
+// or 'netlify') picks the token set; `env`, `homedir` and `loadKeyring` are
+// injectable so tests never touch the real keychain, home directory or
+// environment.
+function resolveOptions({
+    account = 'github',
+    env = process.env,
+    homedir = os.homedir(),
+    loadKeyring = defaultLoadKeyring,
+} = {}) {
+    const entry = accountEntry(account)
+    return {
+        env,
+        envName: entry.env,
+        file: credentialsFile(homedir, account),
+        keychainAccount: entry.keychainAccount,
+        loadKeyring,
+    }
 }
 
-// The keychain entry, or null when the keyring cannot be loaded at all.
-async function keychainEntry(loadKeyring) {
+// The account's keychain entry, or null when the keyring cannot be loaded
+// at all.
+async function keychainEntry(loadKeyring, keychainAccount) {
     try {
         const { Entry } = await loadKeyring()
-        return new Entry(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
+        return new Entry(KEYCHAIN_SERVICE, keychainAccount)
     } catch {
         return null
     }
@@ -107,13 +139,14 @@ async function writeCredentialsFile(file, text) {
     }
 }
 
-// The stored token set with its source ('env', 'keychain' or 'file'), or
-// null when there is none. The environment wins and has no refresh token.
+// The account's stored token set with its source ('env', 'keychain' or
+// 'file'), or null when there is none. The environment wins and has no
+// refresh token.
 export async function readToken(options) {
-    const { env, file, loadKeyring } = resolveOptions(options)
-    if (env[TOKEN_ENV]) return { accessToken: env[TOKEN_ENV], source: 'env' }
+    const { env, envName, file, keychainAccount, loadKeyring } = resolveOptions(options)
+    if (env[envName]) return { accessToken: env[envName], source: 'env' }
 
-    const entry = await keychainEntry(loadKeyring)
+    const entry = await keychainEntry(loadKeyring, keychainAccount)
     if (entry) {
         try {
             const text = entry.getPassword()
@@ -129,15 +162,15 @@ export async function readToken(options) {
     return set ? { ...set, source: 'file' } : null
 }
 
-// Store the token set and say where: { store: 'keychain' } or
+// Store the account's token set and say where: { store: 'keychain' } or
 // { store: 'file', file }. Any keychain failure falls back to the file;
 // a keychain write removes an older fallback file, so it cannot be read
-// back in place of the new token. NERA_GITHUB_TOKEN is never written.
+// back in place of the new token. The environment variable is never written.
 export async function saveToken(tokens, options) {
-    const { file, loadKeyring } = resolveOptions(options)
+    const { file, keychainAccount, loadKeyring } = resolveOptions(options)
     const text = serializeTokenSet(tokens)
 
-    const entry = await keychainEntry(loadKeyring)
+    const entry = await keychainEntry(loadKeyring, keychainAccount)
     if (entry) {
         try {
             entry.setPassword(text)
@@ -152,13 +185,13 @@ export async function saveToken(tokens, options) {
     return { store: 'file', file }
 }
 
-// Remove the token set from the keychain and the file; true when either
-// held one. NERA_GITHUB_TOKEN is the user's and stays set.
+// Remove the account's token set from the keychain and the file; true when
+// either held one. The environment variable is the user's and stays set.
 export async function deleteToken(options) {
-    const { file, loadKeyring } = resolveOptions(options)
+    const { file, keychainAccount, loadKeyring } = resolveOptions(options)
     let removed = false
 
-    const entry = await keychainEntry(loadKeyring)
+    const entry = await keychainEntry(loadKeyring, keychainAccount)
     if (entry) {
         try {
             removed = entry.deletePassword() === true

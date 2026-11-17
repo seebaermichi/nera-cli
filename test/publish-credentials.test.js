@@ -10,6 +10,7 @@ import {
     KEYCHAIN_SERVICE,
     KEYCHAIN_ACCOUNT,
     TOKEN_ENV,
+    NETLIFY_TOKEN_ENV,
 } from '../src/publish/credentials.js'
 
 // Fake token values only: no real token ever enters a test.
@@ -218,5 +219,63 @@ describe('deleteToken', () => {
     it('returns false when nothing was stored', async () => {
         expect(await deleteToken(options({ loadKeyring: fakeKeyring().loadKeyring }))).toBe(false)
         expect(await deleteToken(options({ loadKeyring: noKeyring }))).toBe(false)
+    })
+})
+
+describe('the netlify account', () => {
+    const NETLIFY = { accessToken: 'nfp_fake_netlify' }
+
+    it('stores under nera/netlify and leaves the GitHub entry untouched', async () => {
+        const keyring = fakeKeyring()
+        await saveToken(TOKENS, options({ loadKeyring: keyring.loadKeyring }))
+        const github = keyring.store.get('nera/github')
+
+        expect(await saveToken(NETLIFY, options({ account: 'netlify', loadKeyring: keyring.loadKeyring }))).toEqual({ store: 'keychain' })
+
+        expect(keyring.calls.at(-1)).toEqual(['new', KEYCHAIN_SERVICE, 'netlify'])
+        expect(keyring.store.get('nera/github')).toBe(github)
+        expect(JSON.parse(keyring.store.get('nera/netlify'))).toEqual(NETLIFY)
+        expect(await readToken(options({ account: 'netlify', loadKeyring: keyring.loadKeyring }))).toEqual({ ...NETLIFY, source: 'keychain' })
+        expect(await readToken(options({ loadKeyring: keyring.loadKeyring }))).toEqual({ ...TOKENS, source: 'keychain' })
+    })
+
+    it('falls back to its own 0600 file, next to the GitHub one', async () => {
+        await saveToken(TOKENS, options({ loadKeyring: noKeyring }))
+        const saved = await saveToken(NETLIFY, options({ account: 'netlify', loadKeyring: noKeyring }))
+        const file = credentialsFile(homedir, 'netlify')
+
+        expect(file).toBe(path.join(homedir, '.config', 'nera', 'netlify-credentials.json'))
+        expect(credentialsFile(homedir)).toBe(path.join(homedir, '.config', 'nera', 'credentials.json'))
+        expect(saved).toEqual({ store: 'file', file })
+        if (process.platform !== 'win32') expect((await fs.stat(file)).mode & 0o777).toBe(0o600)
+        expect(JSON.parse(await fs.readFile(credentialsFile(homedir), 'utf-8'))).toEqual(TOKENS)
+        expect(await readToken(options({ account: 'netlify', loadKeyring: noKeyring }))).toEqual({ ...NETLIFY, source: 'file' })
+    })
+
+    it('reads NERA_NETLIFY_TOKEN, which never stands in for the GitHub token or the other way round', async () => {
+        const env = { [NETLIFY_TOKEN_ENV]: 'nfp_from_env' }
+        expect(NETLIFY_TOKEN_ENV).toBe('NERA_NETLIFY_TOKEN')
+        expect(await readToken(options({ account: 'netlify', env, loadKeyring: noKeyring }))).toEqual({ accessToken: 'nfp_from_env', source: 'env' })
+        expect(await readToken(options({ env, loadKeyring: noKeyring }))).toBeNull()
+        expect(await readToken(options({ account: 'netlify', env: { [TOKEN_ENV]: 'ghu_env' }, loadKeyring: noKeyring }))).toBeNull()
+    })
+
+    it('deletes only its own entry and file', async () => {
+        const keyring = fakeKeyring()
+        await saveToken(TOKENS, options({ loadKeyring: keyring.loadKeyring }))
+        await saveToken(TOKENS, options({ loadKeyring: noKeyring }))
+        await saveToken(NETLIFY, options({ account: 'netlify', loadKeyring: keyring.loadKeyring }))
+        await saveToken(NETLIFY, options({ account: 'netlify', loadKeyring: noKeyring }))
+
+        expect(await deleteToken(options({ account: 'netlify', loadKeyring: keyring.loadKeyring }))).toBe(true)
+
+        expect([...keyring.store.keys()]).toEqual(['nera/github'])
+        await expect(fs.stat(credentialsFile(homedir, 'netlify'))).rejects.toMatchObject({ code: 'ENOENT' })
+        expect(JSON.parse(await fs.readFile(credentialsFile(homedir), 'utf-8'))).toEqual(TOKENS)
+    })
+
+    it('rejects an unknown account', async () => {
+        await expect(readToken(options({ account: 'vercel', loadKeyring: noKeyring }))).rejects.toThrow(TypeError)
+        expect(() => credentialsFile(homedir, 'vercel')).toThrow(/^Unknown credentials account: vercel$/)
     })
 })
