@@ -1,8 +1,8 @@
-import { execFileSync } from 'child_process'
 import fs from 'fs/promises'
 import fssync from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { runNpm } from './npm.js'
 import { skillSourceDir, syncSkill } from './skill.js'
 import {
     applyStarter,
@@ -315,7 +315,8 @@ async function addSkill(targetDir) {
 // slice 5, "the Node floor"). Checked before anything is written or asked.
 const MIN_NPM = [10, 9, 0]
 
-const defaultExecNpm = (args, options) => execFileSync('npm', args, options)
+// Through src/npm.js, so it works on Windows too (npm.cmd).
+const defaultExecNpm = (args, options) => runNpm(args, options)
 
 // The installed npm's version, or null when it cannot be read (no npm on the
 // PATH, an unparseable answer): then nothing is refused, and `npm install`
