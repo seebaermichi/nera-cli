@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.0] - 2026-11-18
+
+### Added
+
+-   The deploy workflow `nera publish` writes keeps `.nera-cache` between runs: the build job restores it with `actions/cache` before `npm run build`, so a site using `@nera-static/plugin-images` re-encodes only new or changed images instead of every image on every push. The cache key follows the site's and a local theme's `assets/`, `pages/`, `config/images.yaml` and `package-lock.json`, and a changed key starts from the newest earlier cache. A site without a `.nera-cache` folder only gets a warning from the cache step, never a failed build. An existing site gets the step on its next `nera publish`, as long as its workflow still starts with the line `nera publish` writes.
+
 ## [1.21.1] - 2026-11-18
 
 ### Fixed

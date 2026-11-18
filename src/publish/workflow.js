@@ -19,12 +19,18 @@ export const WORKFLOW_FILE = path.join('.github', 'workflows', 'deploy.yml')
 export const BUILD_ARTIFACT = 'site'
 // The folder `npm run build` renders into, which the artifact holds.
 export const BUILD_OUTPUT = 'public'
+// The folder plugins cache their work in (plugin-images: the encoded
+// images), kept between runs by the build job's cache step.
+export const BUILD_CACHE = '.nera-cache'
 
 // The shared build job's id and the names of its steps, as the Actions API
-// reports them; status.js picks its fix hint by them.
+// reports them; status.js picks its fix hint by them. The cache step has no
+// hint: actions/cache only warns on a miss or a missing folder, it never
+// fails the job.
 export const BUILD_JOB_ID = 'build'
 export const BUILD_STEPS = {
     install: 'Install dependencies',
+    cache: 'Restore the build cache',
     render: 'Render site',
     upload: 'Upload the built site',
 }
@@ -55,6 +61,19 @@ const BUILD_JOB = `    ${BUILD_JOB_ID}:
 
             - name: ${BUILD_STEPS.install}
               run: npm ci
+
+            # Plugins keep their work in .nera-cache (plugin-images its encoded
+            # images), so a build re-encodes only what changed. The key changes
+            # with what a variant comes from (images in the site's and a local
+            # theme's assets, pages asking for variants, the images config, an
+            # npm theme through the lockfile), since a cache with an existing
+            # key is never overwritten; restore-keys falls back to the newest.
+            - name: ${BUILD_STEPS.cache}
+              uses: actions/cache@v6
+              with:
+                  path: ${BUILD_CACHE}
+                  key: nera-cache-\${{ hashFiles('assets/**', 'theme/assets/**', 'pages/**', 'config/images.yaml', 'package-lock.json') }}
+                  restore-keys: nera-cache-
 
             - name: ${BUILD_STEPS.render}
               run: npm run build

@@ -8,6 +8,8 @@ import {
     writeWorkflow,
     WORKFLOW_FILE,
     BUILD_ARTIFACT,
+    BUILD_CACHE,
+    BUILD_STEPS,
     GENERATED_HEADER,
 } from '../src/publish/workflow.js'
 
@@ -56,7 +58,7 @@ describe('renderWorkflow', () => {
         expect(workflow.concurrency).toEqual({ group: 'deploy', 'cancel-in-progress': false })
     })
 
-    it('has the shared build job: checkout, Node 24 with npm cache, npm ci, npm run build, the public artifact', async () => {
+    it('has the shared build job: checkout, Node 24 with npm cache, npm ci, the .nera-cache cache, npm run build, the public artifact', async () => {
         const { workflow } = await render()
         const { steps } = workflow.jobs.build
         expect(workflow.jobs.build['runs-on']).toBe('ubuntu-latest')
@@ -64,11 +66,24 @@ describe('renderWorkflow', () => {
             'actions/checkout@v7',
             'actions/setup-node@v7',
             'npm ci',
+            'actions/cache@v6',
             'npm run build',
             'actions/upload-artifact@v7',
         ])
         expect(steps[1].with).toEqual({ 'node-version': 24, cache: 'npm' })
-        expect(steps[4].with).toEqual({ name: BUILD_ARTIFACT, path: 'public', 'if-no-files-found': 'error' })
+        expect(steps[5].with).toEqual({ name: BUILD_ARTIFACT, path: 'public', 'if-no-files-found': 'error' })
+    })
+
+    it('restores .nera-cache before the build, keyed by the images\' sources, falling back to the newest cache', async () => {
+        const { workflow } = await render()
+        const cache = workflow.jobs.build.steps[3]
+        expect(BUILD_CACHE).toBe('.nera-cache')
+        expect(cache.name).toBe(BUILD_STEPS.cache)
+        expect(cache.with).toEqual({
+            path: BUILD_CACHE,
+            key: 'nera-cache-${{ hashFiles(\'assets/**\', \'theme/assets/**\', \'pages/**\', \'config/images.yaml\', \'package-lock.json\') }}',
+            'restore-keys': 'nera-cache-',
+        })
     })
 
     it('appends the adapter deploy job after the build job', async () => {
