@@ -420,11 +420,12 @@ describe('scaffoldProject agent instructions (AGENTS.md, CLAUDE.md)', () => {
 
     // ROADMAP-ai.md L1 says "at most ~120 lines"; the --json bullet (L3)
     // took the file to 124, the `nera new` bullet (L5) to 127, the
-    // `nera publish` caveat (L6) to 129, which its GitHub Pages text kept.
-    it('keeps AGENTS.md within 129 lines', async () => {
+    // `nera publish` caveat (L6) to 129, which its GitHub Pages text kept,
+    // and the Netlify target with its deploy budget (L6, 1.20.0) to 133.
+    it('keeps AGENTS.md within 133 lines', async () => {
         const lines = (await read(templateDir(), 'AGENTS.md')).split('\n')
         expect(lines.at(-1)).toBe('')
-        expect(lines.length - 1).toBeLessThanOrEqual(129)
+        expect(lines.length - 1).toBeLessThanOrEqual(133)
     })
 
     it('links the docs, llms.txt and llms-full.txt', async () => {
@@ -448,12 +449,15 @@ describe('scaffoldProject agent instructions (AGENTS.md, CLAUDE.md)', () => {
 
     it('names only commands and folders that exist today', async () => {
         const text = await read(templateDir(), 'AGENTS.md')
-        // `nera publish` deploys to GitHub Pages, its only target (L6); the
-        // file must say that it waits for the owner's sign-in, and must not
-        // offer Netlify, which is not registered yet.
+        // `nera publish` deploys to GitHub Pages (the default) or Netlify
+        // (L6); the file must say that it waits for the owner's sign-in, name
+        // the Netlify target with its deploy budget, and must not say that no
+        // target is available.
         expect(text).toMatch(/`npx nera publish --yes` for GitHub Pages/)
         expect(text).toMatch(/it waits for the site owner to enter the GitHub sign-in code/)
-        expect(text).not.toMatch(/Netlify|No publish target/)
+        expect(text).toMatch(/`npx nera publish --yes --target netlify` deploys to Netlify/)
+        expect(text).toMatch(/about 20 deploys a month/)
+        expect(text).not.toMatch(/No publish target/)
         expect(text).not.toMatch(/(^|[^/])\bplugins\/<name>/m)
     })
 })
