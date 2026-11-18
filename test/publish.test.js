@@ -862,7 +862,7 @@ describe('bin/nera.js publish, as a child process', () => {
         const text = cli(['publish', '--target', 'nope'])
         expect(text.status).toBe(1)
         expect(text.stderr).toContain('❌ Unknown publish target "nope". Available targets: github-pages, netlify.')
-    })
+    }, 30_000) // two node children; as in json-output.test.js, startup is slow on a loaded machine
 
     it('--json: the whole stdout is one object, exit 1 as in text mode, no ❌ line', () => {
         const child = cli(['publish', '--target', 'nope', '--json'])
@@ -872,5 +872,5 @@ describe('bin/nera.js publish, as a child process', () => {
             error: 'Unknown publish target "nope". Available targets: github-pages, netlify.',
         })
         expect(child.stderr).not.toContain('❌')
-    })
+    }, 30_000)
 })
