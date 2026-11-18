@@ -68,7 +68,7 @@ export async function runNew(args = [], {
         if (options.lang !== undefined) validateLang(options.lang)
         // An npm that would crash on install is refused before the
         // questions too; scaffoldProject checks again for every caller.
-        if (install) assertNpmCanInstall(npmVersion())
+        if (install) assertNpmCanInstall(await npmVersion())
         const answers = await prompt({
             input: stdin,
             output: stdout,

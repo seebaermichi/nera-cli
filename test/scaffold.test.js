@@ -915,7 +915,12 @@ describe('scaffoldProject with a starter', () => {
 
         const { target } = await scaffoldQuiet('pkg', { starter: 'blank', fetchStarter })
 
-        expect(fetchStarter).toHaveBeenCalledWith('blank', { cwd: workdir, log: expect.any(Function) })
+        expect(fetchStarter).toHaveBeenCalledWith('blank', {
+            cwd: workdir,
+            log: expect.any(Function),
+            env: process.env,
+            signal: undefined,
+        })
         expect(cleanup).toHaveBeenCalledOnce()
         expect(fssync.existsSync(tmp)).toBe(false)
         expect(fssync.existsSync(path.join(target, 'pages/about.md'))).toBe(true)
@@ -963,10 +968,30 @@ describe('the npm check before installing', () => {
             return `${version}\n`
         })
 
-    it('reads the version, or null when npm cannot be run or answers nonsense', () => {
-        expect(probeNpmVersion(fakeNpm('10.9.0'))).toBe('10.9.0')
-        expect(probeNpmVersion(fakeNpm(new Error('spawn npm ENOENT')))).toBe(null)
-        expect(probeNpmVersion(fakeNpm('oops'))).toBe(null)
+    it('reads the version, or null when npm cannot be run or answers nonsense', async () => {
+        expect(await probeNpmVersion(fakeNpm('10.9.0'))).toBe('10.9.0')
+        expect(await probeNpmVersion(fakeNpm(new Error('spawn npm ENOENT')))).toBe(null)
+        expect(await probeNpmVersion(fakeNpm('oops'))).toBe(null)
+        expect(await probeNpmVersion(async () => '11.6.2\n')).toBe('11.6.2')
+    })
+
+    it('passes env and signal to npm --version, and rejects on an abort', async () => {
+        const execNpm = fakeNpm('10.9.0')
+        const env = { PATH: '/shim' }
+        const controller = new AbortController()
+        await probeNpmVersion(execNpm, { env, signal: controller.signal })
+        expect(execNpm).toHaveBeenCalledWith(['--version'], {
+            stdio: ['ignore', 'pipe', 'ignore'],
+            env,
+            signal: controller.signal,
+        })
+
+        const reason = new Error('stop')
+        const aborting = vi.fn(() => {
+            controller.abort(reason)
+            throw reason
+        })
+        await expect(probeNpmVersion(aborting, { signal: controller.signal })).rejects.toBe(reason)
     })
 
     it('refuses npm below 10.9.0 and lets 10.9.0, 10.10 and 11 through', () => {
@@ -996,6 +1021,8 @@ describe('the npm check before installing', () => {
             expect(execNpm).toHaveBeenLastCalledWith(['install'], {
                 cwd: target,
                 stdio: 'inherit',
+                env: process.env,
+                signal: undefined,
             })
         } finally {
             log.mockRestore()
@@ -1023,6 +1050,158 @@ describe('the npm check before installing', () => {
         }
         expect(execNpm).not.toHaveBeenCalled()
         expect(fssync.existsSync(path.join(workdir, 'offline'))).toBe(true)
+    })
+})
+
+// The children run async (spawn), so a host's event loop keeps running, and
+// `env` and `signal` reach them. A shell-script `npm` on the PATH of the
+// passed `env` stands in for the real one: the default execNpm is used.
+describe.skipIf(process.platform === 'win32')('createSite with env and signal', () => {
+    const FAKE_NPM = [
+        '#!/bin/sh',
+        'echo "$1 $NERA_TEST_MARK" >> "$NERA_TEST_LOG"',
+        'case "$1" in',
+        '    --version) echo 10.9.0 ;;',
+        '    install)',
+        '        [ -n "$NERA_TEST_FAIL" ] && exit 1',
+        '        exec sleep "$NERA_TEST_SLEEP" ;;',
+        'esac',
+        '',
+    ].join('\n')
+
+    let npmLog
+    const fakeNpmEnv = async (extra = {}) => {
+        const bin = path.join(workdir, 'bin')
+        await fs.mkdir(bin, { recursive: true })
+        await fs.writeFile(path.join(bin, 'npm'), FAKE_NPM, { mode: 0o755 })
+        npmLog = path.join(workdir, 'npm.log')
+        return {
+            ...process.env,
+            PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+            NERA_TEST_LOG: npmLog,
+            NERA_TEST_MARK: 'from-env',
+            NERA_TEST_SLEEP: '0.5',
+            ...extra,
+        }
+    }
+
+    // Aborts `controller` shortly after the install has started.
+    const abortOnInstall = (controller) => (line) => {
+        if (line === '📦 Installing dependencies...') setTimeout(() => controller.abort(), 100)
+    }
+
+    it('keeps a host timer ticking during the install, and env reaches probe and install', async () => {
+        const env = await fakeNpmEnv()
+        let ticks = 0
+        const timer = setInterval(() => ticks++, 10)
+        try {
+            const { dir } = await createSite('slow', {
+                cwd: workdir,
+                env,
+                stdio: 'ignore',
+                log: () => {},
+            })
+            expect(fssync.existsSync(path.join(dir, 'package.json'))).toBe(true)
+        } finally {
+            clearInterval(timer)
+        }
+        // A blocking install would freeze the timer for the 0.5 s sleep.
+        expect(ticks).toBeGreaterThanOrEqual(20)
+        expect((await fs.readFile(npmLog, 'utf-8')).trim().split('\n')).toEqual([
+            '--version from-env',
+            'install from-env',
+        ])
+    })
+
+    it('an abort during the install kills npm and removes the new folder', async () => {
+        const env = await fakeNpmEnv({ NERA_TEST_SLEEP: '10' })
+        const controller = new AbortController()
+        const started = Date.now()
+        await expect(
+            createSite('aborted', {
+                cwd: workdir,
+                env,
+                stdio: 'ignore',
+                signal: controller.signal,
+                log: abortOnInstall(controller),
+            })
+        ).rejects.toMatchObject({ name: 'AbortError' })
+        expect(Date.now() - started).toBeLessThan(5000)
+        expect(fssync.existsSync(path.join(workdir, 'aborted'))).toBe(false)
+    })
+
+    it('an abort during the install in place removes nothing and names what was written', async () => {
+        const env = await fakeNpmEnv({ NERA_TEST_SLEEP: '10' })
+        const dir = path.join(workdir, 'here')
+        await fs.mkdir(dir)
+        await fs.writeFile(path.join(dir, 'AGENTS.md'), '# mine\n')
+        const controller = new AbortController()
+        const err = await createSite('.', {
+            cwd: dir,
+            env,
+            stdio: 'ignore',
+            signal: controller.signal,
+            log: abortOnInstall(controller),
+        }).catch((e) => e)
+
+        expect(err).toBe(controller.signal.reason)
+        expect(err.name).toBe('AbortError')
+        expect(err.message).toMatch(
+            /^This operation was aborted\. Already written to the current folder: .*package\.json.*Remove them before running `nera new \.` again\.$/
+        )
+        expect(err.message).not.toMatch(/AGENTS\.md/)
+        expect(await read(dir, 'AGENTS.md')).toBe('# mine\n')
+        expect(fssync.existsSync(path.join(dir, 'package.json'))).toBe(true)
+    })
+
+    it('a failed install, without an abort, keeps the folder', async () => {
+        const env = await fakeNpmEnv({ NERA_TEST_FAIL: '1' })
+        await expect(
+            createSite('failed', { cwd: workdir, env, stdio: 'ignore', log: () => {} })
+        ).rejects.toThrow(/Command failed: npm install \(exit code 1\)/)
+        expect(fssync.existsSync(path.join(workdir, 'failed', 'package.json'))).toBe(true)
+    })
+
+    it('an abort before the start rejects with its reason, runs nothing and writes nothing', async () => {
+        const controller = new AbortController()
+        const reason = new Error('stop')
+        controller.abort(reason)
+        const execNpm = vi.fn()
+        const fetchStarter = vi.fn()
+        await expect(
+            createSite('never', {
+                cwd: workdir,
+                starter: 'blank',
+                signal: controller.signal,
+                execNpm,
+                fetchStarter,
+                log: () => {},
+            })
+        ).rejects.toBe(reason)
+        expect(execNpm).not.toHaveBeenCalled()
+        expect(fetchStarter).not.toHaveBeenCalled()
+        expect(fssync.existsSync(path.join(workdir, 'never'))).toBe(false)
+    })
+
+    it('an abort while copying removes the new folder and still cleans up the starter', async () => {
+        const controller = new AbortController()
+        const tmp = await fs.mkdtemp(path.join(workdir, 'pack-'))
+        await fs.cp(FIXTURE, path.join(tmp, 'package'), { recursive: true })
+        const cleanup = vi.fn(() => fs.rm(tmp, { recursive: true, force: true }))
+        await expect(
+            createSite('copying', {
+                cwd: workdir,
+                install: false,
+                starter: 'blank',
+                signal: controller.signal,
+                fetchStarter: async () => ({ dir: path.join(tmp, 'package'), cleanup }),
+                log: (line) => {
+                    if (line.startsWith('📦 Creating')) controller.abort()
+                },
+            })
+        ).rejects.toMatchObject({ name: 'AbortError' })
+        expect(fssync.existsSync(path.join(workdir, 'copying'))).toBe(false)
+        expect(cleanup).toHaveBeenCalledOnce()
     })
 })
 
@@ -1061,6 +1240,8 @@ describe('createSite with an injected log', () => {
         expect(execNpm).toHaveBeenLastCalledWith(['install', '@nera-static/theme-example'], {
             cwd: result.dir,
             stdio: API_STDIO,
+            env: process.env,
+            signal: undefined,
         })
         expect(lines[0]).toBe(`📦 Creating a new Nera site in ${result.dir}...`)
         expect(lines).toEqual(
@@ -1127,6 +1308,11 @@ describe('createSite with an injected log', () => {
         const target = await scaffoldProject('cli', { cwd: workdir, execNpm })
         expect(target).toBe(path.join(workdir, 'cli'))
         expect(consoleLog).toHaveBeenCalledWith('✅ Done!')
-        expect(execNpm).toHaveBeenLastCalledWith(['install'], { cwd: target, stdio: 'inherit' })
+        expect(execNpm).toHaveBeenLastCalledWith(['install'], {
+            cwd: target,
+            stdio: 'inherit',
+            env: process.env,
+            signal: undefined,
+        })
     })
 })

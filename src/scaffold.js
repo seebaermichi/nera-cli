@@ -2,7 +2,7 @@ import fs from 'fs/promises'
 import fssync from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { runNpm } from './npm.js'
+import { runNpmAsync } from './npm.js'
 import { skillSourceDir, syncSkill } from './skill.js'
 import {
     applyStarter,
@@ -315,21 +315,27 @@ async function addSkill(targetDir, log) {
 // slice 5, "the Node floor"). Checked before anything is written or asked.
 const MIN_NPM = [10, 9, 0]
 
-// Through src/npm.js, so it works on Windows too (npm.cmd).
-const defaultExecNpm = (args, options) => runNpm(args, options)
+// Through src/npm.js, so it works on Windows too (npm.cmd), and without
+// blocking the event loop.
+const defaultExecNpm = (args, options) => runNpmAsync(args, options)
 
 // The installed npm's version, or null when it cannot be read (no npm on the
 // PATH, an unparseable answer): then nothing is refused, and `npm install`
-// reports its own error.
-export function probeNpmVersion(execNpm = defaultExecNpm) {
+// reports its own error. `env` decides which npm a shim PATH finds; an abort
+// rejects with `signal.reason` instead of answering null. `execNpm` may
+// return stdout or a promise of it.
+export async function probeNpmVersion(execNpm = defaultExecNpm, { env = process.env, signal } = {}) {
+    signal?.throwIfAborted()
     try {
-        const out = execNpm(['--version'], {
-            encoding: 'utf-8',
+        const out = await execNpm(['--version'], {
             stdio: ['ignore', 'pipe', 'ignore'],
+            env,
+            signal,
         })
         const version = String(out).trim()
         return /^\d+\.\d+\.\d+/.test(version) ? version : null
     } catch {
+        signal?.throwIfAborted()
         return null
     }
 }
@@ -348,6 +354,19 @@ export function assertNpmCanInstall(version) {
     )
 }
 
+// Append `text` to an error's message. Also for an AbortError DOMException,
+// whose `message` is a read-only accessor: an own property shadows it. A
+// primitive or frozen abort reason is left as it is.
+function appendToMessage(err, text) {
+    if (err === null || typeof err !== 'object' || !Object.isExtensible(err)) return
+    const message = String(err.message ?? '')
+    Object.defineProperty(err, 'message', {
+        value: `${message}${/[.!?]$/.test(message) || message === '' ? '' : '.'}${text}`,
+        configurable: true,
+        writable: true,
+    })
+}
+
 // Scaffold a thin Nera site: copy the template, lay a starter kit over it if
 // one is given, name it, and (by default) install its dependencies. The one
 // code path for flags, the interactive picker and the MCP server
@@ -359,8 +378,17 @@ export function assertNpmCanInstall(version) {
 // install's output to `stdio` (default 'inherit'), so a caller whose stdout
 // is a protocol channel passes its own `log` and e.g. `['ignore', 2, 2]`;
 // nothing else is written to stdout and nothing is read from stdin.
-// `fetchStarter(spec, { cwd, log })` → `{ dir, cleanup }` and `execNpm(args,
-// options)` (execFileSync's shape) are injectable for tests.
+//
+// No child blocks the event loop. `env` (default process.env) reaches every
+// child: `npm --version`, `npm pack`, `tar` and `npm install`. `signal` (an
+// AbortSignal) kills the running child and rejects with `signal.reason`; an
+// abort during the download, the copy or the install removes a new site
+// folder, while in place nothing is removed and the error names what was
+// written. A failed install, by contrast, keeps the folder (`npm install`
+// can be rerun there).
+// `fetchStarter(spec, { cwd, log, env, signal })` → `{ dir, cleanup }` and
+// `execNpm(args, { cwd, stdio, env, signal })`, which returns stdout or a
+// promise of it, are injectable for tests.
 export async function createSite(projectName, options = {}) {
     const {
         install = true,
@@ -373,6 +401,8 @@ export async function createSite(projectName, options = {}) {
         stdio = 'inherit',
         fetchStarter = defaultFetchStarter,
         execNpm = defaultExecNpm,
+        env = process.env,
+        signal,
     } = options
 
     // Everything is checked before anything is written.
@@ -387,7 +417,8 @@ export async function createSite(projectName, options = {}) {
     }
     if (name !== undefined) validateSiteName(name)
     if (lang !== undefined) validateLang(lang)
-    if (install) assertNpmCanInstall(probeNpmVersion(execNpm))
+    signal?.throwIfAborted()
+    if (install) assertNpmCanInstall(await probeNpmVersion(execNpm, { env, signal }))
 
     const targetDir = path.resolve(cwd, inPlace ? '.' : projectName)
     if (inPlace) {
@@ -396,15 +427,36 @@ export async function createSite(projectName, options = {}) {
         throw new Error(`Target directory "${projectName}" already exists.`)
     }
     const packageName = inPlace ? projectNameFromDir(targetDir) : projectName
+    const before = inPlace ? new Set(await fs.readdir(targetDir)) : null
+
+    // Undo what this run wrote, for a copy failure or an abort: a new folder
+    // goes entirely, the current folder is never touched and `err` names the
+    // entries that were added to it. Returns `err` to rethrow.
+    const undo = async (err) => {
+        if (!inPlace) {
+            await fs.rm(targetDir, { recursive: true, force: true })
+            return err
+        }
+        const written = (await fs.readdir(targetDir)).filter((n) => !before.has(n))
+        if (written.length > 0) {
+            appendToMessage(
+                err,
+                ` Already written to the current folder: ${written.join(', ')}. ` +
+                    'Remove them before running `nera new .` again.'
+            )
+        }
+        return err
+    }
 
     // The starter is fetched and checked before the site folder exists, so a
-    // download error or a package that is no starter leaves nothing behind.
-    const fetched = starter === undefined ? null : await fetchStarter(starter, { cwd, log })
+    // download error, an abort or a package that is no starter leaves nothing
+    // behind.
+    const fetched =
+        starter === undefined ? null : await fetchStarter(starter, { cwd, log, env, signal })
     let firstSteps = null
     try {
         if (fetched) await readStarterManifest(fetched.dir, starter)
         const skipStarters = Boolean(theme) || (fetched ? await starterSetsTheme(fetched.dir) : false)
-        const before = inPlace ? new Set(await fs.readdir(targetDir)) : null
 
         log(`📦 Creating a new Nera site in ${targetDir}...`)
         try {
@@ -414,18 +466,9 @@ export async function createSite(projectName, options = {}) {
             if (fetched) firstSteps = await applyStarter(targetDir, fetched.dir, { log })
             await applyNameAndLang(targetDir, { name, lang }, log)
             await addSkill(targetDir, log)
+            signal?.throwIfAborted()
         } catch (err) {
-            if (!inPlace) {
-                await fs.rm(targetDir, { recursive: true, force: true })
-                throw err
-            }
-            const written = (await fs.readdir(targetDir)).filter((n) => !before.has(n))
-            err.message +=
-                written.length > 0
-                    ? ` Already written to the current folder: ${written.join(', ')}. ` +
-                      'Remove them before running `nera new .` again.'
-                    : ''
-            throw err
+            throw await undo(err)
         }
     } finally {
         await fetched?.cleanup()
@@ -438,7 +481,13 @@ export async function createSite(projectName, options = {}) {
         // it resolved. A starter's dependencies are already in package.json.
         const themePkg = theme ? themePackageName(theme) : null
         const args = themePkg ? ['install', themePkg] : ['install']
-        execNpm(args, { cwd: targetDir, stdio })
+        try {
+            await execNpm(args, { cwd: targetDir, stdio, env, signal })
+        } catch (err) {
+            // Only an abort undoes the site; a failed install keeps it.
+            if (signal?.aborted) throw await undo(signal.reason)
+            throw err
+        }
     }
 
     // `npm run dev`, not `nera dev`: it works without a global `nera`.
