@@ -96,14 +96,16 @@ describe('packStarter', () => {
     afterEach(() => log.mockRestore())
 
     // Stands in for `npm pack` + `tar`: writes a tarball name, then
-    // "extracts" the fixture to <out>/package.
-    const fakeExec = (calls) => (cmd, args) => {
+    // "extracts" the fixture to <out>/package, resolving `-C` against the
+    // call's cwd the way tar does.
+    const fakeExec = (calls, optionsSeen = []) => (cmd, args, options = {}) => {
         calls.push([cmd, ...args])
+        optionsSeen.push(options)
         if (cmd === 'npm') {
             const dest = args[args.indexOf('--pack-destination') + 1]
             fssync.writeFileSync(path.join(dest, 'starter-1.0.0.tgz'), '')
         } else if (cmd === 'tar') {
-            const out = args[args.indexOf('-C') + 1]
+            const out = path.resolve(options.cwd ?? process.cwd(), args[args.indexOf('-C') + 1])
             fssync.cpSync(FIXTURE, path.join(out, 'package'), { recursive: true })
         }
     }
@@ -113,9 +115,7 @@ describe('packStarter', () => {
         const { dir, cleanup } = await packStarter('github:o/r#v1', { exec: fakeExec(calls) })
 
         expect(calls[0].slice(0, 4)).toEqual(['npm', 'pack', 'github:o/r#v1', '--ignore-scripts'])
-        expect(calls[1][0]).toBe('tar')
         expect(log).toHaveBeenCalledWith('📦 Downloading the starter "github:o/r#v1"...')
-        expect(calls[1]).toContain('-xzf')
         expect(path.basename(dir)).toBe('package')
         expect((await readStarterManifest(dir)).nera.starter.label).toBe('Minimal')
 
@@ -124,6 +124,42 @@ describe('packStarter', () => {
         await cleanup()
         expect(fssync.existsSync(tmp)).toBe(false)
     })
+
+    // No drive letter ever reaches tar (Git-for-Windows' GNU tar reads `C:`
+    // as a remote host): it runs in the pack folder with relative paths only.
+    it('runs tar inside the pack folder with relative paths', async () => {
+        const calls = []
+        const optionsSeen = []
+        const { dir, cleanup } = await packStarter('github:o/r#v1', { exec: fakeExec(calls, optionsSeen) })
+        const tmp = path.dirname(path.dirname(dir))
+
+        expect(calls[1]).toEqual(['tar', '-xzf', 'starter-1.0.0.tgz', '-C', '../out'])
+        expect(optionsSeen[1]).toEqual({ cwd: path.join(tmp, 'pack'), stdio: 'pipe' })
+        await cleanup()
+    })
+
+    it('removes the temp folder when tar fails', async () => {
+        const before = await fs.readdir(os.tmpdir())
+        const pack = fakeExec([])
+        const exec = (cmd, args, options) => {
+            if (cmd === 'tar') throw new Error('tar: Error opening archive')
+            return pack(cmd, args, options)
+        }
+        await expect(packStarter('github:o/r#v1', { exec })).rejects.toThrow('tar: Error opening archive')
+        const after = await fs.readdir(os.tmpdir())
+        expect(after.filter((n) => n.startsWith('nera-starter-') && !before.includes(n))).toEqual([])
+    })
+
+    // The default exec for real: npm (through src/npm.js) packs the local
+    // fixture folder, offline, and the system tar unpacks it.
+    it('packs and unpacks a local folder with the real npm and tar', async () => {
+        const { dir, cleanup } = await packStarter(FIXTURE, { spec: 'minimal' })
+
+        expect(path.basename(dir)).toBe('package')
+        expect((await readStarterManifest(dir)).nera.starter.label).toBe('Minimal')
+        await cleanup()
+        expect(fssync.existsSync(path.dirname(path.dirname(dir)))).toBe(false)
+    }, 30000)
 
     it('says the starter could not be downloaded and leaves no temp folder', async () => {
         const before = await fs.readdir(os.tmpdir())

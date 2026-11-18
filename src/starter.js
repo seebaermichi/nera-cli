@@ -4,6 +4,7 @@ import fssync from 'fs'
 import os from 'os'
 import path from 'path'
 import { BUNDLED_STARTERS } from './starters.js'
+import { runNpm } from './npm.js'
 
 // What `--starter` accepts (ROADMAP-ai.md L5), validated before anything is
 // written because the package forms end up on the npm command line:
@@ -77,17 +78,25 @@ const downloadError = (spec, npmSpec, err) => {
     )
 }
 
+// `exec(cmd, args, options)` as packStarter uses it: npm goes through
+// src/npm.js (npm.cmd on Windows), everything else straight to execFileSync.
+const defaultExec = (cmd, args, options) =>
+    cmd === 'npm' ? runNpm(args, options) : execFileSync(cmd, args, options)
+
 // Download a package or GitHub starter into a temp folder: `npm pack` (with
 // --ignore-scripts, so a git dependency's `prepare` never runs) and `tar`.
-// npm tarballs unpack to `package/`. The temp folder is gone on failure, and
+// npm tarballs unpack to `package/`. tar runs inside the pack folder with
+// relative paths only: a Git-for-Windows GNU tar reads the `C:` of an absolute
+// Windows path as a remote host. The temp folder is gone on failure, and
 // `cleanup()` removes it after use. `exec` is injectable for tests.
-export async function packStarter(npmSpec, { spec = npmSpec, exec = execFileSync } = {}) {
+export async function packStarter(npmSpec, { spec = npmSpec, exec = defaultExec } = {}) {
     console.log(`📦 Downloading the starter "${spec}"...`)
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'nera-starter-'))
     const cleanup = () => fs.rm(tmp, { recursive: true, force: true })
     try {
         const packDir = path.join(tmp, 'pack')
-        const outDir = path.join(tmp, 'out')
+        const outName = 'out'
+        const outDir = path.join(tmp, outName)
         await fs.mkdir(packDir)
         await fs.mkdir(outDir)
         try {
@@ -101,9 +110,7 @@ export async function packStarter(npmSpec, { spec = npmSpec, exec = execFileSync
         }
         const tarball = (await fs.readdir(packDir)).find((n) => n.endsWith('.tgz'))
         if (!tarball) throw downloadError(spec, npmSpec)
-        exec('tar', ['-xzf', path.join(packDir, tarball), '-C', outDir], {
-            stdio: 'pipe',
-        })
+        exec('tar', ['-xzf', tarball, '-C', `../${outName}`], { cwd: packDir, stdio: 'pipe' })
         return { dir: path.join(outDir, 'package'), cleanup }
     } catch (err) {
         await cleanup()

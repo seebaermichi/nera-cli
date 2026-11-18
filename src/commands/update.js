@@ -1,13 +1,14 @@
-import { execFileSync } from 'child_process'
 import fs from 'fs/promises'
 import fssync from 'fs'
 import path from 'path'
 import { syncAgentFiles, SITE_NOTES_MARKER } from '../agent-files.js'
 import { ownRange, templateDir as packageTemplateDir } from '../scaffold.js'
 import { installedSkillDir, skillSourceDir, syncSkill } from '../skill.js'
+import { runNpm as runNpmCommand } from '../npm.js'
 
+// Through src/npm.js, so it works on Windows too (npm.cmd).
 const defaultRunNpm = (npmArgs, cwd) =>
-    execFileSync('npm', npmArgs, { cwd, stdio: 'inherit' })
+    runNpmCommand(npmArgs, { cwd, stdio: 'inherit' })
 
 // The Nera packages a site consumes, so `nera update` bumps only those and
 // leaves the user's other dependencies alone.
