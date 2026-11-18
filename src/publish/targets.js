@@ -4,14 +4,18 @@ import { netlify } from './netlify.js'
 // The hosts `nera publish` can deploy to (ROADMAP-ai.md L6, D6). A target
 // adapter is a plain object:
 //
-//   { id, label, setUp(ctx), deployJob(ctx), liveUrl(ctx) }
+//   { id, label, setUp(ctx), deployJob(ctx), liveUrl(ctx), leftBehind?(ctx) }
 //
 // `id` is what `--target` and `config/publish.yaml` name, `label` the name
 // shown to people. `setUp` prepares the host before the first push, `deployJob`
 // returns `{ permissions, job }` for the generated workflow (workflow.js),
-// `liveUrl` the site's address. A new host is one adapter added to TARGETS; nothing else changes.
+// `liveUrl` the site's address. The optional `leftBehind` returns the lines
+// printed when a site moves away from this host: what is still online there
+// and how to remove it, from what the run already knows (no sign-in to the
+// old host). A new host is one adapter added to TARGETS; nothing else changes.
 
 const ADAPTER_METHODS = ['setUp', 'deployJob', 'liveUrl']
+const OPTIONAL_METHODS = ['leftBehind']
 const ID_PATTERN = /^[a-z][a-z0-9-]*$/
 
 // The registered adapters. The first is the default when no target is named
@@ -33,6 +37,11 @@ export function assertAdapter(adapter) {
     for (const method of ADAPTER_METHODS) {
         if (typeof adapter[method] !== 'function') {
             throw new TypeError(`Publish target "${id}" needs a ${method}() function`)
+        }
+    }
+    for (const method of OPTIONAL_METHODS) {
+        if (adapter[method] !== undefined && typeof adapter[method] !== 'function') {
+            throw new TypeError(`Publish target "${id}": ${method} must be a function when it is set`)
         }
     }
     return adapter

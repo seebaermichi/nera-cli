@@ -172,6 +172,14 @@ describe('target registry', () => {
         }
     })
 
+    it('accepts an optional leftBehind() function and refuses one that is not a function', () => {
+        const leftBehind = () => []
+        expect(assertAdapter(fakeAdapter('x', { leftBehind })).leftBehind).toBe(leftBehind)
+        expect(() => assertAdapter(fakeAdapter('x', { leftBehind: ['a line'] }))).toThrow(
+            'Publish target "x": leftBehind must be a function when it is set'
+        )
+    })
+
     it('rejects an id registered twice', () => {
         expect(() => createRegistry([fakeAdapter('x'), fakeAdapter('x')])).toThrow('registered twice')
     })
@@ -259,6 +267,8 @@ describe('config/publish.yaml', () => {
 })
 
 describe('runPublish', () => {
+    const twoHosts = () => createRegistry([fakeAdapter('a-host'), fakeAdapter('b-host')])
+
     it('resolves --target and hands the pipeline its context; exit 0, live URL printed', async () => {
         const { result, calls } = publishWith(['--target', 'fake-host', '--repo', 'my-site'])
         expect(await result).toBe(0)
@@ -295,6 +305,89 @@ describe('runPublish', () => {
         const { result, calls } = publishWith([], { targets: createRegistry([fakeAdapter('a-host'), fakeAdapter('b-host')]) })
         expect(await result).toBe(0)
         expect(calls[0].adapter.id).toBe('a-host')
+    })
+
+    describe('the target question (D1): only on a terminal, with a choice, and no target named', () => {
+        it('asks on a terminal without --target and config target, and uses the answer', async () => {
+            const pickTarget = vi.fn(async () => 'b-host')
+            const { result, calls } = publishWith([], { stdin: tty, stdout: tty, targets: twoHosts(), pickTarget })
+            expect(await result).toBe(0)
+            expect(pickTarget).toHaveBeenCalledOnce()
+            const [{ input, output, targets }] = pickTarget.mock.calls[0]
+            expect(input).toBe(tty)
+            expect(output).toBe(tty)
+            expect(targets.map((t) => t.id)).toEqual(['a-host', 'b-host'])
+            expect(calls[0].adapter.id).toBe('b-host')
+            expect(calls[0].interactive).toBe(true)
+            expect(calls[0].previous).toBeUndefined()
+        })
+
+        // [name, args, stdin, stdout, config/publish.yaml target, the target used]
+        const noAsk = [
+            ['--yes', ['--yes'], tty, tty, undefined, 'a-host'],
+            ['--json', ['--json'], tty, tty, undefined, 'a-host'],
+            ['no terminal', [], pipe, pipe, undefined, 'a-host'],
+            ['stdin piped', [], pipe, tty, undefined, 'a-host'],
+            ['--target', ['--target', 'b-host'], tty, tty, undefined, 'b-host'],
+            ['a target in config/publish.yaml', [], tty, tty, 'b-host', 'b-host'],
+        ]
+        for (const [name, args, stdin, out, target, used] of noAsk) {
+            it(`never asks with ${name}`, async () => {
+                if (target) await writePublishConfig({ target }, site)
+                const pickTarget = vi.fn(async () => 'b-host')
+                const { result, calls } = publishWith(args, { stdin, stdout: out, targets: twoHosts(), pickTarget })
+                await result
+                expect(pickTarget).not.toHaveBeenCalled()
+                expect(calls[0].adapter.id).toBe(used)
+            })
+        }
+
+        it('never asks when only one target is registered', async () => {
+            const pickTarget = vi.fn(async () => 'fake-host')
+            const { result, calls } = publishWith([], { stdin: tty, stdout: tty, pickTarget })
+            expect(await result).toBe(0)
+            expect(pickTarget).not.toHaveBeenCalled()
+            expect(calls[0].adapter.id).toBe('fake-host')
+        })
+
+        it('Ctrl-C at the question: the pipeline never runs, nothing is written', async () => {
+            const pickTarget = vi.fn(async () => {
+                throw new Error('Cancelled — nothing was published.')
+            })
+            const { result, calls } = publishWith([], { stdin: tty, stdout: tty, targets: twoHosts(), pickTarget })
+            await expect(result).rejects.toThrow('Cancelled — nothing was published.')
+            expect(calls).toHaveLength(0)
+            await expect(fs.readdir(site)).resolves.toEqual([])
+        })
+    })
+
+    describe('a move (D4): config/publish.yaml names another registered target', () => {
+        it('--target <other> hands the pipeline the old adapter as previous', async () => {
+            await writePublishConfig({ target: 'a-host' }, site)
+            const { result, calls } = publishWith(['--target', 'b-host'], { targets: twoHosts() })
+            expect(await result).toBe(0)
+            expect(calls[0].adapter.id).toBe('b-host')
+            expect(calls[0].previous.id).toBe('a-host')
+        })
+
+        it('the same target, or no target recorded, is no move', async () => {
+            const same = publishWith(['--target', 'a-host'], { targets: twoHosts() })
+            await same.result
+            expect(same.calls[0].previous).toBeUndefined()
+
+            await writePublishConfig({ target: 'a-host' }, site)
+            const again = publishWith(['--target', 'a-host'], { targets: twoHosts() })
+            await again.result
+            expect(again.calls[0].previous).toBeUndefined()
+        })
+
+        it('an old target this version does not know is only a switch, no move', async () => {
+            await writePublishConfig({ target: 'gone-host' }, site)
+            const { result, calls } = publishWith(['--target', 'b-host'], { targets: twoHosts() })
+            expect(await result).toBe(0)
+            expect(calls[0].adapter.id).toBe('b-host')
+            expect(calls[0].previous).toBeUndefined()
+        })
     })
 
     describe('the TTY rule: interactive only on a terminal without --yes or --json', () => {
@@ -668,6 +761,70 @@ describe('publishSite — end to end over a fake GitHub', () => {
         })
         expect(await result).toBe(1)
         expect(printedJson()).toEqual({ ok: false, error: 'The host refused the site.', repository: REPOSITORY })
+    })
+
+    // An old host the site moves away from, with its removal hint.
+    const oldHost = (overrides = {}) => fakeAdapter('old-host', {
+        label: 'Old Host',
+        leftBehind: (ctx) => [`${ctx.repository.repository} is still online on Old Host.`, 'Remove it there.'],
+        ...overrides,
+    })
+    const publishMove = (args, github, old) => {
+        const { adapter } = recordingAdapter(github.events)
+        return runPipeline(['--target', 'fake-host', ...args], github, createRegistry([old, adapter]))
+    }
+
+    it('a move: after the deploy, the old host\'s hint is logged and --json reports movedFrom', async () => {
+        await writePublishConfig({ target: 'old-host' }, site)
+        const github = fakeGitHub()
+        expect(await publishMove(['--repo', REPO, '--json'], github, oldHost())).toBe(0)
+        expect(printedJson()).toEqual({
+            ok: true,
+            url: `https://${OWNER}.fake-host.example/${REPO}/`,
+            repository: REPOSITORY,
+            sha: github.git.refs.main,
+            run: `https://github.com/${REPOSITORY}/actions/runs/100`,
+            movedFrom: 'old-host',
+        })
+        const stderr = error.mock.calls.flat().join('\n')
+        expect(stderr).toContain('Moved from Old Host to Fake Host. The site on Old Host was left untouched.')
+        expect(stderr).toContain(`  ${REPOSITORY} is still online on Old Host.\n  Remove it there.`)
+        expect(await readPublishConfig(site)).toMatchObject({ target: 'fake-host' })
+    })
+
+    it('a move to a host without leftBehind still says the old one was left untouched', async () => {
+        await writePublishConfig({ target: 'old-host' }, site)
+        const github = fakeGitHub()
+        expect(await publishMove(['--repo', REPO], github, oldHost({ leftBehind: undefined }))).toBe(0)
+        expect(logged()).toContain('Moved from Old Host to Fake Host. The site on Old Host was left untouched.')
+    })
+
+    it('a move whose deploy fails prints no hint', async () => {
+        await writePublishConfig({ target: 'old-host' }, site)
+        const github = fakeGitHub({ conclusion: 'failure' })
+        await expect(publishMove(['--repo', REPO], github, oldHost())).rejects.toThrow('The deploy failed')
+        expect(logged()).not.toContain('Moved from')
+    })
+
+    it('no move: no hint', async () => {
+        const github = fakeGitHub()
+        expect(await publishEndToEnd(['--repo', REPO], github).result).toBe(0)
+        expect(logged()).not.toContain('Moved from')
+    })
+
+    it('target is written after setUp (D6): a failed set-up keeps the old target, so the next run is still a move', async () => {
+        await writePublishConfig({ target: 'old-host' }, site)
+        const github = fakeGitHub()
+        const seen = []
+        const { adapter } = recordingAdapter(github.events)
+        adapter.setUp = async () => {
+            seen.push((await readPublishConfig(site)).target)
+            throw new Error('The host refused the sign-in.')
+        }
+        const result = runPipeline(['--target', 'fake-host', '--repo', REPO], github, createRegistry([oldHost(), adapter]))
+        await expect(result).rejects.toThrow('The host refused the sign-in.')
+        expect(seen).toEqual(['old-host'])
+        expect(await readPublishConfig(site)).toMatchObject({ target: 'old-host', repository: REPOSITORY })
     })
 
     it('--json failure before the repository is known: neither repository nor sha', async () => {

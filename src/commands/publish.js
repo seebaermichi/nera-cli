@@ -42,7 +42,7 @@ export function parsePublishArgs(args = []) {
     return options
 }
 
-// The `--json` object: `{ ok: true, url, repository, sha, run }` from the
+// The `--json` object: `{ ok: true, url, repository, sha, run, movedFrom? }` from the
 // pipeline (`{ ok: true, signedOut, removed }` for --sign-out), `{ ok: false, error }`
 // on failure, plus the `repository` and `sha` the pipeline had reached
 // (publishSite's `published`), and `deploy: { run, job?, step?, excerpt?,
@@ -67,8 +67,12 @@ async function defaultDeleteToken(options) {
 // installation → the repository → `adapter.setUp` → the deploy workflow →
 // commit and push → the Actions run for the pushed commit. The host is set
 // up before the first push, so the workflow's push trigger finds it ready.
-// Its modules are imported here, so the keyring and git are never loaded by
-// another command. Resolves `{ url, repository, sha, run }`.
+// `target` is written to config/publish.yaml only once `setUp` succeeded, so
+// a move whose set-up fails is still a move on the next run. Its modules are
+// imported here, so the keyring and git are never loaded by another command.
+// Resolves `{ url, repository, sha, run }`, plus `movedFrom` (the old
+// target's id) on a move, after logging what the old host still serves
+// (`previous.leftBehind`, targets.js).
 // - `ctx`: what runPublish hands every pipeline (see there)
 // - `deps`: the collaborators the modules take, for tests: `fetch`,
 //   `readToken`/`saveToken` (credentials.js, the GitHub account),
@@ -82,7 +86,7 @@ async function defaultDeleteToken(options) {
 // before the run and `repository` what ensureRepository resolved (its
 // `created` is true on the first run). A failure is rethrown with
 // `published: { repository?, sha? }`, what the pipeline had reached.
-export async function publishSite({ cwd, adapter, options, config, interactive, env }, deps = {}) {
+export async function publishSite({ cwd, adapter, previous, options, config, interactive, env }, deps = {}) {
     const [auth, credentials, github, repository, workflow, commit, status, siteConfig] = await Promise.all([
         import('../publish/auth.js'),
         import('../publish/credentials.js'),
@@ -119,7 +123,6 @@ export async function publishSite({ cwd, adapter, options, config, interactive, 
         const installation = await repository.ensureInstallation({ client, login: user.login, open, tty: interactive, ...clock })
         const repo = await repository.ensureRepository({ client, cwd, options, config, log })
         published.repository = repo.repository
-        if (config.target !== adapter.id) await siteConfig.writePublishConfig({ target: adapter.id }, cwd)
 
         const host = {
             cwd,
@@ -140,6 +143,7 @@ export async function publishSite({ cwd, adapter, options, config, interactive, 
             saveNetlifyToken,
         }
         await adapter.setUp(host)
+        if (config.target !== adapter.id) await siteConfig.writePublishConfig({ target: adapter.id }, cwd)
         log((await workflow.writeWorkflow(adapter, host, cwd)).message)
 
         const pushed = await commit.commitAndPush({
@@ -156,7 +160,13 @@ export async function publishSite({ cwd, adapter, options, config, interactive, 
         })
         published.sha = pushed.sha
         const run = await status.watchDeploy({ client, repository: repo.repository, sha: pushed.sha, adapter, ...clock })
-        return { url: await adapter.liveUrl(host), repository: repo.repository, sha: pushed.sha, run: run.html_url }
+        const result = { url: await adapter.liveUrl(host), repository: repo.repository, sha: pushed.sha, run: run.html_url }
+        if (previous) {
+            log(`Moved from ${previous.label} to ${adapter.label}. The site on ${previous.label} was left untouched.`)
+            for (const line of (await previous.leftBehind?.(host)) ?? []) log(`  ${line}`)
+            result.movedFrom = previous.id
+        }
+        return result
     } catch (error) {
         if (error instanceof Error) error.published = published
         throw error
@@ -194,10 +204,16 @@ async function signOut({ deleteToken, env }) {
 // injectable so tests need no network, keychain or terminal:
 // - `targets`: the adapter registry (targets.js)
 // - `deleteToken({ account })`: removes an account's stored token (credentials.js)
+// - `pickTarget({ input, output, targets })`: the target question
+//   (prompt.js runTargetPicker); resolves the picked id
 // - `publish(ctx)`: the pipeline (publishSite); resolves `{ url?, … }`.
-//   `ctx` is `{ cwd, adapter, options, config, interactive, env }`;
+//   `ctx` is `{ cwd, adapter, previous, options, config, interactive, env }`;
 //   `interactive` is false without a terminal, with --yes and with --json,
-//   and nothing may be asked then.
+//   and nothing may be asked then. `previous` is the registered adapter
+//   config/publish.yaml names when it is not `adapter`: the site moves.
+// The target is `--target`, else config/publish.yaml's, else — only when
+// interactive and there is a choice — the user's answer (D1), else the
+// registry's default.
 // Text mode rethrows a failure, which the bin prints as ❌ with exit 1;
 // `--json` prints one object instead (PUBLISH_ENVELOPE).
 export async function runPublish(args = [], {
@@ -207,6 +223,7 @@ export async function runPublish(args = [], {
     env = process.env,
     targets = createRegistry(),
     deleteToken = defaultDeleteToken,
+    pickTarget,
     publish = publishSite,
 } = {}) {
     const body = async () => {
@@ -214,12 +231,20 @@ export async function runPublish(args = [], {
         if (options.signOut) return signOut({ deleteToken, env })
 
         const config = await readPublishConfig(cwd)
-        const adapter = targets.resolve(options.target ?? config.target)
-        const { shouldPrompt } = await import('../prompt.js')
+        const prompt = await import('../prompt.js')
         // In --json mode stdout belongs to the one object, so no question
         // could be shown there either.
-        const interactive = shouldPrompt({ yes: options.yes || options.json, stdin, stdout })
-        return publish({ cwd, adapter, options, config, interactive, env })
+        const interactive = prompt.shouldPrompt({ yes: options.yes || options.json, stdin, stdout })
+        let id = options.target ?? config.target
+        const ids = targets.ids()
+        if (id === undefined && interactive && ids.length > 1) {
+            const ask = pickTarget ?? prompt.runTargetPicker
+            id = await ask({ input: stdin, output: stdout, targets: ids.map((known) => targets.resolve(known)) })
+        }
+        const adapter = targets.resolve(id)
+        const moved = config.target !== undefined && config.target !== adapter.id && ids.includes(config.target)
+        const previous = moved ? targets.resolve(config.target) : undefined
+        return publish({ cwd, adapter, previous, options, config, interactive, env })
     }
 
     if (args.includes('--json')) return runJson(body, PUBLISH_ENVELOPE)

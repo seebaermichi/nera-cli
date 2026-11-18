@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { PassThrough } from 'stream'
-import { runPicker, shouldPrompt, EMPTY_CHOICE } from '../src/prompt.js'
+import { runPicker, runTargetPicker, recommendTarget, shouldPrompt, EMPTY_CHOICE, BUSINESS_TARGET } from '../src/prompt.js'
 import { runNew } from '../src/commands/new.js'
 import { validateSiteName, validateLang } from '../src/scaffold.js'
 
@@ -79,12 +79,86 @@ describe('runPicker', () => {
         expect(streams.text()).toContain('Invalid language "German"')
     })
 
+    it('Ctrl-C on a terminal cancels: nothing was created', async () => {
+        const { run, streams } = picker(['\u0003'], { skip: { starter: true } })
+        streams.output.isTTY = true
+        await expect(run()).rejects.toThrow('Cancelled — nothing was created.')
+    })
+
     it('skips each question whose flag is given', async () => {
         const { run, streams, listStarters } = picker(['de'], { skip: { starter: true, name: true } })
         expect(await run()).toEqual({ lang: 'de' })
         expect(listStarters).not.toHaveBeenCalled()
         expect(streams.text()).not.toContain('What are you building?')
         expect(streams.text()).not.toContain('Site name')
+    })
+})
+
+const TARGETS = [{ id: 'github-pages', label: 'GitHub Pages' }, { id: 'netlify', label: 'Netlify' }]
+
+// runTargetPicker over fake streams answering `answers`.
+const targetPicker = (answers, targets = TARGETS, tty = false) => {
+    const streams = fakeStreams(answers)
+    if (tty) streams.output.isTTY = true
+    return { streams, run: () => runTargetPicker({ input: streams.input, output: streams.output, targets }) }
+}
+
+describe('recommendTarget', () => {
+    it('a business gets Netlify when it is registered; everything else the default', () => {
+        expect(BUSINESS_TARGET).toBe('netlify')
+        expect(recommendTarget(true, ['github-pages', 'netlify'])).toBe('netlify')
+        expect(recommendTarget(false, ['github-pages', 'netlify'])).toBe('github-pages')
+        expect(recommendTarget(true, ['github-pages', 'other'])).toBe('github-pages')
+    })
+})
+
+describe('runTargetPicker', () => {
+    it('a business ("y"): Netlify recommended and the default on Enter', async () => {
+        const { run, streams } = targetPicker(['y', ''])
+        expect(await run()).toBe('netlify')
+        const text = streams.text()
+        expect(text).toContain('Is this a site for a business? [y/N]: ')
+        expect(text).toContain('Where should it be published?')
+        expect(text).toContain('  1) GitHub Pages\n')
+        expect(text).toContain('  2) Netlify (recommended)\n')
+        expect(text).toContain('Choose 1–2 [2]: ')
+    })
+
+    it('Enter twice: no business, GitHub Pages recommended and picked', async () => {
+        const { run, streams } = targetPicker(['', ''])
+        expect(await run()).toBe('github-pages')
+        expect(streams.text()).toContain('  1) GitHub Pages (recommended)\n')
+        expect(streams.text()).toContain('  2) Netlify\n')
+        expect(streams.text()).toContain('Choose 1–2 [1]: ')
+    })
+
+    it('either target can be picked against the recommendation, by number or id', async () => {
+        expect(await targetPicker(['N', '2']).run()).toBe('netlify')
+        expect(await targetPicker(['Yes', '1']).run()).toBe('github-pages')
+        expect(await targetPicker(['no', 'netlify']).run()).toBe('netlify')
+    })
+
+    it('asks again on an answer it does not understand', async () => {
+        const { run, streams } = targetPicker(['maybe', 'y', '3', 'Netlify', '0', '1'])
+        expect(await run()).toBe('github-pages')
+        expect(streams.text()).toContain('  Please answer y or n.')
+        expect(streams.text().match(/Please enter a number from 1 to 2\./g)).toHaveLength(3)
+    })
+
+    it('takes the defaults when the input ends: GitHub Pages', async () => {
+        expect(await targetPicker([]).run()).toBe('github-pages')
+    })
+
+    it('a recommended target that is not registered falls back to the default', async () => {
+        const targets = [{ id: 'github-pages', label: 'GitHub Pages' }, { id: 'other', label: 'Other' }]
+        const { run, streams } = targetPicker(['y', ''], targets)
+        expect(await run()).toBe('github-pages')
+        expect(streams.text()).toContain('  1) GitHub Pages (recommended)')
+    })
+
+    it('Ctrl-C cancels at either question: nothing was published', async () => {
+        await expect(targetPicker(['\u0003'], TARGETS, true).run()).rejects.toThrow('Cancelled — nothing was published.')
+        await expect(targetPicker(['y', '\u0003'], TARGETS, true).run()).rejects.toThrow('Cancelled — nothing was published.')
     })
 })
 
