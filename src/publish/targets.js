@@ -4,10 +4,11 @@ import { netlify } from './netlify.js'
 // The hosts `nera publish` can deploy to (ROADMAP-ai.md L6, D6). A target
 // adapter is a plain object:
 //
-//   { id, label, setUp(ctx), deployJob(ctx), liveUrl(ctx), leftBehind?(ctx) }
+//   { id, label, summary?, setUp(ctx), deployJob(ctx), liveUrl(ctx), leftBehind?(ctx) }
 //
 // `id` is what `--target` and `config/publish.yaml` name, `label` the name
-// shown to people. `setUp` prepares the host before the first push, `deployJob`
+// shown to people, the optional `summary` one line on what the host suits,
+// shown next to the label when `nera publish` asks for the target. `setUp` prepares the host before the first push, `deployJob`
 // returns `{ permissions, job }` for the generated workflow (workflow.js),
 // `liveUrl` the site's address. The optional `leftBehind` returns the lines
 // printed when a site moves away from this host: what is still online there
@@ -33,6 +34,9 @@ export function assertAdapter(adapter) {
     }
     if (typeof adapter.label !== 'string' || adapter.label === '') {
         throw new TypeError(`Publish target "${id}" needs a label`)
+    }
+    if (adapter.summary !== undefined && (typeof adapter.summary !== 'string' || adapter.summary === '')) {
+        throw new TypeError(`Publish target "${id}": summary must be a non-empty string when it is set`)
     }
     for (const method of ADAPTER_METHODS) {
         if (typeof adapter[method] !== 'function') {

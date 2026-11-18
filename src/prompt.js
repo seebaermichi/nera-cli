@@ -172,7 +172,9 @@ export async function runTargetPicker({ input = process.stdin, output = process.
         const recommended = recommendTarget(business, targets.map((t) => t.id))
         const fallback = targets.findIndex((t) => t.id === recommended)
         say('Where should it be published?')
-        targets.forEach((t, i) => say(`  ${i + 1}) ${t.label}${i === fallback ? ' (recommended)' : ''}`))
+        targets.forEach((t, i) =>
+            say(`  ${i + 1}) ${t.label}${i === fallback ? ' (recommended)' : ''}${t.summary ? ` — ${t.summary}` : ''}`)
+        )
         const picked = await ask(`Choose 1–${targets.length} [${fallback + 1}]: `, (answer) =>
             choose(say, targets, answer, targets[fallback], (t) => t.id === answer)
         )

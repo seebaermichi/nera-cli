@@ -282,6 +282,7 @@ function leftBehind({ repository, options = {} }) {
 export const githubPages = {
     id: 'github-pages',
     label: 'GitHub Pages',
+    summary: 'free with your GitHub account; for a blog, portfolio or personal site, not for running a business',
     setUp,
     deployJob,
     liveUrl,

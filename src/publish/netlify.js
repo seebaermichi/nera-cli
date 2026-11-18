@@ -342,6 +342,7 @@ function leftBehind({ repository, config = {}, options = {} }) {
 export const netlify = {
     id: 'netlify',
     label: 'Netlify',
+    summary: 'free plan allows business sites; needs a Netlify account, about 20 deploys a month',
     setUp,
     deployJob,
     liveUrl,

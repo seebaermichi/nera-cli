@@ -149,6 +149,17 @@ describe('runTargetPicker', () => {
         expect(await targetPicker([]).run()).toBe('github-pages')
     })
 
+    it('shows the summary of a target after its label and the recommendation', async () => {
+        const targets = [
+            { id: 'github-pages', label: 'GitHub Pages', summary: 'for a blog' },
+            { id: 'netlify', label: 'Netlify', summary: 'for a business' },
+        ]
+        const { run, streams } = targetPicker(['y', ''], targets)
+        expect(await run()).toBe('netlify')
+        expect(streams.text()).toContain('  1) GitHub Pages — for a blog\n')
+        expect(streams.text()).toContain('  2) Netlify (recommended) — for a business\n')
+    })
+
     it('a recommended target that is not registered falls back to the default', async () => {
         const targets = [{ id: 'github-pages', label: 'GitHub Pages' }, { id: 'other', label: 'Other' }]
         const { run, streams } = targetPicker(['y', ''], targets)

@@ -180,6 +180,21 @@ describe('target registry', () => {
         )
     })
 
+    it('accepts an optional summary and refuses one that is not a non-empty string', () => {
+        expect(assertAdapter(fakeAdapter('x', { summary: 'for a blog' })).summary).toBe('for a blog')
+        for (const summary of ['', 3]) {
+            expect(() => assertAdapter(fakeAdapter('x', { summary }))).toThrow(
+                'Publish target "x": summary must be a non-empty string when it is set'
+            )
+        }
+    })
+
+    it('both real targets say what they suit: GitHub Pages not for a business, Netlify for one', () => {
+        const [pages, netlify] = TARGETS
+        expect(pages.summary).toMatch(/not for running a business/)
+        expect(netlify.summary).toMatch(/business sites/)
+    })
+
     it('rejects an id registered twice', () => {
         expect(() => createRegistry([fakeAdapter('x'), fakeAdapter('x')])).toThrow('registered twice')
     })
