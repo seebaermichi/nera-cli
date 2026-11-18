@@ -583,3 +583,29 @@ describe('githubPages.liveUrl', () => {
         await expect(githubPages.liveUrl(ctx)).rejects.toThrow('GitHub reports no GitHub Pages site for octo/site.')
     })
 })
+
+describe('githubPages.leftBehind', () => {
+    const unpublish = 'The GitHub Pages site of octo/site is still online. To remove it, choose "Unpublish site" at https://github.com/octo/site/settings/pages'
+
+    it('names where to unpublish the Pages site and how to move a custom domain, without calling GitHub', async () => {
+        const { client, requests } = fakeGitHub({})
+        const { ctx } = host(client, repository(), site, { options: {} })
+
+        expect(await githubPages.leftBehind(ctx)).toEqual([
+            unpublish,
+            'If the site has a custom domain, it still points to GitHub Pages until its DNS records change: run nera publish --domain <your domain> to set it on the new host and list the records.',
+        ])
+        expect(requests).toEqual([])
+    })
+
+    it('with --domain, points to the DNS check of the new host instead', async () => {
+        const { client, requests } = fakeGitHub({})
+        const { ctx } = host(client, repository(), site, { options: { domain: 'www.example.com' } })
+
+        expect(await githubPages.leftBehind(ctx)).toEqual([
+            unpublish,
+            'www.example.com is now set on the new host; the DNS check above says whether its records still point to GitHub Pages.',
+        ])
+        expect(requests).toEqual([])
+    })
+})

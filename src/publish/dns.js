@@ -111,3 +111,13 @@ export function reportDns({ domain, service, ok, expected, found, failed }, log)
     }
     log('DNS changes can take a few hours to spread; the publish goes on, and every nera publish checks again.')
 }
+
+// The custom-domain line of an old host's leftBehind (targets.js), offline:
+// with `domain` (this run's --domain, already set on the new host and checked
+// by its setUp) it points to that DNS check; without one it says how to move
+// a custom domain the site may have on `label`.
+export function movedDomainNote(label, domain) {
+    return domain
+        ? `${domain} is now set on the new host; the DNS check above says whether its records still point to ${label}.`
+        : `If the site has a custom domain, it still points to ${label} until its DNS records change: run nera publish --domain <your domain> to set it on the new host and list the records.`
+}

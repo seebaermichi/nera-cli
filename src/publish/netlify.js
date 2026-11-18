@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto'
-import { checkDns, reportDns } from './dns.js'
+import { checkDns, movedDomainNote, reportDns } from './dns.js'
 import { createNetlifyClient, NetlifyError, NETLIFY_API } from './netlify-api.js'
 import { ensureNetlifyToken } from './netlify-auth.js'
 import { APP_CONFIG, writeBasePath } from './pages.js'
@@ -323,10 +323,27 @@ function deployJob() {
     }
 }
 
+// What a move away from Netlify leaves behind (D5 of the wizard issue), from
+// the host context alone, with no sign-in to Netlify: the site (named by the
+// `netlify.site_id` the run read from config/publish.yaml, when there is one)
+// stays online until it is deleted in Netlify's app, the deploy job's two
+// repository secrets are unused, and a custom domain follows only its DNS
+// records. Names the secrets, never their values.
+function leftBehind({ repository, config = {}, options = {} }) {
+    const siteId = config.netlify?.site_id
+    const site = siteId ? `The Netlify site ${siteId}` : `The Netlify site ${repository.repository} deployed to`
+    return [
+        `${site} is still online. To remove it, delete it in its settings at https://app.netlify.com (General → Danger zone).`,
+        `The repository secrets ${TOKEN_SECRET} and ${SITE_SECRET} are no longer used; delete them at https://github.com/${repository.owner}/${repository.name}/settings/secrets/actions`,
+        movedDomainNote('Netlify', options.domain),
+    ]
+}
+
 export const netlify = {
     id: 'netlify',
     label: 'Netlify',
     setUp,
     deployJob,
     liveUrl,
+    leftBehind,
 }

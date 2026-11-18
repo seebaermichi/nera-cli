@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { parseDocument } from 'yaml'
-import { checkDns, reportDns } from './dns.js'
+import { checkDns, movedDomainNote, reportDns } from './dns.js'
 import { GitHubError } from './github.js'
 import { PRIVATE_NOTE } from './repository.js'
 import { BUILD_ARTIFACT, BUILD_OUTPUT } from './workflow.js'
@@ -268,10 +268,22 @@ function deployJob() {
     }
 }
 
+// What a move away from GitHub Pages leaves behind (D5 of the wizard issue),
+// from the host context alone, with no call to GitHub: the Pages site of the
+// repository stays online until it is unpublished in the repository's
+// settings, and a custom domain follows only its DNS records.
+function leftBehind({ repository, options = {} }) {
+    return [
+        `The GitHub Pages site of ${repository.repository} is still online. To remove it, choose "Unpublish site" at https://github.com/${repository.owner}/${repository.name}/settings/pages`,
+        movedDomainNote('GitHub Pages', options.domain),
+    ]
+}
+
 export const githubPages = {
     id: 'github-pages',
     label: 'GitHub Pages',
     setUp,
     deployJob,
     liveUrl,
+    leftBehind,
 }

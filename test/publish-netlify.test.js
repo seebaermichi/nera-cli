@@ -480,3 +480,46 @@ printf '%s' "$code"
         expect(output).toContain('::error::The Netlify deploy did not finish within 5 minutes.')
     }, 60_000) // 61 polls, each starting curl and jq
 })
+
+describe('netlify.leftBehind', () => {
+    const repository = { repository: 'octo/site', owner: 'octo', name: 'site' }
+    const secrets = 'The repository secrets NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID are no longer used; delete them at https://github.com/octo/site/settings/secrets/actions'
+    const domainNote = 'If the site has a custom domain, it still points to Netlify until its DNS records change: run nera publish --domain <your domain> to set it on the new host and list the records.'
+
+    // A fetch that fails the test when anything calls it: the hint is offline.
+    const calls = []
+    const fetch = async (...args) => {
+        calls.push(args)
+        throw new Error('leftBehind must not call the network')
+    }
+    beforeEach(() => {
+        calls.length = 0
+    })
+
+    it('names the stored site, the unused secrets and the custom domain, without calling Netlify', async () => {
+        const lines = await netlify.leftBehind({
+            repository,
+            config: { target: 'netlify', netlify: { site_id: 'site-1' } },
+            options: {},
+            fetch,
+            readNetlifyToken: async () => ({ accessToken: TOKEN, source: 'env' }),
+        })
+        expect(lines).toEqual([
+            'The Netlify site site-1 is still online. To remove it, delete it in its settings at https://app.netlify.com (General → Danger zone).',
+            secrets,
+            domainNote,
+        ])
+        expect(calls).toEqual([])
+        expect(lines.join('\n')).not.toContain(TOKEN)
+    })
+
+    it('without a stored site_id, names the site by the repository; with --domain, points to the DNS check', async () => {
+        const lines = await netlify.leftBehind({ repository, config: {}, options: { domain: 'www.example.com' }, fetch })
+        expect(lines).toEqual([
+            'The Netlify site octo/site deployed to is still online. To remove it, delete it in its settings at https://app.netlify.com (General → Danger zone).',
+            secrets,
+            'www.example.com is now set on the new host; the DNS check above says whether its records still point to Netlify.',
+        ])
+        expect(calls).toEqual([])
+    })
+})
