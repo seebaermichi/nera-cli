@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0] - 2026-11-18
+
+### Added
+
+-   `nera publish` without `--target` and without a target in `config/publish.yaml` asks on a terminal "Is this a site for a business?" (Enter: no) and then where to publish, with the targets numbered: Netlify is recommended for a business, since its terms allow commercial sites on the free plan and GitHub Pages' do not, and GitHub Pages otherwise; Enter takes the recommended one. The choice is kept in `config/publish.yaml` like `--target`. Ctrl-C cancels before anything is signed in to or written. With `--yes`, `--json` or without a terminal nothing is asked, and the target stays GitHub Pages.
+-   `nera publish --target <other>` on a site already published to the other host says it moved the site: the new host is set up and the workflow's deploy job swapped as before, the old host is left untouched, and the CLI prints how to remove the site there (GitHub Pages: "Unpublish site" in the repository's Pages settings; Netlify: delete the site in app.netlify.com, and the repository secrets `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID` are no longer used) and that a custom domain points to the old host until its DNS records change. `--json` reports the old target's id as `movedFrom`. `nera --help`, the README and the `nera` skill describe the question and the move.
+
+### Fixed
+
+-   `nera publish` writes the new `target` to `config/publish.yaml` only once the host is set up, so a move whose set-up fails (for example a refused Netlify sign-in) keeps the old target.
+
 ## [1.20.0] - 2026-11-18
 
 ### Added

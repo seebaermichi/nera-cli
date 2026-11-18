@@ -60,7 +60,14 @@ Eleventy, Hugo, Astro or Jekyll; do not apply their conventions.
    covers about 20 deploys a month (300 credits, 15 per deploy) and then
    pauses the sites until the next month, so publish when a batch of
    changes is ready; `nera publish` warns at 80 % of the budget. A later
-   run reuses the target kept in `config/publish.yaml`.
+   run reuses the target kept in `config/publish.yaml`. Pick the target
+   with `--target`: GitHub's terms do not allow GitHub Pages as free
+   hosting for a business, so use `--target netlify` for a business site
+   (without `--target`, a person at a terminal is asked whether the site
+   is for a business). To move a published site, run
+   `npx nera publish --yes --target <other>`: it sets up the new host and
+   swaps the deploy job, leaves the site on the old host online and prints
+   how to remove it there (`movedFrom` in `--json`).
 
 Repeat steps 2–5 for every change. For machine-readable results, add `--json`:
 `npx nera validate --json`, `npx nera check --json`,
