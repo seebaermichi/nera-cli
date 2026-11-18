@@ -146,7 +146,7 @@ export const ownRange = () => {
     return `^${JSON.parse(fssync.readFileSync(pkgPath, 'utf-8')).version}`
 }
 
-async function copyDir(src, dest, { skipStarters = false } = {}) {
+async function copyDir(src, dest, { skipStarters = false, log }) {
     await fs.mkdir(dest, { recursive: true })
     for (const entry of await fs.readdir(src, { withFileTypes: true })) {
         const from = path.join(src, entry.name)
@@ -155,33 +155,33 @@ async function copyDir(src, dest, { skipStarters = false } = {}) {
         const name = entry.name === '_gitignore' ? '.gitignore' : entry.name
         const to = path.join(dest, name)
         if (entry.isDirectory()) {
-            await copyDir(from, to, { skipStarters })
+            await copyDir(from, to, { skipStarters, log })
         } else if (skipStarters && (await isStarterTemplate(from))) {
             continue
         } else if (fssync.existsSync(to)) {
             // Only in place, and then only a dotfile such as .gitignore, or
             // AGENTS.md / CLAUDE.md, can be there already (assertEmptyDir):
             // the user's copy wins.
-            console.log(`  • Kept your existing ${path.basename(to)}`)
+            log(`  • Kept your existing ${path.basename(to)}`)
         } else {
             await fs.copyFile(from, to)
         }
     }
 }
 
-async function personalize(targetDir, projectName) {
+async function personalize(targetDir, projectName, log) {
     const pkgPath = path.join(targetDir, 'package.json')
     const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf-8'))
     pkg.name = projectName
     pkg.dependencies = { ...pkg.dependencies, '@nera-static/nera': ownRange() }
     await fs.writeFile(pkgPath, `${JSON.stringify(pkg, null, 4)}\n`)
-    console.log(`  ✓ Configured project as "${projectName}"`)
+    log(`  ✓ Configured project as "${projectName}"`)
 }
 
 // Point the site at its theme: `theme:` in app.yaml (appended, so the
 // template's own lines and comments stay as they are) and, for a package
 // theme, a dependency that `npm install` resolves.
-async function applyTheme(targetDir, theme) {
+async function applyTheme(targetDir, theme, log) {
     const appYaml = path.join(targetDir, 'config', 'app.yaml')
     const yaml = await fs.readFile(appYaml, 'utf-8')
     await fs.writeFile(
@@ -196,10 +196,10 @@ async function applyTheme(targetDir, theme) {
         pkg.dependencies = { ...pkg.dependencies, [pkgName]: 'latest' }
         await fs.writeFile(pkgPath, `${JSON.stringify(pkg, null, 4)}\n`)
     }
-    console.log(`  ✓ Using theme "${theme}"${pkgName ? ` (${pkgName})` : ''}`)
+    log(`  ✓ Using theme "${theme}"${pkgName ? ` (${pkgName})` : ''}`)
     // The scaffold's footer, which links the imprint and privacy
     // placeholders, is a starter template and so left out with a theme.
-    console.log(
+    log(
         '  • pages/imprint.md and pages/privacy.md are placeholders: link them ' +
             'from the theme\'s layout (theme-blog and theme-business take ' +
             '`footer_links` in config/theme.yaml), or `nera build --check` ' +
@@ -274,7 +274,7 @@ export function addLangTranslations(yaml, from, to) {
     return [...lines.slice(0, end), ...copy, ...lines.slice(end)].join('\n')
 }
 
-async function applyNameAndLang(targetDir, { name, lang }) {
+async function applyNameAndLang(targetDir, { name, lang }, log) {
     if (name === undefined && lang === undefined) return
     const appYaml = path.join(targetDir, 'config', 'app.yaml')
     let yaml = await fs.readFile(appYaml, 'utf-8')
@@ -292,9 +292,9 @@ async function applyNameAndLang(targetDir, { name, lang }) {
         ...(name !== undefined ? [`name ${JSON.stringify(name)}`] : []),
         ...(lang !== undefined ? [`language "${lang}"`] : []),
     ]
-    console.log(`  ✓ Set the site's ${set.join(' and ')} in config/app.yaml`)
+    log(`  ✓ Set the site's ${set.join(' and ')} in config/app.yaml`)
     if (copied) {
-        console.log(
+        log(
             `  ✓ Copied the "${oldLang}" translations to "${lang}" in config/app.yaml — translate them there`
         )
     }
@@ -303,9 +303,9 @@ async function applyNameAndLang(targetDir, { name, lang }) {
 // The Nera skill for AI assistants, in both folders the clients read
 // (.agents/skills/nera, .claude/skills/nera). Meant to be committed, and
 // refreshed by `nera update`.
-async function addSkill(targetDir) {
+async function addSkill(targetDir, log) {
     const results = await syncSkill({ cwd: targetDir, sourceDir: skillSourceDir() })
-    console.log(
+    log(
         `  ✓ Added the Nera skill for AI assistants (${results.map((r) => r.path).join(', ')})`
     )
 }
@@ -350,11 +350,18 @@ export function assertNpmCanInstall(version) {
 
 // Scaffold a thin Nera site: copy the template, lay a starter kit over it if
 // one is given, name it, and (by default) install its dependencies. The one
-// code path for flags, the interactive picker and the future MCP tool
+// code path for flags, the interactive picker and the MCP server
 // (ROADMAP-ai.md principle 4): everything comes in as plain options.
-// `fetchStarter(spec, { cwd })` → `{ dir, cleanup }` and `execNpm(args,
+// Returns `{ dir, firstSteps }`: the site's folder and the `## First steps`
+// section of the starter's README, or null.
+//
+// Every message goes through `log(line)` (default console.log) and npm
+// install's output to `stdio` (default 'inherit'), so a caller whose stdout
+// is a protocol channel passes its own `log` and e.g. `['ignore', 2, 2]`;
+// nothing else is written to stdout and nothing is read from stdin.
+// `fetchStarter(spec, { cwd, log })` → `{ dir, cleanup }` and `execNpm(args,
 // options)` (execFileSync's shape) are injectable for tests.
-export async function scaffoldProject(projectName, options = {}) {
+export async function createSite(projectName, options = {}) {
     const {
         install = true,
         cwd = process.cwd(),
@@ -362,6 +369,8 @@ export async function scaffoldProject(projectName, options = {}) {
         starter,
         name,
         lang,
+        log = console.log,
+        stdio = 'inherit',
         fetchStarter = defaultFetchStarter,
         execNpm = defaultExecNpm,
     } = options
@@ -390,21 +399,21 @@ export async function scaffoldProject(projectName, options = {}) {
 
     // The starter is fetched and checked before the site folder exists, so a
     // download error or a package that is no starter leaves nothing behind.
-    const fetched = starter === undefined ? null : await fetchStarter(starter, { cwd })
-    let readme = null
+    const fetched = starter === undefined ? null : await fetchStarter(starter, { cwd, log })
+    let firstSteps = null
     try {
         if (fetched) await readStarterManifest(fetched.dir, starter)
         const skipStarters = Boolean(theme) || (fetched ? await starterSetsTheme(fetched.dir) : false)
         const before = inPlace ? new Set(await fs.readdir(targetDir)) : null
 
-        console.log(`📦 Creating a new Nera site in ${targetDir}...`)
+        log(`📦 Creating a new Nera site in ${targetDir}...`)
         try {
-            await copyDir(templateDir(), targetDir, { skipStarters })
-            await personalize(targetDir, packageName)
-            if (theme) await applyTheme(targetDir, theme)
-            if (fetched) readme = await applyStarter(targetDir, fetched.dir)
-            await applyNameAndLang(targetDir, { name, lang })
-            await addSkill(targetDir)
+            await copyDir(templateDir(), targetDir, { skipStarters, log })
+            await personalize(targetDir, packageName, log)
+            if (theme) await applyTheme(targetDir, theme, log)
+            if (fetched) firstSteps = await applyStarter(targetDir, fetched.dir, { log })
+            await applyNameAndLang(targetDir, { name, lang }, log)
+            await addSkill(targetDir, log)
         } catch (err) {
             if (!inPlace) {
                 await fs.rm(targetDir, { recursive: true, force: true })
@@ -423,13 +432,13 @@ export async function scaffoldProject(projectName, options = {}) {
     }
 
     if (install) {
-        console.log('📦 Installing dependencies...')
+        log('📦 Installing dependencies...')
         // Naming the theme package installs everything else too, and makes npm
         // replace the `latest` placeholder with a caret range for the version
         // it resolved. A starter's dependencies are already in package.json.
         const themePkg = theme ? themePackageName(theme) : null
         const args = themePkg ? ['install', themePkg] : ['install']
-        execNpm(args, { cwd: targetDir, stdio: 'inherit' })
+        execNpm(args, { cwd: targetDir, stdio })
     }
 
     // `npm run dev`, not `nera dev`: it works without a global `nera`.
@@ -438,10 +447,13 @@ export async function scaffoldProject(projectName, options = {}) {
         ...(install ? [] : ['npm install']),
         'npm run dev',
     ]
-    console.log('✅ Done!')
-    if (readme) console.log(`\n${readme}\n`)
-    console.log(
-        `👉 Next steps:\n${nextSteps.map((l) => `  ${l}\n`).join('')}`
-    )
-    return targetDir
+    log('✅ Done!')
+    if (firstSteps) log(`\n${firstSteps}\n`)
+    log(`👉 Next steps:\n${nextSteps.map((l) => `  ${l}\n`).join('')}`)
+    return { dir: targetDir, firstSteps }
+}
+
+// `nera new`'s entry point: createSite, returning the site's folder.
+export async function scaffoldProject(projectName, options = {}) {
+    return (await createSite(projectName, options)).dir
 }

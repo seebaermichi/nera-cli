@@ -6,6 +6,7 @@ import os from 'os'
 import { fileURLToPath } from 'url'
 import YAML from 'yaml'
 import {
+    createSite,
     scaffoldProject,
     setAppValue,
     addLangTranslations,
@@ -20,6 +21,7 @@ import {
     assertNpmCanInstall,
 } from '../src/scaffold.js'
 import { skillSourceDir } from '../src/skill.js'
+import { fetchStarter, packStarter } from '../src/starter.js'
 import { parseNewArgs } from '../src/commands/new.js'
 
 // The range a new or migrated site gets for this CLI: its own version.
@@ -913,7 +915,7 @@ describe('scaffoldProject with a starter', () => {
 
         const { target } = await scaffoldQuiet('pkg', { starter: 'blank', fetchStarter })
 
-        expect(fetchStarter).toHaveBeenCalledWith('blank', { cwd: workdir })
+        expect(fetchStarter).toHaveBeenCalledWith('blank', { cwd: workdir, log: expect.any(Function) })
         expect(cleanup).toHaveBeenCalledOnce()
         expect(fssync.existsSync(tmp)).toBe(false)
         expect(fssync.existsSync(path.join(target, 'pages/about.md'))).toBe(true)
@@ -1021,5 +1023,110 @@ describe('the npm check before installing', () => {
         }
         expect(execNpm).not.toHaveBeenCalled()
         expect(fssync.existsSync(path.join(workdir, 'offline'))).toBe(true)
+    })
+})
+
+// The API path (ROADMAP-ai.md slice 8): with an injected `log` and `stdio`,
+// createSite writes nothing to stdout, on every branch that has a message.
+describe('createSite with an injected log', () => {
+    let stdoutWrite
+    let consoleLog
+    beforeEach(() => {
+        stdoutWrite = vi.spyOn(process.stdout, 'write')
+        consoleLog = vi.spyOn(console, 'log')
+    })
+    afterEach(() => {
+        stdoutWrite.mockRestore()
+        consoleLog.mockRestore()
+    })
+
+    const API_STDIO = ['ignore', 2, 2]
+
+    it('with a theme, --name/--lang and install: lines in log, npm gets the stdio', async () => {
+        const lines = []
+        const execNpm = vi.fn((args) => (args[0] === '--version' ? '10.9.0\n' : ''))
+        const result = await createSite('themed', {
+            cwd: workdir,
+            theme: 'example',
+            name: 'Brot & Zeit',
+            lang: 'de',
+            log: (line) => lines.push(line),
+            stdio: API_STDIO,
+            execNpm,
+        })
+
+        expect(stdoutWrite).not.toHaveBeenCalled()
+        expect(consoleLog).not.toHaveBeenCalled()
+        expect(result).toEqual({ dir: path.join(workdir, 'themed'), firstSteps: null })
+        expect(execNpm).toHaveBeenLastCalledWith(['install', '@nera-static/theme-example'], {
+            cwd: result.dir,
+            stdio: API_STDIO,
+        })
+        expect(lines[0]).toBe(`📦 Creating a new Nera site in ${result.dir}...`)
+        expect(lines).toEqual(
+            expect.arrayContaining([
+                '  ✓ Configured project as "themed"',
+                '  ✓ Using theme "example" (@nera-static/theme-example)',
+                expect.stringMatching(/^ {2}• pages\/imprint\.md and pages\/privacy\.md/),
+                '  ✓ Set the site\'s name "Brot & Zeit" and language "de" in config/app.yaml',
+                expect.stringMatching(/^ {2}✓ Copied the "en" translations to "de"/),
+                expect.stringMatching(/^ {2}✓ Added the Nera skill/),
+                '📦 Installing dependencies...',
+                '✅ Done!',
+                '👉 Next steps:\n  cd themed\n  npm run dev\n',
+            ])
+        )
+    })
+
+    it('in place with a downloaded starter: kept files, download and starter lines in log', async () => {
+        const dir = path.join(workdir, 'here')
+        await fs.mkdir(dir)
+        await fs.writeFile(path.join(dir, 'AGENTS.md'), '# mine\n')
+        const lines = []
+        // The real fetchStarter → packStarter chain, with npm pack and tar
+        // replaced by a copy of the fixture.
+        const exec = (cmd, args, options) => {
+            if (cmd === 'npm') {
+                const dest = args[args.indexOf('--pack-destination') + 1]
+                fssync.writeFileSync(path.join(dest, 'starter-1.0.0.tgz'), '')
+            } else {
+                const out = path.resolve(options.cwd, args[args.indexOf('-C') + 1])
+                fssync.cpSync(FIXTURE, path.join(out, 'package'), { recursive: true })
+            }
+        }
+        const result = await createSite('.', {
+            cwd: dir,
+            install: false,
+            starter: 'blank',
+            log: (line) => lines.push(line),
+            fetchStarter: (spec, options) =>
+                fetchStarter(spec, {
+                    ...options,
+                    pack: (npmSpec, o) => packStarter(npmSpec, { ...o, exec }),
+                }),
+        })
+
+        expect(stdoutWrite).not.toHaveBeenCalled()
+        expect(consoleLog).not.toHaveBeenCalled()
+        expect(result.dir).toBe(dir)
+        expect(result.firstSteps).toMatch(/^## First steps\n\nEdit `pages\/about\.md`/)
+        expect(lines).toEqual(
+            expect.arrayContaining([
+                '📦 Downloading the starter "blank"...',
+                '  • Kept your existing AGENTS.md',
+                '  ✓ Applied the "Minimal" starter (nera-starter-minimal)',
+                `\n${result.firstSteps}\n`,
+                '👉 Next steps:\n  npm install\n  npm run dev\n',
+            ])
+        )
+    })
+
+    it('scaffoldProject still returns the path and defaults to console.log and inherit', async () => {
+        consoleLog.mockImplementation(() => {})
+        const execNpm = vi.fn((args) => (args[0] === '--version' ? '10.9.0\n' : ''))
+        const target = await scaffoldProject('cli', { cwd: workdir, execNpm })
+        expect(target).toBe(path.join(workdir, 'cli'))
+        expect(consoleLog).toHaveBeenCalledWith('✅ Done!')
+        expect(execNpm).toHaveBeenLastCalledWith(['install'], { cwd: target, stdio: 'inherit' })
     })
 })

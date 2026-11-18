@@ -87,9 +87,13 @@ const defaultExec = (cmd, args, options) =>
 // npm tarballs unpack to `package/`. tar runs inside the pack folder with
 // relative paths only: a Git-for-Windows GNU tar reads the `C:` of an absolute
 // Windows path as a remote host. The temp folder is gone on failure, and
-// `cleanup()` removes it after use. `exec` is injectable for tests.
-export async function packStarter(npmSpec, { spec = npmSpec, exec = defaultExec } = {}) {
-    console.log(`📦 Downloading the starter "${spec}"...`)
+// `cleanup()` removes it after use. Messages go to `log`; `exec` is injectable
+// for tests.
+export async function packStarter(
+    npmSpec,
+    { spec = npmSpec, log = console.log, exec = defaultExec } = {}
+) {
+    log(`📦 Downloading the starter "${spec}"...`)
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'nera-starter-'))
     const cleanup = () => fs.rm(tmp, { recursive: true, force: true })
     try {
@@ -118,8 +122,12 @@ export async function packStarter(npmSpec, { spec = npmSpec, exec = defaultExec 
 }
 
 // The starter as a folder on disk plus a `cleanup()`. A local path is read in
-// place (relative to `cwd`) and needs no cleanup.
-export async function fetchStarter(spec, { cwd = process.cwd(), pack = packStarter } = {}) {
+// place (relative to `cwd`) and needs no cleanup. `log` reaches the download
+// message.
+export async function fetchStarter(
+    spec,
+    { cwd = process.cwd(), log = console.log, pack = packStarter } = {}
+) {
     const source = starterSource(spec)
     if (source.kind === 'local') {
         const dir = path.resolve(cwd, source.path)
@@ -131,7 +139,7 @@ export async function fetchStarter(spec, { cwd = process.cwd(), pack = packStart
         }
         return { dir, cleanup: async () => {} }
     }
-    return pack(source.spec, { spec })
+    return pack(source.spec, { spec, log })
 }
 
 // The starter's package.json. Only a package with a `nera.starter` field is a
@@ -177,7 +185,8 @@ const OWN_PACKAGE = '@nera-static/nera'
 // Lay the starter over a scaffolded site, file by file (the starter wins),
 // and merge its `dependencies` into the site's package.json. Symlinks are not
 // copied. Returns the "First steps" section of the starter's README, or null.
-export async function applyStarter(targetDir, starterDir) {
+// The one message goes to `log`.
+export async function applyStarter(targetDir, starterDir, { log = console.log } = {}) {
     const pkg = await readStarterManifest(starterDir)
     const notLink = async (src) => !(await fs.lstat(src)).isSymbolicLink()
     for (const entry of STARTER_ENTRIES) {
@@ -203,7 +212,7 @@ export async function applyStarter(targetDir, starterDir) {
     }
 
     const label = pkg.nera.starter.label ?? pkg.name
-    console.log(`  ✓ Applied the "${label}" starter${pkg.name ? ` (${pkg.name})` : ''}`)
+    log(`  ✓ Applied the "${label}" starter${pkg.name ? ` (${pkg.name})` : ''}`)
 
     try {
         return firstStepsSection(await fs.readFile(path.join(starterDir, 'README.md'), 'utf-8'))

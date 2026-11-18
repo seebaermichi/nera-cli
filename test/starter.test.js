@@ -10,6 +10,7 @@ import {
     packStarter,
     fetchStarter,
     readStarterManifest,
+    applyStarter,
     listStarters,
     firstStepsSection,
 } from '../src/starter.js'
@@ -200,6 +201,46 @@ describe('fetchStarter', () => {
             '@nera-static/starter-blank',
             'github:o/r#main',
         ])
+    })
+
+    it('passes its log on to pack', async () => {
+        const log = () => {}
+        const pack = vi.fn(async () => ({ dir: FIXTURE, cleanup: async () => {} }))
+        await fetchStarter('blank', { pack, log })
+        expect(pack).toHaveBeenCalledWith('@nera-static/starter-blank', { spec: 'blank', log })
+    })
+})
+
+describe('injected log', () => {
+    let consoleLog
+    beforeEach(() => {
+        consoleLog = vi.spyOn(console, 'log')
+    })
+    afterEach(() => consoleLog.mockRestore())
+
+    it('packStarter writes its message to log, not the console', async () => {
+        const lines = []
+        const exec = (cmd, args, options) => {
+            if (cmd === 'npm') {
+                const dest = args[args.indexOf('--pack-destination') + 1]
+                fssync.writeFileSync(path.join(dest, 'starter-1.0.0.tgz'), '')
+            } else {
+                const out = path.resolve(options.cwd, args[args.indexOf('-C') + 1])
+                fssync.cpSync(FIXTURE, path.join(out, 'package'), { recursive: true })
+            }
+        }
+        const { cleanup } = await packStarter('github:o/r', { log: (l) => lines.push(l), exec })
+        await cleanup()
+        expect(lines).toEqual(['📦 Downloading the starter "github:o/r"...'])
+        expect(consoleLog).not.toHaveBeenCalled()
+    })
+
+    it('applyStarter writes its message to log, not the console', async () => {
+        const lines = []
+        await fs.writeFile(path.join(workdir, 'package.json'), '{"name":"site"}')
+        await applyStarter(workdir, FIXTURE, { log: (l) => lines.push(l) })
+        expect(lines).toEqual(['  ✓ Applied the "Minimal" starter (nera-starter-minimal)'])
+        expect(consoleLog).not.toHaveBeenCalled()
     })
 })
 
