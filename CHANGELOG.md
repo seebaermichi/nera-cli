@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.1] - 2026-11-18
+
+### Fixed
+
+-   `nera new`, `nera update` and `nera new --starter <package>` work on Windows. They started npm as `npm`, which Windows names `npm.cmd` and Node spawns only through a shell, so the install step, the update and a starter from npm failed there; every npm call now goes through one helper that runs `npm.cmd` through `cmd.exe` with each argument quoted. The check that npm is at least 10.9 now runs on Windows too, where it was silently skipped.
+-   A starter from npm is unpacked with relative paths, so a GNU tar on Windows (Git for Windows) no longer reads the drive letter of an absolute path as a remote host.
+
 ## [1.21.0] - 2026-11-18
 
 ### Added

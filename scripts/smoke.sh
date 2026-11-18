@@ -16,7 +16,13 @@
 # of its tag). Then the site installs this checkout's `npm pack` tarball — the
 # package that is about to be published — and everything else from npm.
 #
-# Runs in .github/workflows/smoke.yml.
+# After the build, `nera update` runs on the site (it updates the site's Nera
+# packages within their ranges and refreshes `AGENTS.md`/`CLAUDE.md`), and the
+# updated site builds again. On the tarball path the site's dependency is a
+# `file:` spec, so `npm update` reinstalls the tarball and never asks the
+# registry for the unpublished version.
+#
+# Runs in .github/workflows/smoke.yml, on Linux and on Windows (Git Bash).
 #
 # Usage: scripts/smoke.sh <starter|none>
 #   starter   a `--starter` spec, e.g. blank, blog, business or portfolio
@@ -30,9 +36,16 @@ fi
 starter=$1
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-nera="$root/bin/nera.js"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+# Git Bash on Windows: `/d/a/...` and `/tmp/...` mean nothing to node and npm,
+# and Git Bash converts a path only when it is a whole argument. The mixed form
+# (`D:/a/...`) works in bash and in node alike.
+if command -v cygpath > /dev/null; then
+    root=$(cygpath -m "$root")
+    work=$(cygpath -m "$work")
+fi
+nera="$root/bin/nera.js"
 
 echo "node $(node --version), npm $(npm --version), starter: $starter"
 
@@ -65,4 +78,6 @@ if [ -n "$tarball" ]; then
 fi
 npm run build
 npm run validate
+npx nera update
+npm run build
 echo "✅ smoke ($starter) passed"

@@ -1,7 +1,8 @@
 name: Smoke
 
 # Installs a new site the way a user does — `nera new`, no lockfile, today's
-# versions from npm — on the lowest Node `engines` allows and on the newest.
+# versions from npm — on the lowest Node `engines` allows and on the newest,
+# and on Windows.
 # `test.yml` cannot catch this: `npm ci` installs our own pinned lockfile.
 # Weekly too, because a dependency release can break a fresh install without
 # any commit here.
@@ -35,6 +36,40 @@ jobs:
             # `nera new` from this checkout needs the CLI's own dependencies.
             - name: Install dependencies
               run: npm ci
+
+            - name: Smoke test (${{ matrix.starter }})
+              run: bash scripts/smoke.sh ${{ matrix.starter }}
+
+    # Windows: npm is `npm.cmd` there, which Node spawns only through a shell
+    # (src/npm.js), and a GNU tar reads `C:` as a remote host (src/starter.js).
+    # Nobody on the project runs Windows, so this job is the proof. The smoke
+    # script runs under Git Bash; `test/npm.test.js` spawns the real npm.cmd in
+    # a folder whose name has a space and an ampersand.
+    smoke-windows:
+        runs-on: windows-latest
+
+        strategy:
+            fail-fast: false
+            matrix:
+                starter: [none, blank]
+
+        defaults:
+            run:
+                shell: bash
+
+        steps:
+            - uses: actions/checkout@v7
+
+            - name: Use Node.js 24
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 24
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: npm helper against the real npm.cmd
+              run: npx vitest run test/npm.test.js
 
             - name: Smoke test (${{ matrix.starter }})
               run: bash scripts/smoke.sh ${{ matrix.starter }}
