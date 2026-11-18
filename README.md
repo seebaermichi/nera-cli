@@ -307,13 +307,23 @@ if (hasErrors(results)) console.error(results)
     back to `BUNDLED_STARTERS` (the official starters, exported too) when the
     registry cannot be reached; themes and plugins throw a `CatalogError`.
     `listStarters()` is the starter list `nera new`'s picker shows.
--   `createSite(projectName, { cwd, starter, theme, name, lang, install, log })`
+-   `createSite(projectName, { cwd, starter, theme, name, lang, install, log, env, signal })`
     — what `nera new` does, without a prompt. `projectName` is the new folder
     under `cwd`, or `.` for `cwd` itself. Returns `{ dir, firstSteps }`, the
     latter the starter's `## First steps` section or `null`. Every progress line
     goes to `log` (default: stderr) and `npm install`'s output to stderr, so
     nothing is written to stdout and nothing is read from stdin — safe for an
-    MCP server over stdio.
+    MCP server over stdio. The starter download (`npm pack`, `tar`) and
+    `npm install` (`install`, default `true`) run asynchronously, so the
+    caller's event loop keeps running; with a `theme` from npm the install
+    names the theme package, so `package.json` gets a caret range for it, as
+    with `nera new`. `env` (default `process.env`) is the environment of every
+    child — `npm --version`, `npm pack`, `tar` and `npm install` — e.g. a `PATH`
+    with a bundled npm first. `signal` (an `AbortSignal`) kills the running
+    child and rejects with `signal.reason`: a new folder is removed, while for
+    `.` nothing is removed and the error names what was already written. A
+    failed install without an abort keeps the folder, where `npm install` can
+    be rerun.
 -   `validate({ cwd })` and `check({ cwd })` — `nera validate` and `nera check`
     for the site in `cwd`, returning the validator's records (the `results` of
     the JSON above). `check` throws when there is no build yet. `hasErrors(results)`

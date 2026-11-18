@@ -24,12 +24,23 @@ const INSTALL_STDIO = ['ignore', 2, 2]
 /**
  * Create a Nera site, the same way `nera new` does, without a prompt.
  *
+ * No child blocks the event loop: the starter download (`npm pack`, `tar`)
+ * and `npm install` run asynchronously. With a `theme` from npm, the install
+ * names the theme package, so npm replaces its `latest` placeholder with a
+ * caret range.
+ *
  * @param {string} projectName the new folder under `cwd`, or `.` to scaffold
  *     into `cwd` itself (which must be empty)
  * @param {{ cwd?: string, starter?: string, theme?: string, name?: string,
- *     lang?: string, install?: boolean, log?: (line: string) => void }} [options]
+ *     lang?: string, install?: boolean, log?: (line: string) => void,
+ *     env?: NodeJS.ProcessEnv, signal?: AbortSignal }} [options]
  *     `starter` and `theme` exclude each other; `install` (default true) runs
- *     `npm install`; `log` receives every progress line (default: stderr)
+ *     `npm install`; `log` receives every progress line (default: stderr);
+ *     `env` (default process.env) is the environment of every child
+ *     (`npm --version`, `npm pack`, `tar`, `npm install`); `signal` kills the
+ *     running child and rejects with `signal.reason` — a new folder is then
+ *     removed, while for `.` nothing is removed and the error names what was
+ *     written. A failed install, without an abort, keeps the folder.
  * @returns {Promise<{ dir: string, firstSteps: string|null }>} the site's
  *     folder and the `## First steps` section of the starter's README
  */

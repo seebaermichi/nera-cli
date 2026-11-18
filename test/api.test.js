@@ -104,6 +104,57 @@ describe('createSite', () => {
         expect(install.options.stdio).toEqual(['ignore', 2, 2])
         expect(stdout).not.toHaveBeenCalled()
     })
+
+    it('passes env and signal to every npm call, and names a theme package on the install', async () => {
+        const calls = []
+        const execNpm = async (args, options) => {
+            calls.push({ args, options })
+            return '10.9.2\n'
+        }
+        const env = { PATH: '/shim' }
+        const controller = new AbortController()
+        await api.createSite('site', {
+            cwd: workdir,
+            theme: 'blog',
+            env,
+            signal: controller.signal,
+            execNpm,
+            log: () => {},
+        })
+        expect(calls.map((call) => call.args)).toEqual([['--version'], ['install', '@nera-static/theme-blog']])
+        for (const { options } of calls) {
+            expect(options.env).toBe(env)
+            expect(options.signal).toBe(controller.signal)
+        }
+        expect(stdout).not.toHaveBeenCalled()
+    })
+
+    it('rejects with the reason of an aborted signal, writing nothing', async () => {
+        const controller = new AbortController()
+        const reason = new Error('stop')
+        controller.abort(reason)
+        const execNpm = vi.fn()
+        await expect(
+            api.createSite('site', { cwd: workdir, signal: controller.signal, execNpm, log: () => {} })
+        ).rejects.toBe(reason)
+        expect(execNpm).not.toHaveBeenCalled()
+        await expect(fs.access(path.join(workdir, 'site'))).rejects.toThrow()
+        expect(stdout).not.toHaveBeenCalled()
+    })
+
+    it('an abort during the install removes the new folder', async () => {
+        const controller = new AbortController()
+        const execNpm = async (args, { signal }) => {
+            if (args[0] === '--version') return '10.9.2\n'
+            controller.abort()
+            signal.throwIfAborted()
+        }
+        await expect(
+            api.createSite('site', { cwd: workdir, signal: controller.signal, execNpm, log: () => {} })
+        ).rejects.toMatchObject({ name: 'AbortError' })
+        await expect(fs.access(path.join(workdir, 'site'))).rejects.toThrow()
+        expect(stdout).not.toHaveBeenCalled()
+    })
 })
 
 describe('validate and check', () => {

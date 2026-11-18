@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.0] - 2026-11-18
+
+### Added
+
+-   `createSite` from the programmatic API takes `env` and `signal`. `env` (default `process.env`) is the environment of every child it starts — `npm --version`, the starter download's `npm pack` and `tar`, and `npm install` — so a host can put a bundled npm first on the `PATH` without patching its own `process.env`. `signal` (an `AbortSignal`) kills the running child and rejects with `signal.reason`; an abort during the download, the copy or the install removes a new site folder, while `.` keeps everything and the error names what was written. A failed install without an abort still keeps the folder.
+
+### Changed
+
+-   `createSite` no longer blocks the event loop: the starter download and `npm install` run as asynchronous children instead of `execFileSync`, so a host such as an MCP server keeps answering while a site is created and can let `createSite` run its own install (with a `theme` from npm, it names the theme package, so `package.json` gets a caret range). `nera new`'s output, prompts and exit codes are unchanged.
+
 ## [1.24.0] - 2026-11-18
 
 ### Added
