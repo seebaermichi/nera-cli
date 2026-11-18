@@ -26,14 +26,31 @@ async function lookupRecords(lookup) {
     }
 }
 
+// Whether `domain` is an apex (the name a DNS zone starts at, such as
+// example.com or example.co.uk), which takes A records since it cannot have a
+// CNAME, given the results of its CNAME and SOA lookups. Its own SOA record
+// marks an apex. node:dns does not say which name an SOA answer is for, and a
+// name with a CNAME may be answered with the SOA of the zone its target is
+// in, so an SOA counts only when the name has no CNAME, and the CNAME lookup
+// did not fail. Without that answer — no SOA, a failed lookup — the name
+// falls back to the label rule: two labels are an apex. A two-label name is
+// an apex either way, so checkDns looks its SOA up only for longer names.
+function isApex(domain, { cname, soa }) {
+    if (soa.records.length > 0 && cname.records.length === 0 && !cname.failed) return true
+    return labels(domain) === 2
+}
+
+const labels = (domain) => domain.split('.').length
+
 // Whether `domain` points at `service`, looked up with `resolver`
-// (resolveCname/resolve4/resolve6 of node:dns/promises; a bounded one by
-// default). A CNAME counts when it names `service.cname`; without one, A
+// (resolveCname/resolve4/resolve6/resolveSoa of node:dns/promises; a
+// bounded one by default). A CNAME counts when it names `service.cname`; without one, A
 // records count when every one is the service's, AAAA records when there are
 // none or every one is the service's. `expected` is what to set: the
-// service's A and AAAA records for a two-label (apex) domain, a CNAME to
-// `service.cname` for anything longer. Never throws for a failed lookup:
-// `ok` is false and `failed` names the error codes. Resolves `{ domain,
+// service's A and AAAA records for an apex domain, a CNAME to
+// `service.cname` for a subdomain (see isApex). Never throws for a failed
+// lookup: `ok` is false and `failed` names the error codes of the record
+// lookups (a failed SOA lookup only falls back to the label rule). Resolves `{ domain,
 // service, ok, expected, found, failed }` with `service` the service's name,
 // records as `{ type, value }` (expected ones with `name`, and `optional`
 // for AAAA).
@@ -43,10 +60,12 @@ export async function checkDns({
     resolver = new Resolver({ timeout: LOOKUP_TIMEOUT, tries: LOOKUP_TRIES }),
 }) {
     const { cname: target, a: addresses, aaaa: addresses6 = [] } = service
-    const [cname, a, aaaa] = await Promise.all([
+    const [cname, a, aaaa, soa] = await Promise.all([
         lookupRecords(() => resolver.resolveCname(domain)),
         lookupRecords(() => resolver.resolve4(domain)),
         lookupRecords(() => resolver.resolve6(domain)),
+        // Only a name of more than two labels needs its SOA to tell (isApex).
+        labels(domain) > 2 ? lookupRecords(async () => [await resolver.resolveSoa(domain)]) : { records: [] },
     ])
     const cnames = cname.records.map((value) => value.toLowerCase().replace(/\.$/, ''))
     const allOf = (records, own) => records.every((ip) => own.includes(ip))
@@ -54,7 +73,7 @@ export async function checkDns({
         ? cnames.includes(target)
         : a.records.length > 0 && allOf(a.records, addresses) && allOf(aaaa.records, addresses6)
 
-    const expected = domain.split('.').length === 2
+    const expected = isApex(domain, { cname, soa })
         ? [
             ...addresses.map((value) => ({ type: 'A', name: domain, value })),
             ...addresses6.map((value) => ({ type: 'AAAA', name: domain, value, optional: true })),

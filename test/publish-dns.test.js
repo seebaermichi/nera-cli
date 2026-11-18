@@ -139,3 +139,58 @@ describe('reportDns for Netlify', () => {
         ])
     })
 })
+
+describe('checkDns: apex or subdomain', () => {
+    const SOA = { nsname: 'ns1.example.net', hostmaster: 'hostmaster.example.net', serial: 1, refresh: 3600, retry: 600, expire: 86400, minttl: 300 }
+    const check = (domain, records) => {
+        const resolver = fakeResolver(records)
+        return { result: checkDns({ domain, service: netlifyDns({ id: 'site-1', name: 'my-site' }), resolver }), resolver }
+    }
+    const types = async (pending) => (await pending).expected.map((record) => record.type)
+
+    it('a name with its own SOA is an apex: example.co.uk gets the A record', async () => {
+        const { result } = check('example.co.uk', { SOA })
+        expect((await result).expected).toEqual([{ type: 'A', name: 'example.co.uk', value: '75.2.60.5' }])
+    })
+
+    it('a delegated zone of three labels is an apex too', async () => {
+        expect(await types(check('shop.example.com', { SOA, A: ['203.0.113.7'] }).result)).toEqual(['A'])
+    })
+
+    it('a subdomain without an SOA gets the CNAME', async () => {
+        const { result } = check('www.example.com', {})
+        expect((await result).expected).toEqual([{ type: 'CNAME', name: 'www.example.com', value: 'my-site.netlify.app' }])
+    })
+
+    it('an SOA answered for a name with a CNAME is the target zone\'s, not an apex', async () => {
+        expect(await types(check('www.example.com', { CNAME: ['example.com'], SOA }).result)).toEqual(['CNAME'])
+    })
+
+    it('an SOA next to a failed CNAME lookup does not count', async () => {
+        expect(await types(check('www.example.com', { CNAME: 'ETIMEOUT', SOA }).result)).toEqual(['CNAME'])
+    })
+
+    it.each([['ETIMEOUT'], ['ESERVFAIL'], ['ENOTFOUND']])('an SOA lookup failing with %s falls back to the label rule, never throws, and is not reported', async (code) => {
+        const sub = await check('www.example.com', { SOA: code }).result
+        expect(sub.expected.map((record) => record.type)).toEqual(['CNAME'])
+        expect(sub.failed).toEqual([])
+        expect(await types(check('example.com', { SOA: code }).result)).toEqual(['A'])
+    })
+
+    it('a two-label name is an apex without an SOA lookup', async () => {
+        const { result, resolver } = check('example.com', {})
+        expect(await types(result)).toEqual(['A'])
+        expect(resolver.lookups.sort()).toEqual(['A example.com', 'AAAA example.com', 'CNAME example.com'])
+    })
+
+    it('a longer name looks its SOA up once', async () => {
+        const { result, resolver } = check('www.example.com', {})
+        await result
+        expect(resolver.lookups.sort()).toEqual(['A www.example.com', 'AAAA www.example.com', 'CNAME www.example.com', 'SOA www.example.com'])
+    })
+
+    it('GitHub Pages gets the same rule: example.co.uk with an SOA gets GitHub\'s A records', async () => {
+        const result = await checkDns({ domain: 'example.co.uk', service: pagesDns('Octo'), resolver: fakeResolver({ SOA }) })
+        expect(result.expected.map((record) => record.type)).toEqual([...PAGES_A.map(() => 'A'), ...PAGES_AAAA.map(() => 'AAAA')])
+    })
+})

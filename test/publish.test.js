@@ -718,7 +718,7 @@ describe('publishSite with the github-pages adapter — end to end over a fake G
         expect(github.events.indexOf('set domain www.example.com')).toBeGreaterThan(github.events.indexOf('enable pages'))
         expect(github.events.indexOf('set domain www.example.com')).toBeLessThan(github.events.indexOf('push'))
         expect(github.git.filesOf(github.git.refs.main)['config/app.yaml'].content).toBe('name: My Site\n')
-        expect(lookups.sort()).toEqual(['A www.example.com', 'AAAA www.example.com', 'CNAME www.example.com'])
+        expect(lookups.sort()).toEqual(['A www.example.com', 'AAAA www.example.com', 'CNAME www.example.com', 'SOA www.example.com'])
 
         expect(printedJson()).toEqual({
             ok: true,

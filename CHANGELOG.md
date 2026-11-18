@@ -17,7 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     -   The deploy job of the generated workflow zips `public/`, uploads it to Netlify's zip deploy API with curl and waits until Netlify reports the deploy ready, or fails with Netlify's error. No third-party action and no netlify-cli are used.
     -   `base_path` is removed from `config/app.yaml`, since Netlify serves the site from the root. The live URL is the custom domain once one is set, else the site's `https://<site>.netlify.app` address.
     -   Netlify's free plan has 300 credits a month and a production deploy costs 15 of them. The first set-up says so; later runs count this month's production deploys of the site and warn before the push once they reach 80 % of the budget. Bandwidth and your other Netlify sites are not counted, and the warning says so.
-    -   `--domain <host>` sets the custom domain of the Netlify site and checks its DNS on every run: an `A` record `75.2.60.5` for a bare domain, a `CNAME` to `<site>.netlify.app` for any other. Missing or wrong records are printed with what to set and never stop the publish; Netlify issues the certificate by itself. A domain Netlify refuses, such as one another Netlify site uses, is an error that says where to remove it.
+    -   `--domain <host>` sets the custom domain of the Netlify site and checks its DNS on every run: an `A` record `75.2.60.5` for an apex domain, a `CNAME` to `<site>.netlify.app` for a subdomain. Missing or wrong records are printed with what to set and never stop the publish; Netlify issues the certificate by itself. A domain Netlify refuses, such as one another Netlify site uses, is an error that says where to remove it.
+
+### Changed
+
+-   `nera publish --domain` refuses a `netlify.app` address (the site's own Netlify address, or any other) for every target, as it refuses a `github.io` one, and says to publish without `--domain` to use the host's own address.
+
+### Fixed
+
+-   The DNS check of `nera publish --domain` tells an apex domain from a subdomain by its SOA record, for GitHub Pages and Netlify alike: a name with its own SOA, such as `example.co.uk`, gets the host's `A` records, and `www.example.com` gets the `CNAME`. It used to treat every name of more than two labels as a subdomain. When the SOA lookup fails, it falls back to that rule: two labels are an apex.
 
 ## [1.19.0] - 2026-10-26
 

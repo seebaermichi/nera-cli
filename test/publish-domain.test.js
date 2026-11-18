@@ -35,9 +35,22 @@ describe('normalizeDomain', () => {
         ['me.github.io', 'publish without --domain'],
         ['GitHub.io', 'publish without --domain'],
         ['docs.me.github.io', 'publish without --domain'],
+        ['site.netlify.app', 'publish without --domain'],
+        ['Netlify.app', 'publish without --domain'],
+        ['main--site.netlify.app', 'publish without --domain'],
     ])('refuses %s, saying what to pass', (value, why) => {
         expect(() => normalizeDomain(value)).toThrow(why)
         expect(() => normalizeDomain(value)).toThrow(`--domain ${JSON.stringify(value)}`)
+    })
+
+    it('a host\'s own address is refused for every target, naming the host', () => {
+        expect(() => normalizeDomain('me.github.io')).toThrow('a github.io address is the address GitHub Pages gives a site, not a custom domain; publish without --domain to use it')
+        expect(() => normalizeDomain('site.netlify.app')).toThrow('a netlify.app address is the address Netlify gives a site, not a custom domain; publish without --domain to use it')
+    })
+
+    it('a name that only ends in the same letters is a custom domain', () => {
+        expect(normalizeDomain('mynetlify.app')).toBe('mynetlify.app')
+        expect(normalizeDomain('notgithub.io')).toBe('notgithub.io')
     })
 
     it('every refusal of a malformed value shows an example to pass', () => {

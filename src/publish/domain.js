@@ -8,10 +8,17 @@ const EXAMPLE = 'e.g. --domain example.com or --domain www.example.com'
 // A DNS label: letters, digits and `-`, 1–63 characters, no `-` at either end.
 const LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 const MAX_LENGTH = 253
+// The hosts' own addresses, which `nera publish` uses without `--domain`:
+// a name below (or equal to) one of these is never a custom domain.
+const HOST_DOMAINS = [
+    { suffix: 'github.io', host: 'GitHub Pages' },
+    { suffix: 'netlify.app', host: 'Netlify' },
+]
 
 // The host name in lower case, without a trailing root dot; throws, saying
 // what to pass, for a scheme, a path, a port, a wildcard, an IP address, a
-// `*.github.io` name or anything else that is not a host name.
+// `*.github.io` or `*.netlify.app` name (for every target) or anything else
+// that is not a host name.
 export function normalizeDomain(value) {
     const raw = String(value).trim()
     const fail = (why) => {
@@ -32,8 +39,7 @@ export function normalizeDomain(value) {
         || /^\d+$/.test(labels.at(-1))) {
         fail(`not a host name: use letters, digits, "-" and dots, the punycode form (xn--…) for a non-ASCII name, ${EXAMPLE}`)
     }
-    if (host === 'github.io' || host.endsWith('.github.io')) {
-        fail('a github.io address is GitHub Pages\' own; publish without --domain to use it')
-    }
+    const own = HOST_DOMAINS.find(({ suffix }) => host === suffix || host.endsWith(`.${suffix}`))
+    if (own) fail(`a ${own.suffix} address is the address ${own.host} gives a site, not a custom domain; publish without --domain to use it`)
     return host
 }
