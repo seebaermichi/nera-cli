@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.0] - 2026-11-18
+
+### Added
+
+-   A programmatic API: `import { … } from '@nera-static/nera'` (an `exports` map; `@nera-static/nera/package.json` still resolves, and the bin and `skills/` are still reached by path). It exports `listCatalog(kind)` for the starter, theme and plugin catalogs on npm (official `@nera-static/*` packages first, then third-party ones; starters fall back to the bundled official list offline, themes and plugins throw a `CatalogError`), `listStarters` and `BUNDLED_STARTERS`, `createSite(projectName, { cwd, starter, theme, name, lang, install, log })` → `{ dir, firstSteps }`, which never prompts and writes nothing to stdout (progress to `log`, default stderr; `npm install`'s output to stderr), and `validate({ cwd })`, `check({ cwd })` and `hasErrors` for the validator's records. Building, `dev`, `serve` and `publish` stay with the `nera` bin. Importing the API loads neither vite nor chokidar. See "Programmatic API" in the README.
+
+### Changed
+
+-   `nera new`'s starter picker reads the same catalog as the API: it also lists an official `@nera-static/starter-*` that lacks the `nera-starter` keyword, and offline its bundled starters show their description without the label prefix.
+
 ## [1.23.0] - 2026-11-18
 
 ### Added

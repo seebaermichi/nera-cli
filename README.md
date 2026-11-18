@@ -283,6 +283,47 @@ Every log line (the build log, plugin output) goes to stderr, and the exit code
 is the same as without `--json`. `nera build --json` without `--check` prints
 `{ "ok": true, "results": [] }` after a successful build.
 
+## Programmatic API
+
+A program can use the catalogs, site creation and both validator passes
+without spawning `nera`:
+
+```js
+import { listCatalog, createSite, validate, check, hasErrors } from '@nera-static/nera'
+
+const themes = await listCatalog('themes')
+const { dir, firstSteps } = await createSite('my-site', {
+    cwd: '/path/to/projects',
+    starter: 'blog',
+})
+const results = validate({ cwd: dir })
+if (hasErrors(results)) console.error(results)
+```
+
+-   `listCatalog(kind, { fetch, timeout })` — `kind` is `starters`, `themes` or
+    `plugins`. Returns `[{ name, package, version, description, official, npm }]`
+    from the npm registry: the official `@nera-static/*` packages first, then
+    third-party ones; `name` is what `--starter`/`--theme` take. Starters fall
+    back to `BUNDLED_STARTERS` (the official starters, exported too) when the
+    registry cannot be reached; themes and plugins throw a `CatalogError`.
+    `listStarters()` is the starter list `nera new`'s picker shows.
+-   `createSite(projectName, { cwd, starter, theme, name, lang, install, log })`
+    — what `nera new` does, without a prompt. `projectName` is the new folder
+    under `cwd`, or `.` for `cwd` itself. Returns `{ dir, firstSteps }`, the
+    latter the starter's `## First steps` section or `null`. Every progress line
+    goes to `log` (default: stderr) and `npm install`'s output to stderr, so
+    nothing is written to stdout and nothing is read from stdin — safe for an
+    MCP server over stdio.
+-   `validate({ cwd })` and `check({ cwd })` — `nera validate` and `nera check`
+    for the site in `cwd`, returning the validator's records (the `results` of
+    the JSON above). `check` throws when there is no build yet. `hasErrors(results)`
+    is `true` when any record is an error.
+
+Building, `nera dev`, `nera serve` and `nera publish` are not part of the API:
+run the `nera` bin for those. Only `@nera-static/nera` and
+`@nera-static/nera/package.json` can be imported; the bin and the `skills/`
+folder are reached by path from `package.json`'s folder.
+
 ## Migrating a cloned (legacy) site
 
 Older Nera sites were git clones that vendored the engine under `src/`. Inside

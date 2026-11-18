@@ -1,0 +1,136 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { execFileSync } from 'child_process'
+import { createRequire } from 'module'
+import path from 'path'
+import fs from 'fs/promises'
+import os from 'os'
+import * as api from '@nera-static/nera'
+import { BUNDLED_STARTERS as bundledStarters } from '../src/starters.js'
+
+// The public entry point, imported by package name the way @nera-static/mcp
+// does (a self-reference through the `exports` map).
+
+const PACKAGE_ROOT = path.resolve(import.meta.dirname, '..')
+
+let workdir, stdout
+
+beforeEach(async () => {
+    workdir = await fs.mkdtemp(path.join(os.tmpdir(), 'nera-cli-api-'))
+    stdout = vi.spyOn(process.stdout, 'write')
+})
+
+afterEach(async () => {
+    stdout.mockRestore()
+    vi.restoreAllMocks()
+    await fs.rm(workdir, { recursive: true, force: true })
+})
+
+// A built page that is clean except for its missing `lang` (a11y-html-lang).
+const PAGE_WITHOUT_LANG =
+    '<!DOCTYPE html>\n<html>\n  <head>\n    <title>T</title>\n  </head>\n  <body>\n    <a href="#main">Skip</a><main id="main"><h1>Hi</h1></main><footer><a href="/imprint.html">Imprint</a> <a href="/privacy.html">Privacy</a></footer>\n  </body>\n</html>\n'
+
+describe('the @nera-static/nera entry point', () => {
+    it('exports exactly the public API', () => {
+        expect(Object.keys(api).sort()).toEqual([
+            'BUNDLED_STARTERS',
+            'CatalogError',
+            'check',
+            'createSite',
+            'hasErrors',
+            'listCatalog',
+            'listStarters',
+            'validate',
+        ])
+        expect(api.BUNDLED_STARTERS).toBe(bundledStarters)
+    })
+
+    it('keeps @nera-static/nera/package.json resolvable, and the bin and skill by path', async () => {
+        const require = createRequire(import.meta.url)
+        const manifest = require.resolve('@nera-static/nera/package.json')
+        expect(manifest).toBe(path.join(PACKAGE_ROOT, 'package.json'))
+        const root = path.dirname(manifest)
+        await expect(fs.access(path.join(root, 'bin', 'nera.js'))).resolves.toBeUndefined()
+        await expect(fs.access(path.join(root, 'skills', 'nera', 'SKILL.md'))).resolves.toBeUndefined()
+    })
+
+    it('does not load vite or chokidar on import', () => {
+        // A fresh process records every module the import resolves.
+        const script = [
+            'import { registerHooks } from "node:module"',
+            'const urls = []',
+            'registerHooks({ resolve(specifier, context, next) { const r = next(specifier, context); urls.push(r.url); return r } })',
+            'await import("@nera-static/nera")',
+            'process.stdout.write(JSON.stringify(urls))',
+        ].join('\n')
+        const urls = JSON.parse(
+            execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+                cwd: PACKAGE_ROOT,
+                encoding: 'utf8',
+            })
+        )
+        expect(urls.some((url) => url.endsWith('/src/index.js'))).toBe(true)
+        expect(urls.filter((url) => /\/node_modules\/(vite|chokidar)\//.test(url))).toEqual([])
+    })
+})
+
+describe('createSite', () => {
+    it('creates a site without writing to stdout, its log going to stderr', async () => {
+        const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+        const { dir, firstSteps } = await api.createSite('site', { cwd: workdir, install: false })
+        expect(dir).toBe(path.join(workdir, 'site'))
+        expect(firstSteps).toBeNull()
+        await expect(fs.access(path.join(dir, 'config', 'app.yaml'))).resolves.toBeUndefined()
+        expect(stdout).not.toHaveBeenCalled()
+        expect(stderr.mock.calls.map(([chunk]) => chunk).join('')).toContain('✅ Done!')
+    })
+
+    it('sends every line to an injected log instead', async () => {
+        const stderr = vi.spyOn(process.stderr, 'write')
+        const lines = []
+        await api.createSite('site', { cwd: workdir, install: false, log: (line) => lines.push(line) })
+        expect(lines).toContain('✅ Done!')
+        expect(stdout).not.toHaveBeenCalled()
+        expect(stderr).not.toHaveBeenCalled()
+    })
+
+    it('runs npm install with stdin closed and its output on stderr', async () => {
+        const calls = []
+        const execNpm = (args, options) => {
+            calls.push({ args, options })
+            return '10.9.2\n'
+        }
+        await api.createSite('site', { cwd: workdir, execNpm, log: () => {} })
+        const install = calls.find((call) => call.args[0] === 'install')
+        expect(install.options.stdio).toEqual(['ignore', 2, 2])
+        expect(stdout).not.toHaveBeenCalled()
+    })
+})
+
+describe('validate and check', () => {
+    let site
+
+    beforeEach(async () => {
+        site = (await api.createSite('site', { cwd: workdir, install: false, log: () => {} })).dir
+    })
+
+    it('validate returns the validator records for the site in cwd', async () => {
+        expect(api.validate({ cwd: site })).toEqual([])
+        await fs.writeFile(path.join(site, 'pages', 'index.md'), '---\nlayout: pages/nope.pug\n---\n# x\n')
+        const results = api.validate({ cwd: site })
+        expect(results).toContainEqual(
+            expect.objectContaining({ file: 'pages/index.md', severity: 'error', rule: 'layout-unresolved' })
+        )
+        expect(api.hasErrors(results)).toBe(true)
+        expect(stdout).not.toHaveBeenCalled()
+    })
+
+    it('check returns the output records, and throws before a build', async () => {
+        expect(() => api.check({ cwd: site })).toThrow('run `nera build` first')
+        await fs.mkdir(path.join(site, 'public'))
+        await fs.writeFile(path.join(site, 'public', 'index.html'), PAGE_WITHOUT_LANG)
+        const results = api.check({ cwd: site })
+        expect(results).toContainEqual(expect.objectContaining({ rule: 'a11y-html-lang', severity: 'warning' }))
+        expect(api.hasErrors(results)).toBe(false)
+        expect(stdout).not.toHaveBeenCalled()
+    })
+})

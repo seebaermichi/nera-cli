@@ -1,6 +1,6 @@
 {
     "name": "@nera-static/nera",
-    "version": "1.23.0",
+    "version": "1.24.0",
     "description": "The Nera CLI — scaffold, build, preview and update a Nera static site with one command over the @nera-static/core engine",
     "type": "module",
     "bin": {
@@ -61,5 +61,9 @@
     },
     "optionalDependencies": {
         "@napi-rs/keyring": "^2.1.2"
+    },
+    "exports": {
+        ".": "./src/index.js",
+        "./package.json": "./package.json"
     }
 }
