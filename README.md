@@ -46,9 +46,20 @@ and its scripts call the CLI:
     "dev": "nera dev", "build": "nera build", "serve": "nera serve",
     "validate": "nera validate", "check": "nera build --check"
   },
-  "dependencies": { "@nera-static/nera": "^1.16.0" }
+  "dependencies": { "@nera-static/nera": "^1.16.0" },
+  "overrides": {
+    "js-beautify": { "glob": "^14.0.2", "editorconfig": { "minimatch": "^11.0.1" } }
+  }
 }
 ```
+
+The `overrides` block is temporary: it is the scoped override from
+`@nera-static/core`'s README that keeps `npm audit` clean of GHSA-3g3m-2fjr-6pw4
+(`glob`) and GHSA-g3hv-75wg-m249 (`minimatch`), which reach a site through
+`js-beautify` 2.0.3 and which `npm audit fix` cannot resolve. It replaces only
+the copies under `js-beautify` and changes no page. Remove it once a core
+release names a fixed `js-beautify` in its changelog; `nera update` neither
+adds nor removes it.
 
 ## Instructions for AI assistants
 

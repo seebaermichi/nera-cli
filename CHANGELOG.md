@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.0] - 2026-11-18
+
+### Added
+
+-   A site from `nera new` (also with `--starter` or `--theme`) ships the scoped `overrides` block from `@nera-static/core`'s README in its `package.json`, so `npm audit` reports no GHSA-3g3m-2fjr-6pw4 (`glob`) or GHSA-g3hv-75wg-m249 (`minimatch`) through `js-beautify` 2.0.3, which `npm audit fix` cannot resolve. The block replaces only the copies under `js-beautify` (`glob` ^14.0.2, and `minimatch` ^11.0.1 under its `editorconfig`), never the `minimatch` other tools use, and every page renders the same. It is temporary: remove it once a core release names a fixed `js-beautify` in its changelog. `nera update` neither adds nor removes it; an existing site follows core's README.
+
 ## [1.22.0] - 2026-11-18
 
 ### Added

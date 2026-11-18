@@ -25,6 +25,16 @@ import { parseNewArgs } from '../src/commands/new.js'
 // The range a new or migrated site gets for this CLI: its own version.
 const OWN_RANGE = `^${JSON.parse(fssync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version}`
 
+// The scoped override from @nera-static/core's README that keeps `npm audit`
+// clean until core requires a js-beautify with a fixed glob/minimatch. Scoped
+// under js-beautify only: it must never replace the site's other copies.
+const JS_BEAUTIFY_OVERRIDES = {
+    'js-beautify': {
+        glob: '^14.0.2',
+        editorconfig: { minimatch: '^11.0.1' },
+    },
+}
+
 let workdir
 
 beforeEach(async () => {
@@ -91,6 +101,15 @@ describe('scaffoldProject', () => {
             validate: 'nera validate',
             check: 'nera build --check',
         })
+    })
+
+    it('ships the scoped js-beautify overrides, and no other override', async () => {
+        const target = await scaffoldProject('acme', { cwd: workdir, install: false })
+        const pkg = JSON.parse(
+            await fs.readFile(path.join(target, 'package.json'), 'utf-8')
+        )
+        expect(pkg.overrides).toEqual(JS_BEAUTIFY_OVERRIDES)
+        expect(Object.keys(pkg.overrides)).toEqual(['js-beautify'])
     })
 
     it('refuses to overwrite an existing directory', async () => {
@@ -361,6 +380,7 @@ describe('scaffoldProject with a theme', () => {
             '@nera-static/nera': OWN_RANGE,
             '@nera-static/theme-example': 'latest',
         })
+        expect(pkg.overrides).toEqual(JS_BEAUTIFY_OVERRIDES)
     })
 
     it('adds no dependency for a local theme path', async () => {
@@ -770,6 +790,8 @@ describe('scaffoldProject with a starter', () => {
         })
         expect(pkg.devDependencies).toBeUndefined()
         expect(pkg.scripts).toEqual(template.scripts)
+        expect(pkg.overrides).toEqual(JS_BEAUTIFY_OVERRIDES)
+        expect(Object.keys(pkg.overrides)).toEqual(['js-beautify'])
     })
 
     it('prints only the starter README\'s First steps after Done, before the next steps', async () => {

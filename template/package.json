@@ -12,5 +12,13 @@
     },
     "dependencies": {
         "@nera-static/nera": "^1.0.0"
+    },
+    "overrides": {
+        "js-beautify": {
+            "glob": "^14.0.2",
+            "editorconfig": {
+                "minimatch": "^11.0.1"
+            }
+        }
     }
 }
