@@ -22,6 +22,13 @@ the domain is set at the host and at the domain registrar.
    No `CNAME` file is needed: GitHub ignores it for a site an Actions
    workflow deploys. Only a Pages site deployed from a branch uses one; put
    it in `theme/assets/CNAME` (never in `public/`, which every build deletes).
+   **Netlify through `nera publish`:** run
+   `npx nera publish --yes --target netlify --domain www.example.com`. It sets
+   the domain on the Netlify site, checks the DNS on every publish and prints
+   the records to set when they are missing (`A 75.2.60.5` for a bare
+   domain, a `CNAME` to `<site>.netlify.app` otherwise). Netlify issues the
+   HTTPS certificate by itself once the records point to it, so steps 2, 5
+   and 7 are done for you; set the records of step 3 yourself.
 5. **`base_path`:** leave it unset for a custom domain or any site served
    from the root. Set `base_path: /<repo>` in `config/app.yaml` only for a
    site served under a sub-path, such as a GitHub project page at

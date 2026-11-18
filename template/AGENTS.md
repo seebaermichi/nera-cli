@@ -119,6 +119,10 @@ the URL.
 `npm run build` writes the site into `public/`: upload it to any static host,
 or run `npx nera publish --yes` for GitHub Pages (`--domain <host>` for a custom
 domain); it waits for the site owner to enter the GitHub sign-in code it prints.
+`npx nera publish --yes --target netlify` deploys to Netlify instead: the site
+owner also authorizes Nera CLI on Netlify through the link it prints. Netlify's
+free plan covers about 20 deploys a month, so publish when a batch of changes
+is ready, not after every edit.
 Replace the imprint and privacy placeholders in `pages/` first, if any;
 `legal-*` warnings are expected until they are filled and linked.
 

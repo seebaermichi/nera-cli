@@ -52,8 +52,15 @@ Eleventy, Hugo, Astro or Jekyll; do not apply their conventions.
    GitHub (the site owner enters the code it prints), creates (or
    reuses) the repository and the deploy workflow, sets `base_path` and
    prints the live URL (`--json` for a JSON object).
-   `--domain <host>` sets a custom domain and checks its DNS. Netlify
-   follows in a later release.
+   `--domain <host>` sets a custom domain and checks its DNS.
+   `npx nera publish --yes --target netlify` deploys to Netlify instead:
+   GitHub Actions still builds the site, the site owner also authorizes
+   Nera CLI on Netlify through the link it prints, and the Netlify site
+   and its repository secrets are set up for you. Netlify's free plan
+   covers about 20 deploys a month (300 credits, 15 per deploy) and then
+   pauses the sites until the next month, so publish when a batch of
+   changes is ready; `nera publish` warns at 80 % of the budget. A later
+   run reuses the target kept in `config/publish.yaml`.
 
 Repeat steps 2–5 for every change. For machine-readable results, add `--json`:
 `npx nera validate --json`, `npx nera check --json`,

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0] - 2026-11-18
+
+### Added
+
+-   `nera publish --target netlify` deploys the site to Netlify. GitHub Actions still builds it as for GitHub Pages; only the deploy job differs. `nera --help`, the README, the site's `AGENTS.md` and the `nera` skill (with its custom-domain recipe) describe the target. What is in place:
+    -   Sign-in through Netlify's ticket flow with the "Nera CLI" Netlify OAuth app: the CLI says who runs the app, prints the authorize link (and opens it in a terminal), links Netlify's sign-up page if you have no account, waits for "Authorize" and prints "Signed in to Netlify as `<email>`". With `--yes`, `--json` or without a terminal, nothing is ever asked.
+    -   The Netlify token is kept in the operating system's keychain, else in `~/.config/nera/netlify-credentials.json`, readable only by you. `NERA_NETLIFY_TOKEN` takes precedence over both and is never written. A stored token Netlify no longer accepts leads to a new sign-in. `nera publish --sign-out` removes the stored GitHub and Netlify tokens and links the Netlify page where you revoke the app.
+    -   The Netlify site is created through Netlify's API, named after the repository and with no repository link, so Netlify's own build never runs. A name that is taken gets a short random suffix. Its id is kept in `config/publish.yaml` (`netlify: { site_id }`), so later runs reuse the site.
+    -   `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID` are stored as encrypted secrets of the GitHub repository on every run, sealed for the repository's public key through the new dependencies `@noble/curves`, `@noble/ciphers` and `@noble/hashes`. The token is never logged, printed or written into the site.
+    -   The deploy job of the generated workflow zips `public/`, uploads it to Netlify's zip deploy API with curl and waits until Netlify reports the deploy ready, or fails with Netlify's error. No third-party action and no netlify-cli are used.
+    -   `base_path` is removed from `config/app.yaml`, since Netlify serves the site from the root. The live URL is the custom domain once one is set, else the site's `https://<site>.netlify.app` address.
+    -   Netlify's free plan has 300 credits a month and a production deploy costs 15 of them. The first set-up says so; later runs count this month's production deploys of the site and warn before the push once they reach 80 % of the budget. Bandwidth and your other Netlify sites are not counted, and the warning says so.
+    -   `--domain <host>` sets the custom domain of the Netlify site and checks its DNS on every run: an `A` record `75.2.60.5` for a bare domain, a `CNAME` to `<site>.netlify.app` for any other. Missing or wrong records are printed with what to set and never stop the publish; Netlify issues the certificate by itself. A domain Netlify refuses, such as one another Netlify site uses, is an error that says where to remove it.
+
 ## [1.19.0] - 2026-10-26
 
 ### Added
