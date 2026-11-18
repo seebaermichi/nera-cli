@@ -297,39 +297,54 @@ describe('listStarters', () => {
         status,
         json: async () => body,
     })
-    const result = (name, description) => ({ package: { name, description } })
+    const result = (name, description) => ({ package: { name, version: '1.0.0', description } })
+    // What `keywords:<keyword>` returns.
+    const registry = (byKeyword) =>
+        vi.fn(async (url) => {
+            const keyword = new URL(url).searchParams.get('text').replace(/^keywords:/, '')
+            return response({ objects: byKeyword[keyword] ?? [] })
+        })
 
-    it('asks the registry for keyword nera-starter, with a timeout', async () => {
-        const fetch = vi.fn(async () => response({ objects: [] }))
-        expect(await listStarters({ fetch })).toEqual([])
-        const [url, init] = fetch.mock.calls[0]
-        expect(url).toBe('https://registry.npmjs.org/-/v1/search?text=keywords:nera-starter&size=50')
-        expect(init.signal).toBeInstanceOf(AbortSignal)
+    it('asks the registry for keywords nera and nera-starter, with a 3 s timeout each', async () => {
+        const fetch = registry({})
+        const timeout = vi.spyOn(AbortSignal, 'timeout')
+        try {
+            expect(await listStarters({ fetch })).toEqual([])
+            expect(fetch.mock.calls.map(([url]) => url).sort()).toEqual([
+                'https://registry.npmjs.org/-/v1/search?text=keywords%3Anera&size=250',
+                'https://registry.npmjs.org/-/v1/search?text=keywords%3Anera-starter&size=250',
+            ])
+            for (const [, init] of fetch.mock.calls) expect(init.signal).toBeInstanceOf(AbortSignal)
+            expect(timeout.mock.calls).toEqual([[3000], [3000]])
+        } finally {
+            timeout.mockRestore()
+        }
     })
 
-    it('puts official starters first, then sorts by name', async () => {
-        const fetch = async () =>
-            response({
-                objects: [
-                    result('nera-starter-zebra', 'Zebra'),
-                    result('@acme/starter-shop', 'A shop'),
-                    result('@nera-static/starter-blog', 'A blog'),
-                    result('@nera-static/starter-blank', 'Blank'),
-                    result('cool-site', 'Not reachable as a --starter spec'),
-                ],
-            })
-        expect(await listStarters({ fetch })).toEqual([
+    it('puts official starters first, then sorts by name, offering only names --starter reads back', async () => {
+        const fetch = registry({
+            nera: [result('@nera-static/starter-blank', 'Blank'), result('@nera-static/plugin-tags', 'Tags')],
+            'nera-starter': [
+                result('nera-starter-zebra', 'Zebra'),
+                result('@acme/starter-shop', 'A shop'),
+                result('@nera-static/starter-blog', 'A blog'),
+                result('cool-site', 'Not reachable as a --starter spec'),
+            ],
+        })
+        const starters = await listStarters({ fetch })
+        expect(starters).toEqual([
             { name: 'blank', package: '@nera-static/starter-blank', description: 'Blank' },
             { name: 'blog', package: '@nera-static/starter-blog', description: 'A blog' },
             { name: '@acme/starter-shop', package: '@acme/starter-shop', description: 'A shop' },
             { name: 'nera-starter-zebra', package: 'nera-starter-zebra', description: 'Zebra' },
         ])
+        for (const { name, package: pkg } of starters) expect(starterSource(name).spec).toBe(pkg)
     })
 
-    const bundled = BUNDLED_STARTERS.map(({ name, package: pkg, label, description }) => ({
+    const bundled = BUNDLED_STARTERS.map(({ name, package: pkg, description }) => ({
         name,
         package: pkg,
-        description: `${label}: ${description}`,
+        description,
     }))
 
     it('falls back to the bundled list when fetch throws', async () => {

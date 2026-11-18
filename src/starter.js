@@ -3,7 +3,6 @@ import fs from 'fs/promises'
 import fssync from 'fs'
 import os from 'os'
 import path from 'path'
-import { BUNDLED_STARTERS } from './starters.js'
 import { runNpm } from './npm.js'
 
 // What `--starter` accepts (ROADMAP-ai.md L5), validated before anything is
@@ -249,56 +248,17 @@ export function firstStepsSection(readme) {
     return lines.slice(start, end).join('\n').trim()
 }
 
-const REGISTRY_SEARCH =
-    'https://registry.npmjs.org/-/v1/search?text=keywords:nera-starter&size=50'
-const OFFICIAL_PREFIX = '@nera-static/'
-const OFFICIAL_STARTER_PREFIX = '@nera-static/starter-'
-
-// The name the picker shows and `--starter` takes: the bare name for an
-// official starter, the full package name otherwise.
-const displayName = (pkg) =>
-    pkg.startsWith(OFFICIAL_STARTER_PREFIX) ? pkg.slice(OFFICIAL_STARTER_PREFIX.length) : pkg
-
-// Only results whose shown name leads back to the same package: an unscoped
-// `cool-site` would otherwise be offered as `cool-site`, which `--starter`
-// reads as @nera-static/starter-cool-site.
-const roundTrips = ({ name, package: pkg }) => {
-    try {
-        return starterSource(name).spec === pkg
-    } catch {
-        return false
-    }
-}
-
-// The starters on npm (keyword `nera-starter`), official ones first, then
-// alphabetically: `[{ name, package, description }]`. Labels come from the
-// search result's description; manifests are not fetched. On any failure
-// (offline, timeout, non-200, bad JSON) the bundled list is returned instead.
+// The starters for `nera new`'s picker, `[{ name, package, description }]`:
+// the starter catalog (src/catalog.js), official ones first. Labels come from
+// the search result's description; manifests are not fetched. When the
+// registry cannot be reached, the catalog returns the bundled official
+// starters. Imported lazily: catalog.js imports this module.
 export async function listStarters({ fetch = globalThis.fetch, timeout = 3000 } = {}) {
-    try {
-        const res = await fetch(REGISTRY_SEARCH, { signal: AbortSignal.timeout(timeout) })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const body = await res.json()
-        if (!Array.isArray(body?.objects)) throw new Error('unexpected response')
-        const seen = new Set()
-        return body.objects
-            .map((o) => o?.package)
-            .filter((p) => typeof p?.name === 'string' && !seen.has(p.name) && seen.add(p.name))
-            .map((p) => ({
-                name: displayName(p.name),
-                package: p.name,
-                description: typeof p.description === 'string' ? p.description : '',
-            }))
-            .filter(roundTrips)
-            .sort((a, b) => {
-                const official = (s) => (s.package.startsWith(OFFICIAL_PREFIX) ? 0 : 1)
-                return official(a) - official(b) || a.package.localeCompare(b.package)
-            })
-    } catch {
-        return BUNDLED_STARTERS.map(({ name, package: pkg, label, description }) => ({
-            name,
-            package: pkg,
-            description: label ? `${label}: ${description}` : description,
-        }))
-    }
+    const { listCatalog } = await import('./catalog.js')
+    const starters = await listCatalog('starters', { fetch, timeout })
+    return starters.map(({ name, package: pkg, description }) => ({
+        name,
+        package: pkg,
+        description,
+    }))
 }
