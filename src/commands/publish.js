@@ -74,7 +74,7 @@ async function defaultDeleteToken(options) {
 //   `readToken`/`saveToken` (credentials.js, the GitHub account),
 //   `readNetlifyToken`/`saveNetlifyToken` (the Netlify account), `sleep`/
 //   `now`, `open`, `useGit`/`exec` (commit.js), `resolver` (the DNS check of
-//   pages.js) and `log`
+//   dns.js) and `log`
 // Every adapter method gets the same host context: `{ cwd, client,
 // repository, installation, user, options, config, interactive, log,
 // resolver, fetch, sleep, now, open, readNetlifyToken, saveNetlifyToken }`,

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { spawnSync } from 'child_process'
 import fs from 'fs/promises'
 import os from 'os'
@@ -8,6 +8,7 @@ import {
     netlify,
     ensureSite,
     checkCredits,
+    applyDomain,
     monthStart,
     siteNameOf,
     BUDGET_NOTE,
@@ -15,9 +16,12 @@ import {
     FREE_CREDITS,
 } from '../src/publish/netlify.js'
 import { createNetlifyClient, NetlifyError } from '../src/publish/netlify-api.js'
+import { createGitHubClient, GITHUB_API } from '../src/publish/github.js'
 import { assertAdapter } from '../src/publish/targets.js'
 import { renderWorkflow } from '../src/publish/workflow.js'
 import { fakeNetlify } from './helpers/fake-netlify.js'
+import { fakeResolver } from './helpers/fake-dns.js'
+import { jsonResponse } from './helpers/fake-github.js'
 
 // The Netlify adapter of `nera publish` (ROADMAP-ai.md L6 step 4, plan D4–D6
 // of the Netlify issue): the site, the credit estimate and the deploy job.
@@ -114,6 +118,132 @@ describe('ensureSite', () => {
         expect(error).toBeInstanceOf(NetlifyError)
         expect(error.status).toBe(401)
         expect(error.message).not.toContain(TOKEN)
+    })
+})
+
+describe('applyDomain', () => {
+    const SITE = { id: 'abc', name: 'my-site', url: 'http://my-site.netlify.app', ssl_url: 'https://my-site.netlify.app' }
+    async function apply(domain, { site = SITE, records, usedDomains } = {}) {
+        const host = fakeNetlify({ token: TOKEN, sites: { abc: { ...site } }, usedDomains })
+        const resolver = fakeResolver(records)
+        const { lines, log } = recorder()
+        const result = await applyDomain({ client: clientFor(host), site, domain, resolver, log })
+        return { result, lines, host, resolver }
+    }
+
+    it('sets the custom domain through the API and reports the apex record of Netlify\'s load balancer', async () => {
+        const { result, lines, host, resolver } = await apply('example.com')
+        expect(host.events).toEqual(['update site my-site {"custom_domain":"example.com"}'])
+        expect(result).toMatchObject({ id: 'abc', custom_domain: 'example.com' })
+        expect(resolver.lookups.sort()).toEqual(['A example.com', 'AAAA example.com', 'CNAME example.com'])
+        expect(lines).toEqual([
+            'Setting the custom domain example.com for the Netlify site my-site…',
+            'DNS for example.com is not set up yet: it has no records. Set these records at your DNS provider:',
+            '  A  example.com  75.2.60.5',
+            'DNS changes can take a few hours to spread; the publish goes on, and every nera publish checks again.',
+            'Netlify issues the HTTPS certificate for example.com by itself once the DNS records point to it.',
+        ])
+    })
+
+    it('a subdomain: a CNAME to <site>.netlify.app', async () => {
+        const { lines } = await apply('www.example.com')
+        expect(lines).toContain('  CNAME  www.example.com  my-site.netlify.app')
+    })
+
+    it('a site that already has the domain is not changed; its DNS is checked again', async () => {
+        const { lines, host } = await apply('www.example.com', {
+            site: { ...SITE, custom_domain: 'WWW.Example.com' },
+            records: { CNAME: ['my-site.netlify.app'] },
+        })
+        expect(host.events).toEqual([])
+        expect(lines).toEqual(['DNS for www.example.com is set up: it points to Netlify.'])
+    })
+
+    it('without --domain, a custom domain the site has is checked; none: nothing is looked up', async () => {
+        const kept = await apply(undefined, { site: { ...SITE, custom_domain: 'example.com' }, records: { A: ['75.2.60.5'] } })
+        expect(kept.lines).toEqual(['DNS for example.com is set up: it points to Netlify.'])
+        const none = await apply(undefined)
+        expect(none.resolver.lookups).toEqual([])
+        expect(none.lines).toEqual([])
+        expect(none.result).toEqual(SITE)
+    })
+
+    it('a domain another site uses (422): a clear message, no DNS check', async () => {
+        const used = fakeNetlify({ token: TOKEN, sites: { abc: { ...SITE } }, usedDomains: ['example.com'] })
+        const lookups = fakeResolver()
+        const error = await applyDomain({ client: clientFor(used), site: SITE, domain: 'example.com', resolver: lookups, log: () => {} })
+            .catch((err) => err)
+        expect(error).toBeInstanceOf(NetlifyError)
+        expect(error.status).toBe(422)
+        expect(error.message).toMatch(/^Netlify refused the custom domain example\.com \(.*\)\. It may be set on another Netlify site: remove it there under Domain management, or pass another --domain\.$/)
+        expect(error.message).not.toContain(TOKEN)
+        expect(lookups.lookups).toEqual([])
+    })
+
+    it('any other refusal goes through unchanged', async () => {
+        const host = fakeNetlify({ token: TOKEN })
+        const error = await applyDomain({ client: clientFor(host), site: SITE, domain: 'example.com', resolver: fakeResolver(), log: () => {} })
+            .catch((err) => err)
+        expect(error.status).toBe(404)
+        expect(error.message).toContain('Netlify answered 404 to PATCH /sites/abc')
+    })
+})
+
+describe('netlify.setUp with --domain, and liveUrl', () => {
+    // A GitHub that takes the two repository secrets; Netlify is the stub.
+    const github = () => createGitHubClient({
+        token: 'ghu_fake_access_token',
+        fetch: async (url, init) => {
+            const route = `${init.method} ${url.slice(GITHUB_API.length)}`
+            if (route === 'GET /repos/octo/site/actions/secrets/public-key') {
+                return jsonResponse(200, { key_id: 'fake-key-id', key: Buffer.alloc(32, 9).toString('base64') })
+            }
+            if (route.startsWith('PUT /repos/octo/site/actions/secrets/')) return jsonResponse(201)
+            return jsonResponse(404, { message: 'Not Found' })
+        },
+    })
+
+    let site
+    beforeEach(async () => {
+        site = await fs.mkdtemp(path.join(os.tmpdir(), 'nera-publish-netlify-'))
+        await fs.mkdir(path.join(site, 'config'))
+        await fs.writeFile(path.join(site, 'config/app.yaml'), 'lang: en\nbase_path: /site\n')
+    })
+    afterEach(async () => {
+        await fs.rm(site, { recursive: true, force: true })
+    })
+
+    async function setUp(options, netlifyHost = fakeNetlify({ token: TOKEN })) {
+        const { lines, log } = recorder()
+        const host = {
+            cwd: site,
+            client: github(),
+            repository: { repository: 'octo/site', owner: 'octo', name: 'site' },
+            options,
+            config: {},
+            log,
+            resolver: fakeResolver({ CNAME: ['site.netlify.app'] }),
+            fetch: netlifyHost.fetch,
+            now: () => NOW,
+            readNetlifyToken: async () => ({ accessToken: TOKEN, source: 'env' }),
+        }
+        const result = await netlify.setUp(host)
+        return { host, result, lines, netlifyHost }
+    }
+
+    it('sets the domain after the site exists and base_path is gone; liveUrl is https://<domain>/', async () => {
+        const { host, result, lines, netlifyHost } = await setUp({ domain: 'www.example.com' })
+        expect(netlifyHost.events).toEqual(['create site site', 'update site site {"custom_domain":"www.example.com"}'])
+        expect(result.custom_domain).toBe('www.example.com')
+        expect(await fs.readFile(path.join(site, 'config/app.yaml'), 'utf-8')).toBe('lang: en\n')
+        expect(lines).toContain('DNS for www.example.com is set up: it points to Netlify.')
+        await expect(netlify.liveUrl(host)).resolves.toBe('https://www.example.com/')
+    })
+
+    it('without --domain, liveUrl is the site\'s netlify.app address', async () => {
+        const { host, lines } = await setUp({})
+        expect(lines.join('\n')).not.toContain('DNS')
+        await expect(netlify.liveUrl(host)).resolves.toBe('https://site.netlify.app')
     })
 })
 

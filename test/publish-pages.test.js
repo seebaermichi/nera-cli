@@ -11,8 +11,6 @@ import {
     PAGES_AAAA,
     basePathOf,
     writeBasePath,
-    checkDns,
-    reportDns,
 } from '../src/publish/pages.js'
 import { assertAdapter } from '../src/publish/targets.js'
 import { createGitHubClient, GitHubError, GITHUB_API } from '../src/publish/github.js'
@@ -565,89 +563,6 @@ describe('githubPages.setUp: HTTPS for a custom domain', () => {
         const { lines, requests } = await setUp({ [PAGES]: () => [200, pagesSite(certificate('approved'))] })
         expect(puts(requests)).toEqual([])
         expect(lines.join('\n')).not.toContain('HTTPS')
-    })
-})
-
-describe('checkDns', () => {
-    const check = (domain, records) => checkDns({ domain, owner: 'Octo', resolver: fakeResolver(records) })
-
-    it('an apex domain: GitHub\'s A records (AAAA optional) are expected', async () => {
-        const result = await check('example.com', {})
-        expect(result.expected).toEqual([
-            ...PAGES_A.map((value) => ({ type: 'A', name: 'example.com', value })),
-            ...PAGES_AAAA.map((value) => ({ type: 'AAAA', name: 'example.com', value, optional: true })),
-        ])
-        expect(result).toMatchObject({ domain: 'example.com', ok: false, found: [], failed: [] })
-    })
-
-    it('a subdomain: a CNAME to <owner>.github.io, in lower case, is expected', async () => {
-        const result = await check('www.example.com', {})
-        expect(result.expected).toEqual([{ type: 'CNAME', name: 'www.example.com', value: 'octo.github.io' }])
-    })
-
-    it.each([
-        ['an apex with GitHub\'s four A records', 'example.com', { A: PAGES_A }],
-        ['an apex with GitHub\'s A and AAAA records', 'example.com', { A: PAGES_A, AAAA: PAGES_AAAA }],
-        ['an apex with a flattened CNAME (ALIAS) to <owner>.github.io', 'example.com', { CNAME: ['octo.github.io'], A: PAGES_A }],
-        ['a subdomain with a CNAME to <owner>.github.io.', 'www.example.com', { CNAME: ['Octo.GitHub.io.'], A: PAGES_A }],
-        ['a subdomain with GitHub\'s A records instead of a CNAME', 'www.example.com', { A: PAGES_A.slice(0, 2) }],
-    ])('set up: %s', async (_, domain, records) => {
-        const result = await check(domain, records)
-        expect(result.ok).toBe(true)
-        expect(result.failed).toEqual([])
-    })
-
-    it.each([
-        ['an A record elsewhere', 'example.com', { A: ['203.0.113.7'] }, [{ type: 'A', value: '203.0.113.7' }]],
-        ['GitHub\'s A records next to one elsewhere', 'example.com', { A: [...PAGES_A, '203.0.113.7'] }, [...PAGES_A, '203.0.113.7'].map((value) => ({ type: 'A', value }))],
-        ['an AAAA record elsewhere', 'example.com', { A: PAGES_A, AAAA: ['2001:db8::1'] }, [...PAGES_A.map((value) => ({ type: 'A', value })), { type: 'AAAA', value: '2001:db8::1' }]],
-        ['a CNAME to another github.io', 'www.example.com', { CNAME: ['someone.github.io'], A: PAGES_A }, [{ type: 'CNAME', value: 'someone.github.io' }]],
-        ['only AAAA records', 'example.com', { AAAA: PAGES_AAAA }, PAGES_AAAA.map((value) => ({ type: 'AAAA', value }))],
-    ])('not set up: %s', async (_, domain, records, found) => {
-        const result = await check(domain, records)
-        expect(result.ok).toBe(false)
-        expect(result.found).toEqual(found)
-    })
-
-    it.each([['ETIMEOUT'], ['ESERVFAIL'], ['ECONNREFUSED']])('a lookup failing with %s is reported, never thrown', async (code) => {
-        const result = await check('example.com', { CNAME: code, A: code, AAAA: code })
-        expect(result).toMatchObject({ ok: false, found: [], failed: [code] })
-    })
-
-    it('ENOTFOUND and ENODATA mean "no records", not a failed lookup', async () => {
-        const result = await check('example.com', { CNAME: 'ENOTFOUND', A: 'ENODATA' })
-        expect(result).toMatchObject({ ok: false, found: [], failed: [] })
-    })
-})
-
-describe('reportDns', () => {
-    const report = (result) => {
-        const lines = []
-        reportDns(result, (line) => lines.push(line))
-        return lines
-    }
-    const cnameExpected = [{ type: 'CNAME', name: 'www.example.com', value: 'octo.github.io' }]
-    const NOTE = 'DNS changes can take a few hours to spread; the publish goes on, and every nera publish checks again.'
-
-    it('set up: one line', () => {
-        expect(report({ domain: 'www.example.com', ok: true, expected: cnameExpected, found: [], failed: [] }))
-            .toEqual(['DNS for www.example.com is set up: it points to GitHub Pages.'])
-    })
-
-    it('wrong records: what it has, what to set in their place', () => {
-        expect(report({ domain: 'www.example.com', ok: false, expected: cnameExpected, found: [{ type: 'A', value: '203.0.113.7' }], failed: [] })).toEqual([
-            'DNS for www.example.com does not point to GitHub Pages yet: it has A 203.0.113.7. Set these records at your DNS provider, in place of the ones it has:',
-            '  CNAME  www.example.com  octo.github.io',
-            NOTE,
-        ])
-    })
-
-    it('a failed lookup: could not be checked, the records to set', () => {
-        expect(report({ domain: 'www.example.com', ok: false, expected: cnameExpected, found: [], failed: ['ETIMEOUT'] })).toEqual([
-            'DNS for www.example.com could not be checked (ETIMEOUT). Set these records at your DNS provider:',
-            '  CNAME  www.example.com  octo.github.io',
-            NOTE,
-        ])
     })
 })
 

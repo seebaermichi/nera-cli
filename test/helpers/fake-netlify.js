@@ -6,10 +6,12 @@ import { jsonResponse } from './fake-github.js'
 // request needs the bearer `token`; any other token gets a 401.
 // - `sites`: the sites Netlify already has, by id
 // - `taken`: site names POST /sites refuses with a 422
+// - `usedDomains`: custom domains PATCH /sites/:id refuses with a 422, as
+//   for a domain another site uses
 // - `deploys`: what GET /sites/:id/deploys answers, or a number for an
 //   HTTP error status
 // `events` records what changed on Netlify, `requests` every call.
-export function fakeNetlify({ token, sites = {}, taken = [], deploys = [] } = {}) {
+export function fakeNetlify({ token, sites = {}, taken = [], usedDomains = [], deploys = [] } = {}) {
     const events = []
     const requests = []
     const known = new Map(Object.entries(sites))
@@ -43,6 +45,18 @@ export function fakeNetlify({ token, sites = {}, taken = [], deploys = [] } = {}
             events.push(`list deploys ${searchParams.toString()}`)
             if (typeof deploys === 'number') return jsonResponse(deploys, { message: 'Internal Server Error' })
             return jsonResponse(200, deploys)
+        }
+        const siteUpdate = route.match(/^PATCH \/sites\/([^/]+)$/)
+        if (siteUpdate) {
+            const site = known.get(decodeURIComponent(siteUpdate[1]))
+            if (!site) return jsonResponse(404, { code: 404, message: 'Not Found' })
+            const change = JSON.parse(init.body)
+            if (usedDomains.includes(change.custom_domain)) {
+                return jsonResponse(422, { errors: { custom_domain: ['is already in use'] } })
+            }
+            Object.assign(site, change, change.custom_domain ? { url: `http://${change.custom_domain}` } : {})
+            events.push(`update site ${site.name} ${JSON.stringify(change)}`)
+            return jsonResponse(200, site)
         }
         const siteRead = route.match(/^GET \/sites\/([^/]+)$/)
         if (siteRead) {

@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto'
+import { checkDns, reportDns } from './dns.js'
 import { createNetlifyClient, NetlifyError, NETLIFY_API } from './netlify-api.js'
 import { ensureNetlifyToken } from './netlify-auth.js'
 import { APP_CONFIG, writeBasePath } from './pages.js'
@@ -34,6 +35,12 @@ const NAME_TRIES = 3
 const FALLBACK_NAME = 'nera-site'
 // What Netlify answers a site name that is taken.
 const NAME_TAKEN = 422
+
+// Netlify's load balancer, the A record of a custom apex domain (Netlify's
+// docs, "Configure external DNS for a custom domain"); it has no AAAA one.
+export const NETLIFY_A = ['75.2.60.5']
+// What Netlify answers a custom domain it refuses, e.g. one another site uses.
+const DOMAIN_REFUSED = 422
 
 // The deploy job's poll of the uploaded deploy: seconds between polls and
 // the number of polls, so a deploy that never finishes fails after ~5 minutes.
@@ -139,23 +146,60 @@ export async function checkCredits({ client, siteId, now = Date.now, log }) {
     return { deploys: count, credits }
 }
 
+// Netlify as the DNS check (dns.js) expects it for `site` (D7): a
+// subdomain's CNAME names `<site>.netlify.app`, an apex domain has the A
+// record of Netlify's load balancer. Netlify issues the certificate itself.
+export function netlifyDns(site) {
+    if (typeof site?.name !== 'string' || site.name === '') {
+        throw new NetlifyError(`Netlify sent no name for the site ${site?.id}, so its DNS records cannot be named.`)
+    }
+    return { name: 'Netlify', cname: `${site.name}.netlify.app`, a: NETLIFY_A, aaaa: [] }
+}
+
+// `--domain` for Netlify (D7): make `domain` the custom domain of `site`
+// through the API unless it already is, then, when the site has a custom
+// domain, check its DNS and report the records to set. Netlify's refusal
+// (422, e.g. a domain another site uses) becomes a NetlifyError that says
+// what to do. Resolves the site as Netlify describes it after the change.
+export async function applyDomain({ client, site, domain, resolver, log }) {
+    let next = site
+    if (domain && domain !== site.custom_domain?.toLowerCase()) {
+        log(`Setting the custom domain ${domain} for the Netlify site ${site.name ?? site.id}…`)
+        try {
+            next = checkedSite(await client.patch(`/sites/${encodeURIComponent(site.id)}`, { custom_domain: domain }), 'for the custom domain')
+        } catch (err) {
+            if (!(err instanceof NetlifyError && err.status === DOMAIN_REFUSED)) throw err
+            throw new NetlifyError(`Netlify refused the custom domain ${domain} (${err.message}). It may be set on another Netlify site: remove it there under Domain management, or pass another --domain.`, { status: err.status })
+        }
+    }
+    if (next.custom_domain) {
+        const dns = await checkDns({ domain: next.custom_domain.toLowerCase(), service: netlifyDns(next), resolver })
+        reportDns(dns, log)
+        if (!dns.ok) log(`Netlify issues the HTTPS certificate for ${dns.domain} by itself once the DNS records point to it.`)
+    }
+    return next
+}
+
 // Prepare Netlify before the first push: sign in (netlify-auth.js), create
 // or reuse the site and record its id in config/publish.yaml (D5), remove
-// `base_path` (Netlify serves from the root), store the token and the site id
-// as encrypted repository secrets (written every run, since the token may
-// have changed), then print the budget note on a first set-up or the credit
+// `base_path` (Netlify serves from the root), set `--domain` (`options.domain`)
+// and check the custom domain's DNS (D7), store the token and the site id as
+// encrypted repository secrets (written every run, since the token may have
+// changed), then print the budget note on a first set-up or the credit
 // warning on a later one (D6). Resolves the site as Netlify describes it.
 // The host context is publishSite's; Netlify-specific collaborators on it:
-// `fetch`, `sleep`/`now`, `open`, `readNetlifyToken`/`saveNetlifyToken`
-// (credentials.js, account netlify).
+// `resolver` (dns.js), `fetch`, `sleep`/`now`, `open`,
+// `readNetlifyToken`/`saveNetlifyToken` (credentials.js, account netlify).
 async function setUp(host) {
     const {
         client: github,
         repository,
         config = {},
         interactive = false,
+        options = {},
         cwd = process.cwd(),
         log = (line) => console.log(line),
+        resolver,
         fetch = globalThis.fetch,
         sleep,
         now = Date.now,
@@ -176,28 +220,31 @@ async function setUp(host) {
     const client = createNetlifyClient({ token: tokens.accessToken, fetch })
 
     const siteId = config.netlify?.site_id
-    const { site, created } = await ensureSite({ client, siteId, name: repository.name, log })
-    if (site.id !== siteId) await writePublishConfig({ netlify: { site_id: site.id } }, cwd)
+    const ensured = await ensureSite({ client, siteId, name: repository.name, log })
+    if (ensured.site.id !== siteId) await writePublishConfig({ netlify: { site_id: ensured.site.id } }, cwd)
     if (await writeBasePath(cwd, '')) {
         log(`Removed base_path from ${APP_CONFIG}: Netlify serves the site from the root.`)
     }
+    const site = await applyDomain({ client, site: ensured.site, domain: options.domain, resolver, log })
 
     await setRepositorySecrets(github, repository, { [TOKEN_SECRET]: tokens.accessToken, [SITE_SECRET]: site.id })
     log(`Stored ${TOKEN_SECRET} and ${SITE_SECRET} as encrypted secrets of ${repository.repository}.`)
 
-    if (created) log(BUDGET_NOTE)
+    if (ensured.created) log(BUDGET_NOTE)
     else await checkCredits({ client, siteId: site.id, now, log })
 
     sessions.set(host, { client, site })
     return site
 }
 
-// The site's address as Netlify reports it now: `ssl_url`, else `url`.
+// The site's address as Netlify reports it now: `https://<custom domain>/`
+// once the site has one (Netlify issues its certificate itself), else
+// `ssl_url`, else `url`.
 async function liveUrl(host) {
     const session = sessions.get(host)
     if (!session) throw new Error('The Netlify target has not been set up in this run.')
     const site = await session.client.get(`/sites/${encodeURIComponent(session.site.id)}`)
-    const url = site?.ssl_url || site?.url
+    const url = site?.custom_domain ? `https://${site.custom_domain.toLowerCase()}/` : site?.ssl_url || site?.url
     if (!url) throw new NetlifyError(`Netlify reports no address for the site ${session.site.name ?? session.site.id}.`)
     return url
 }

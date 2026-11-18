@@ -1,7 +1,7 @@
-import { Resolver } from 'dns/promises'
 import fs from 'fs/promises'
 import path from 'path'
 import { parseDocument } from 'yaml'
+import { checkDns, reportDns } from './dns.js'
 import { GitHubError } from './github.js'
 import { PRIVATE_NOTE } from './repository.js'
 import { BUILD_ARTIFACT, BUILD_OUTPUT } from './workflow.js'
@@ -25,12 +25,6 @@ const PLAN_STATUSES = [403, 422]
 // a custom domain for your GitHub Pages site"); the AAAA ones are optional.
 export const PAGES_A = ['185.199.108.153', '185.199.109.153', '185.199.110.153', '185.199.111.153']
 export const PAGES_AAAA = ['2606:50c0:8000::153', '2606:50c0:8001::153', '2606:50c0:8002::153', '2606:50c0:8003::153']
-
-// A lookup that finds no records is an answer, not a failure.
-const NO_RECORDS = ['ENOTFOUND', 'ENODATA']
-// Bounds a DNS check that cannot get an answer: milliseconds per try, tries.
-const LOOKUP_TIMEOUT = 5000
-const LOOKUP_TRIES = 2
 
 // The `https_certificate.state` of a Pages site whose certificate GitHub has
 // issued, so HTTPS can be enforced; the states before it are pending ones.
@@ -155,11 +149,7 @@ async function setUp({
     }
     await followPagesAddress(site, { cwd, log })
     if (site.cname) {
-        const dns = await checkDns({
-            domain: site.cname.toLowerCase(),
-            owner: repository.owner,
-            resolver: resolver ?? new Resolver({ timeout: LOOKUP_TIMEOUT, tries: LOOKUP_TRIES }),
-        })
+        const dns = await checkDns({ domain: site.cname.toLowerCase(), service: pagesDns(repository.owner), resolver })
         reportDns(dns, log)
         site = await enforceHttps({ client, repository, site, log })
     }
@@ -229,78 +219,11 @@ async function enablePages({ client, repository, log }) {
     return existing
 }
 
-// `{ records }` from `lookup()`, `[]` when the name has none; a lookup that
-// fails (a timeout, a server failure) resolves `{ records: [], failed }`
-// with the error's code instead of throwing, since the check only reports.
-async function lookupRecords(lookup) {
-    try {
-        return { records: await lookup() }
-    } catch (err) {
-        if (NO_RECORDS.includes(err?.code)) return { records: [] }
-        return { records: [], failed: err?.code ?? String(err?.message ?? err) }
-    }
-}
-
-// Whether `domain` points at the GitHub Pages site of `owner` (D6), looked up
-// with `resolver` (resolveCname/resolve4/resolve6 of node:dns/promises).
-// A CNAME counts when it names `<owner>.github.io`; without one, A records
-// count when every one is GitHub's, AAAA records when there are none or
-// every one is GitHub's. `expected` is what to set: GitHub's A and AAAA
-// records for a two-label (apex) domain, a CNAME to `<owner>.github.io` for
-// anything longer. Never throws for a failed lookup: `ok` is false and
-// `failed` names the error codes. Resolves `{ domain, ok, expected, found,
-// failed }`, records as `{ type, value }` (expected ones with `name`, and
-// `optional` for AAAA).
-export async function checkDns({ domain, owner, resolver }) {
-    const target = `${owner.toLowerCase()}.github.io`
-    const [cname, a, aaaa] = await Promise.all([
-        lookupRecords(() => resolver.resolveCname(domain)),
-        lookupRecords(() => resolver.resolve4(domain)),
-        lookupRecords(() => resolver.resolve6(domain)),
-    ])
-    const cnames = cname.records.map((value) => value.toLowerCase().replace(/\.$/, ''))
-    const allPages = (records, addresses) => records.every((ip) => addresses.includes(ip))
-    const ok = cnames.length > 0
-        ? cnames.includes(target)
-        : a.records.length > 0 && allPages(a.records, PAGES_A) && allPages(aaaa.records, PAGES_AAAA)
-
-    const expected = domain.split('.').length === 2
-        ? [
-            ...PAGES_A.map((value) => ({ type: 'A', name: domain, value })),
-            ...PAGES_AAAA.map((value) => ({ type: 'AAAA', name: domain, value, optional: true })),
-        ]
-        : [{ type: 'CNAME', name: domain, value: target }]
-    const found = [
-        ...cnames.map((value) => ({ type: 'CNAME', value })),
-        // A CNAME's own addresses are GitHub's business, not the user's.
-        ...(cnames.length > 0 ? [] : [
-            ...a.records.map((value) => ({ type: 'A', value })),
-            ...aaaa.records.map((value) => ({ type: 'AAAA', value })),
-        ]),
-    ]
-    const failed = [cname, a, aaaa].map((result) => result.failed).filter(Boolean)
-    return { domain, ok, expected, found, failed: [...new Set(failed)] }
-}
-
-// Log what checkDns found (D6): "set up", or the records to set at the DNS
-// provider. A missing or wrong record never fails the publish, since DNS
-// changes take hours to spread.
-export function reportDns({ domain, ok, expected, found, failed }, log) {
-    if (ok) {
-        log(`DNS for ${domain} is set up: it points to GitHub Pages.`)
-        return
-    }
-    const now = failed.length > 0 && found.length === 0
-        ? `could not be checked (${failed.join(', ')})`
-        : found.length === 0
-            ? 'is not set up yet: it has no records'
-            : `does not point to GitHub Pages yet: it has ${found.map((record) => `${record.type} ${record.value}`).join(', ')}`
-    log(`DNS for ${domain} ${now}. Set these records at your DNS provider${found.length > 0 ? ', in place of the ones it has' : ''}:`)
-    const width = Math.max(...expected.map((record) => record.type.length))
-    for (const record of expected) {
-        log(`  ${record.type.padEnd(width)}  ${record.name}  ${record.value}${record.optional ? '  (optional, for IPv6)' : ''}`)
-    }
-    log('DNS changes can take a few hours to spread; the publish goes on, and every nera publish checks again.')
+// GitHub Pages as the DNS check (dns.js) expects it for the site of `owner`
+// (D6): a subdomain's CNAME names `<owner>.github.io`, an apex domain has
+// GitHub's A records and, optionally, its AAAA ones.
+export function pagesDns(owner) {
+    return { name: 'GitHub Pages', cname: `${owner.toLowerCase()}.github.io`, a: PAGES_A, aaaa: PAGES_AAAA }
 }
 
 // The site's address as GitHub reports it: the Pages `html_url`.
