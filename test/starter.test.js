@@ -135,8 +135,81 @@ describe('packStarter', () => {
         const tmp = path.dirname(path.dirname(dir))
 
         expect(calls[1]).toEqual(['tar', '-xzf', 'starter-1.0.0.tgz', '-C', '../out'])
-        expect(optionsSeen[1]).toEqual({ cwd: path.join(tmp, 'pack'), stdio: 'pipe' })
+        expect(optionsSeen[1]).toEqual({ cwd: path.join(tmp, 'pack'), stdio: 'pipe', env: process.env })
         await cleanup()
+    })
+
+    it('hands env and signal to npm pack and tar, process.env by default', async () => {
+        const env = { PATH: '/shim/bin' }
+        const signal = new AbortController().signal
+        const optionsSeen = []
+        const { cleanup } = await packStarter('github:o/r#v1', {
+            exec: fakeExec([], optionsSeen),
+            env,
+            signal,
+        })
+        expect(optionsSeen.map((o) => [o.env, o.signal])).toEqual([[env, signal], [env, signal]])
+        await cleanup()
+
+        const defaults = []
+        await (await packStarter('github:o/r#v1', { exec: fakeExec([], defaults) })).cleanup()
+        expect(defaults.map((o) => o.env)).toEqual([process.env, process.env])
+    })
+
+    // A real async exec that aborts mid-download: whatever npm pack rejects
+    // with, the caller gets the abort reason, not "Could not download".
+    it('rejects with the abort reason mid-pack and leaves no temp folder', async () => {
+        const before = await fs.readdir(os.tmpdir())
+        const controller = new AbortController()
+        const reason = new DOMException('cancelled', 'AbortError')
+        const exec = vi.fn(async (cmd) => {
+            controller.abort(reason)
+            const err = new Error(`Command failed: ${cmd}`)
+            err.stderr = 'npm error 404 Not Found\n'
+            throw err
+        })
+        await expect(
+            packStarter('github:o/r#v1', { exec, signal: controller.signal })
+        ).rejects.toBe(reason)
+        expect(exec).toHaveBeenCalledTimes(1)
+        const after = await fs.readdir(os.tmpdir())
+        expect(after.filter((n) => n.startsWith('nera-starter-') && !before.includes(n))).toEqual([])
+    })
+
+    it('rejects with the abort reason when the signal aborts during tar', async () => {
+        const before = await fs.readdir(os.tmpdir())
+        const controller = new AbortController()
+        const pack = fakeExec([])
+        const exec = async (cmd, args, options) => {
+            await pack(cmd, args, options)
+            if (cmd === 'tar') controller.abort()
+        }
+        const err = await packStarter('github:o/r#v1', { exec, signal: controller.signal }).catch((e) => e)
+        expect(err.name).toBe('AbortError')
+        const after = await fs.readdir(os.tmpdir())
+        expect(after.filter((n) => n.startsWith('nera-starter-') && !before.includes(n))).toEqual([])
+    })
+
+    it('rejects with the abort reason when tar fails after an abort', async () => {
+        const controller = new AbortController()
+        const reason = new Error('cancelled')
+        const pack = fakeExec([])
+        const exec = async (cmd, args, options) => {
+            await pack(cmd, args, options)
+            if (cmd === 'tar') {
+                controller.abort(reason)
+                throw new Error('tar: Unexpected EOF')
+            }
+        }
+        await expect(packStarter('github:o/r#v1', { exec, signal: controller.signal })).rejects.toBe(reason)
+    })
+
+    it('starts nothing when the signal is already aborted', async () => {
+        const exec = vi.fn()
+        const signal = AbortSignal.abort()
+        await expect(packStarter('github:o/r#v1', { exec, signal })).rejects.toBe(signal.reason)
+        expect(exec).not.toHaveBeenCalled()
+        expect(log).not.toHaveBeenCalled()
     })
 
     it('removes the temp folder when tar fails', async () => {
@@ -208,6 +281,21 @@ describe('fetchStarter', () => {
         const pack = vi.fn(async () => ({ dir: FIXTURE, cleanup: async () => {} }))
         await fetchStarter('blank', { pack, log })
         expect(pack).toHaveBeenCalledWith('@nera-static/starter-blank', { spec: 'blank', log })
+    })
+
+    it('passes env and signal on to pack', async () => {
+        const env = { PATH: '/shim/bin' }
+        const signal = new AbortController().signal
+        const pack = vi.fn(async () => ({ dir: FIXTURE, cleanup: async () => {} }))
+        await fetchStarter('blank', { pack, env, signal })
+        expect(pack.mock.calls[0][1]).toMatchObject({ env, signal })
+    })
+
+    it('refuses an aborted signal before reading or downloading anything', async () => {
+        const pack = vi.fn()
+        const signal = AbortSignal.abort()
+        await expect(fetchStarter('blank', { pack, signal })).rejects.toBe(signal.reason)
+        expect(pack).not.toHaveBeenCalled()
     })
 })
 

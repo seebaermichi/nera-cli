@@ -1,9 +1,8 @@
-import { execFileSync } from 'child_process'
 import fs from 'fs/promises'
 import fssync from 'fs'
 import os from 'os'
 import path from 'path'
-import { runNpm } from './npm.js'
+import { runNpmAsync, spawnChild } from './npm.js'
 
 // What `--starter` accepts (ROADMAP-ai.md L5), validated before anything is
 // written because the package forms end up on the npm command line:
@@ -77,22 +76,25 @@ const downloadError = (spec, npmSpec, err) => {
     )
 }
 
-// `exec(cmd, args, options)` as packStarter uses it: npm goes through
-// src/npm.js (npm.cmd on Windows), everything else straight to execFileSync.
+// `exec(cmd, args, options)` as packStarter uses it, async: npm goes through
+// src/npm.js (npm.cmd on Windows), everything else straight to spawnChild.
+// It may return its stdout or a promise of it; packStarter awaits either.
 const defaultExec = (cmd, args, options) =>
-    cmd === 'npm' ? runNpm(args, options) : execFileSync(cmd, args, options)
+    cmd === 'npm' ? runNpmAsync(args, options) : spawnChild(cmd, args, options)
 
 // Download a package or GitHub starter into a temp folder: `npm pack` (with
 // --ignore-scripts, so a git dependency's `prepare` never runs) and `tar`.
 // npm tarballs unpack to `package/`. tar runs inside the pack folder with
 // relative paths only: a Git-for-Windows GNU tar reads the `C:` of an absolute
-// Windows path as a remote host. The temp folder is gone on failure, and
-// `cleanup()` removes it after use. Messages go to `log`; `exec` is injectable
-// for tests.
+// Windows path as a remote host. Both children get `env` and `signal`. The
+// temp folder is gone on failure, and `cleanup()` removes it after use. An
+// abort rejects with `signal.reason`, never a download error. Messages go to
+// `log`; `exec` is injectable for tests.
 export async function packStarter(
     npmSpec,
-    { spec = npmSpec, log = console.log, exec = defaultExec } = {}
+    { spec = npmSpec, log = console.log, exec = defaultExec, env = process.env, signal } = {}
 ) {
+    signal?.throwIfAborted()
     log(`📦 Downloading the starter "${spec}"...`)
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'nera-starter-'))
     const cleanup = () => fs.rm(tmp, { recursive: true, force: true })
@@ -103,31 +105,40 @@ export async function packStarter(
         await fs.mkdir(packDir)
         await fs.mkdir(outDir)
         try {
-            exec(
+            await exec(
                 'npm',
                 ['pack', npmSpec, '--ignore-scripts', '--pack-destination', packDir],
-                { stdio: 'pipe', encoding: 'utf-8' }
+                { stdio: 'pipe', env, signal }
             )
         } catch (err) {
+            signal?.throwIfAborted()
             throw downloadError(spec, npmSpec, err)
         }
         const tarball = (await fs.readdir(packDir)).find((n) => n.endsWith('.tgz'))
         if (!tarball) throw downloadError(spec, npmSpec)
-        exec('tar', ['-xzf', tarball, '-C', `../${outName}`], { cwd: packDir, stdio: 'pipe' })
+        await exec('tar', ['-xzf', tarball, '-C', `../${outName}`], {
+            cwd: packDir,
+            stdio: 'pipe',
+            env,
+            signal,
+        })
+        signal?.throwIfAborted()
         return { dir: path.join(outDir, 'package'), cleanup }
     } catch (err) {
         await cleanup()
+        signal?.throwIfAborted()
         throw err
     }
 }
 
 // The starter as a folder on disk plus a `cleanup()`. A local path is read in
 // place (relative to `cwd`) and needs no cleanup. `log` reaches the download
-// message.
+// message; `env` and `signal` reach `npm pack` and `tar` (packStarter).
 export async function fetchStarter(
     spec,
-    { cwd = process.cwd(), log = console.log, pack = packStarter } = {}
+    { cwd = process.cwd(), log = console.log, pack = packStarter, env, signal } = {}
 ) {
+    signal?.throwIfAborted()
     const source = starterSource(spec)
     if (source.kind === 'local') {
         const dir = path.resolve(cwd, source.path)
@@ -139,7 +150,7 @@ export async function fetchStarter(
         }
         return { dir, cleanup: async () => {} }
     }
-    return pack(source.spec, { spec, log })
+    return pack(source.spec, { spec, log, env, signal })
 }
 
 // The starter's package.json. Only a package with a `nera.starter` field is a

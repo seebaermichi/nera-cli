@@ -1,4 +1,4 @@
-import { execFileSync } from 'child_process'
+import { execFileSync, spawn } from 'child_process'
 
 // Characters cmd.exe cannot carry inside a double-quoted argument: a quote
 // ends it, `%` expands a variable even inside quotes, and a line break or NUL
@@ -39,6 +39,78 @@ export function runNpm(
 ) {
     const command = npmCommand(args, platform)
     return exec(
+        command.file,
+        command.args,
+        command.shell ? { ...options, shell: true } : options
+    )
+}
+
+// Run one child without blocking the event loop: `spawn`'s own `signal` kills
+// it on abort. Resolves to its stdout (a string; '' when stdout is not piped).
+// A non-zero exit rejects with an error carrying `code`, `stdout` and `stderr`,
+// like execFileSync's; a spawn failure (ENOENT, …) rejects with spawn's error.
+// An abort, also one before the start, rejects with `signal.reason` once the
+// child has exited, so nothing it writes outlives the promise. `env` defaults
+// to process.env; `shell` is for npm.cmd on win32 only (see npmCommand).
+export function spawnChild(
+    file,
+    args,
+    { cwd, env = process.env, stdio = 'pipe', signal, shell = false } = {}
+) {
+    return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(signal.reason)
+            return
+        }
+        let settled = false
+        const settle = (fn, value) => {
+            if (settled) return
+            settled = true
+            fn(value)
+        }
+        let child
+        try {
+            child = spawn(file, args, { cwd, env, stdio, shell, signal, windowsHide: true })
+        } catch (err) {
+            settle(reject, err)
+            return
+        }
+        let stdout = ''
+        let stderr = ''
+        child.stdout?.setEncoding('utf-8').on('data', (chunk) => (stdout += chunk))
+        child.stderr?.setEncoding('utf-8').on('data', (chunk) => (stderr += chunk))
+        // On abort spawn emits an AbortError here; wait for `exit` instead,
+        // which a grandchild holding the pipes open cannot delay.
+        child.on('error', (err) => {
+            if (!signal?.aborted) settle(reject, err)
+        })
+        child.on('exit', () => {
+            if (signal?.aborted) settle(reject, signal.reason)
+        })
+        child.on('close', (code, killedBy) => {
+            if (signal?.aborted) return settle(reject, signal.reason)
+            if (code === 0) return settle(resolve, stdout)
+            const err = new Error(
+                `Command failed: ${[file, ...args].join(' ')}` +
+                    `${killedBy ? ` (killed by ${killedBy})` : ` (exit code ${code})`}` +
+                    `${stderr ? `\n${stderr}` : ''}`
+            )
+            Object.assign(err, { code, signal: killedBy, stdout, stderr })
+            settle(reject, err)
+        })
+    })
+}
+
+// runNpm without blocking: npm through npmCommand (npm.cmd on win32) and
+// spawnChild, with spawnChild's options (cwd, env, stdio, signal) and result.
+// `platform` and `spawn` are injectable for tests.
+export function runNpmAsync(
+    args,
+    options = {},
+    { platform = process.platform, spawn: run = spawnChild } = {}
+) {
+    const command = npmCommand(args, platform)
+    return run(
         command.file,
         command.args,
         command.shell ? { ...options, shell: true } : options
