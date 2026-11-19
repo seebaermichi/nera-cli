@@ -28,6 +28,7 @@ package is named after the folder (`My Bakery` → `my-bakery`).
 | Command | What it does |
 |---|---|
 | `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--starter <spec>` to start from a starter kit or `--theme <name>` to start from a theme (not both), `--name "<site name>"` and `--lang <code>` to set `name:` and `lang:` in `config/app.yaml` (a new language gets a copy of the current language's `translations:` entry to translate), `--no-install` to skip `npm install`. On a terminal, without `--starter` or `--yes`, it asks what you are building, the site name and the language; without a terminal it never asks. `nera new .` scaffolds into the current, empty folder (dotfiles, `AGENTS.md` and `CLAUDE.md` allowed). Every new site also gets the `nera` skill for AI assistants. |
+| `nera add <plugin>` | Add an official plugin to the site: `npm install @nera-static/plugin-<name>`, copy the plugin's default `config/<name>.yaml` when the site has none (an existing file is kept as it is), and run the plugin's `publish-template.js` binary when it ships one, which copies its templates into `theme/views/vendor/plugin-<name>/` (skipped when that folder exists; `npx nera-<name> --force` overwrites it). The plugin is `<name>` or `@nera-static/plugin-<name>` (e.g. `nera add sitemap`); another scope, a version, a path or `plugin-utils` is refused before npm runs, and so is a folder that is no thin Nera site. Templates still have to be included by hand. `--json` prints one JSON object (see [Machine-readable output](#machine-readable-output)). |
 | `nera build` | Render `pages/` → `public/`. With `--check`, then run `nera check` on the result — one command for CI. `--json` prints the result as one JSON object (see [Machine-readable output](#machine-readable-output)). |
 | `nera dev` | Build, serve `public/`, and rebuild on change with live reload. Watches `pages/`, `config/`, `theme/` and a local theme (`theme: ./themes/<name>`). |
 | `nera serve` | Serve the already-built `public/` folder. |
@@ -283,10 +284,27 @@ Every log line (the build log, plugin output) goes to stderr, and the exit code
 is the same as without `--json`. `nera build --json` without `--check` prints
 `{ "ok": true, "results": [] }` after a successful build.
 
+`nera add <plugin> --json` prints what it did:
+
+```json
+{
+  "ok": true,
+  "plugin": "@nera-static/plugin-sitemap",
+  "config": { "file": "config/sitemap.yaml", "status": "copied" },
+  "templates": "none"
+}
+```
+
+`status` is `copied`, `kept` (the site already had the file) or `none` (the
+plugin ships no default), `templates` is `published` when the plugin's
+template binary ran and `none` when it has none. npm's and the binary's
+output go to stderr. On failure stdout holds `{ "ok": false, "error": "<message>" }`
+and the exit code is `1`.
+
 ## Programmatic API
 
-A program can use the catalogs, site creation and both validator passes
-without spawning `nera`:
+A program can use the catalogs, site creation, adding a plugin and both
+validator passes without spawning `nera`:
 
 ```js
 import { listCatalog, createSite, validate, check, hasErrors } from '@nera-static/nera'
@@ -324,6 +342,16 @@ if (hasErrors(results)) console.error(results)
     `.` nothing is removed and the error names what was already written. A
     failed install without an abort keeps the folder, where `npm install` can
     be rerun.
+-   `addPlugin(spec, { cwd, log, env, signal })` — what `nera add` does, for
+    the site in `cwd`. `spec` is `<name>`, `plugin-<name>` or
+    `@nera-static/plugin-<name>`; anything else, or a folder that is no thin
+    Nera site, throws before npm runs. Returns
+    `{ plugin, config: { file, status }, templates }`, the `--json` object
+    without `ok`. Progress lines go to `log` (default: stderr), npm's and the
+    template binary's output to stderr, and nothing is read from stdin. `env`
+    and `signal` work as for `createSite`: the environment of both children,
+    and an `AbortSignal` that kills the running child and rejects with
+    `signal.reason`.
 -   `validate({ cwd })` and `check({ cwd })` — `nera validate` and `nera check`
     for the site in `cwd`, returning the validator's records (the `results` of
     the JSON above). `check` throws when there is no build yet. `hasErrors(results)`

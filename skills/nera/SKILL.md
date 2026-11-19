@@ -37,8 +37,9 @@ Eleventy, Hugo, Astro or Jekyll; do not apply their conventions.
    frontmatter that names its `layout`. Site name, language and texts for
    templates go in `config/app.yaml`. Shared markup goes in `theme/views/`.
 3. **Plugins.** Look for a plugin before writing a feature (see below).
-   Install it, configure it in `config/<name>.yaml`, copy its templates with
-   its own binary and include them in a layout.
+   `npx nera add <name>` installs it, copies its default `config/<name>.yaml`
+   (an existing one is kept) and its templates; configure it there and
+   include the templates in a layout.
 4. **Validate.** `npx nera validate` and fix every error it reports. It
    finds broken layouts and includes and pages the build would skip.
 5. **Build and check.** `npx nera build --check` and fix what it reports
@@ -78,8 +79,14 @@ and refreshes `AGENTS.md` and this skill.
 
 ## Look for a plugin before writing a feature
 
-Features come from npm packages named `@nera-static/plugin-<name>`. An
-installed plugin loads on the next build, with nothing to register. Do not
+Features come from npm packages named `@nera-static/plugin-<name>`. Add one
+with `npx nera add <name>` (e.g. `npx nera add sitemap`): it installs the
+package, copies the plugin's default `config/<name>.yaml` when the site has
+none and copies its templates into `theme/views/vendor/plugin-<name>/`, if
+it has any. That copy is skipped when the folder already exists;
+`npx nera-<name> --force`, the plugin's own binary, overwrites it. Templates
+are not used until you include them. An added plugin loads on the next
+build, with nothing to register. Do not
 hand-write navigation, a contact form, tags, search, pagination, image
 handling, a sitemap, a feed or a consent banner: a plugin exists for each.
 The catalog: https://github.com/seebaermichi/nera/blob/main/PLUGINS.md
@@ -89,7 +96,7 @@ feed, images, link-attributes, navigation, one-page, page-navigation,
 page-pagination, popular-content, search, simple-page-list, sitemap,
 social-media-links, stacks, statistics, tags. Each plugin's README (on npm, or
 `github.com/seebaermichi/nera-plugin-<name>`) lists its config keys and its
-template binary. Read it before you configure the plugin.
+templates. Read it before you configure the plugin.
 
 A feature no plugin covers can be a local plugin in
 `src/plugins/<name>/index.js`; see the tutorial

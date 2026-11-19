@@ -202,6 +202,11 @@ describe('template AGENTS.md', () => {
     it('names only npm scripts the template package.json defines', () => {
         expect(findMissingScripts(extractScripts(agents), templateScripts)).toEqual([])
     })
+
+    it('adds plugins with nera add, not npm install', () => {
+        expect(extractCommands(agents).map(({ command }) => command)).toContain('add')
+        expect(agents).not.toMatch(/npm install @nera-static\/plugin-/)
+    })
 })
 
 describe('the Nera skill (skills/nera)', () => {
@@ -218,6 +223,12 @@ describe('the Nera skill (skills/nera)', () => {
             findMissing(extractCommands(text), usage).map((m) => `${file}: ${m}`)
         )
         expect(missing).toEqual([])
+    })
+
+    it('adds plugins with nera add in SKILL.md', () => {
+        const [, text] = skillFiles.find(([file]) => file === 'SKILL.md')
+        expect(extractCommands(text).map(({ command }) => command)).toContain('add')
+        expect(text).not.toMatch(/npm install @nera-static\/plugin-/)
     })
 
     it('names nera new with --starter, --name, --lang and --yes in SKILL.md', () => {

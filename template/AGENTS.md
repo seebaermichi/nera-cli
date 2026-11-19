@@ -79,10 +79,12 @@ finds pages the build would skip silently. Run it first.
 
 ## Plugins: look for one before writing a feature
 
-Features come from npm packages named `@nera-static/plugin-*`. Install one with
-`npm install`, and Nera loads it on the next build; there is nothing to
-register. Most read optional settings from `config/<name>.yaml` (the plugin's
-README shows the keys). Plugin catalog:
+Features come from npm packages named `@nera-static/plugin-*`. Add one with
+`npx nera add <name>` (e.g. `npx nera add sitemap`): it installs the package,
+copies the plugin's default `config/<name>.yaml` when the site has none (an
+existing one is kept) and copies the plugin's templates into the site, if it
+has any. Nera loads the plugin on the next build; there is nothing to
+register. The plugin's README shows its config keys. Plugin catalog:
 https://github.com/seebaermichi/nera/blob/main/PLUGINS.md
 
 Check the catalog before hand-writing navigation, a contact form, tags, search,
@@ -93,18 +95,19 @@ pagination or image handling. Two that sites often need:
   `config/contact-form.yaml`.
 - `@nera-static/plugin-navigation` — menus from `config/navigation.yaml`.
 
-Plugin templates are not used automatically. Copy them into the site first,
-then include them by hand in your own template:
+Plugin templates are not used automatically. `nera add` copies them into the
+site, and you include them by hand in your own template:
 
-- `npx nera-contact-form` copies the form to
+- `npx nera add contact-form` copies the form to
   `theme/views/vendor/plugin-contact-form/` (and its script to
   `theme/assets/js/`); include it with
   `include /vendor/plugin-contact-form/contact-form`
-- `npx nera-navigation` copies the menus to
+- `npx nera add navigation` copies the menus to
   `theme/views/vendor/plugin-navigation/`
 
 The copy is skipped when the target folder already exists, so later plugin
-updates do not reach it; `--force` overwrites the copy.
+updates do not reach it. The plugin's own binary, `npx nera-<name> --force`
+(e.g. `npx nera-navigation --force`), overwrites the copy.
 
 ## Preview
 
