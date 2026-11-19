@@ -78,9 +78,11 @@ async function defaultDeleteToken(options) {
 //   `readToken`/`saveToken` (credentials.js, the GitHub account),
 //   `readNetlifyToken`/`saveNetlifyToken` (the Netlify account), `sleep`/
 //   `now`, `open`, `useGit`/`exec` (commit.js), `resolver` (the DNS check of
-//   dns.js) and `log`
+//   dns.js), `log` and `emit` (the action_required / action_done events of
+//   the browser steps: auth.js, repository.js, netlify-auth.js; a no-op by
+//   default)
 // Every adapter method gets the same host context: `{ cwd, client,
-// repository, installation, user, options, config, interactive, log,
+// repository, installation, user, options, config, interactive, log, emit,
 // resolver, fetch, sleep, now, open, readNetlifyToken, saveNetlifyToken }`,
 // where `client` is the GitHub client, `config` config/publish.yaml as read
 // before the run and `repository` what ensureRepository resolved (its
@@ -110,6 +112,7 @@ export async function publishSite({ cwd, adapter, previous, options, config, int
         readNetlifyToken = () => credentials.readToken({ account: 'netlify', env }),
         saveNetlifyToken,
         log = (line) => console.log(line),
+        emit = () => {},
     } = deps
     const clock = { sleep, now, log }
 
@@ -117,10 +120,10 @@ export async function publishSite({ cwd, adapter, previous, options, config, int
     // the repository once it is known, the pushed commit once it is pushed.
     const published = {}
     try {
-        const tokens = await auth.ensureToken({ readToken, saveToken, fetch, open, tty: interactive, ...clock })
+        const tokens = await auth.ensureToken({ readToken, saveToken, fetch, open, tty: interactive, emit, ...clock })
         const client = github.createGitHubClient({ token: tokens.accessToken, fetch })
         const user = await client.get('/user')
-        const installation = await repository.ensureInstallation({ client, login: user.login, open, tty: interactive, ...clock })
+        const installation = await repository.ensureInstallation({ client, login: user.login, open, tty: interactive, emit, ...clock })
         const repo = await repository.ensureRepository({ client, cwd, options, config, log })
         published.repository = repo.repository
 
@@ -134,6 +137,7 @@ export async function publishSite({ cwd, adapter, previous, options, config, int
             config,
             interactive,
             log,
+            emit,
             resolver,
             fetch,
             sleep,
@@ -200,17 +204,28 @@ async function signOut({ deleteToken, env }) {
     return { signedOut: removed.length > 0, removed }
 }
 
+// One event of `nera publish --json`, as one JSON line on stderr. Written to
+// process.stderr directly, so runJson's rerouting of stdout cannot reach it
+// and it lands between the log lines in the order it was emitted.
+function writeEvent(event) {
+    process.stderr.write(`${JSON.stringify(event)}\n`)
+}
+
 // Run `nera publish` and return the exit code. Every collaborator is
 // injectable so tests need no network, keychain or terminal:
 // - `targets`: the adapter registry (targets.js)
 // - `deleteToken({ account })`: removes an account's stored token (credentials.js)
 // - `pickTarget({ input, output, targets })`: the target question
 //   (prompt.js runTargetPicker); resolves the picked id
-// - `publish(ctx)`: the pipeline (publishSite); resolves `{ url?, … }`.
+// - `publish(ctx, wired)`: the pipeline (publishSite); resolves `{ url?, … }`.
 //   `ctx` is `{ cwd, adapter, previous, options, config, interactive, env }`;
 //   `interactive` is false without a terminal, with --yes and with --json,
 //   and nothing may be asked then. `previous` is the registered adapter
 //   config/publish.yaml names when it is not `adapter`: the site moves.
+//   `wired` is `{ emit }`, the part of publishSite's `deps` this command
+//   chooses: with --json, `emit` writes each event as one JSON line on
+//   stderr (an NDJSON stream between the logs; stdout keeps its one
+//   object); in text mode it is a no-op, since the log lines say the same.
 // The target is `--target`, else config/publish.yaml's, else — only when
 // interactive and there is a choice — the user's answer (D1), else the
 // registry's default.
@@ -244,7 +259,8 @@ export async function runPublish(args = [], {
         const adapter = targets.resolve(id)
         const moved = config.target !== undefined && config.target !== adapter.id && ids.includes(config.target)
         const previous = moved ? targets.resolve(config.target) : undefined
-        return publish({ cwd, adapter, previous, options, config, interactive, env })
+        const emit = options.json ? writeEvent : () => {}
+        return publish({ cwd, adapter, previous, options, config, interactive, env }, { emit })
     }
 
     if (args.includes('--json')) return runJson(body, PUBLISH_ENVELOPE)

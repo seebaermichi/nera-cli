@@ -189,7 +189,8 @@ export async function applyDomain({ client, site, domain, resolver, log }) {
 // warning on a later one (D6). Resolves the site as Netlify describes it.
 // The host context is publishSite's; Netlify-specific collaborators on it:
 // `resolver` (dns.js), `fetch`, `sleep`/`now`, `open`,
-// `readNetlifyToken`/`saveNetlifyToken` (credentials.js, account netlify).
+// `readNetlifyToken`/`saveNetlifyToken` (credentials.js, account netlify)
+// and `emit`, the sign-in's events (netlify-auth.js).
 async function setUp(host) {
     const {
         client: github,
@@ -199,6 +200,7 @@ async function setUp(host) {
         options = {},
         cwd = process.cwd(),
         log = (line) => console.log(line),
+        emit,
         resolver,
         fetch = globalThis.fetch,
         sleep,
@@ -216,6 +218,7 @@ async function setUp(host) {
         open,
         tty: interactive,
         log,
+        emit,
     })
     const client = createNetlifyClient({ token: tokens.accessToken, fetch })
 

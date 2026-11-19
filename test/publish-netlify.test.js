@@ -22,6 +22,8 @@ import { renderWorkflow } from '../src/publish/workflow.js'
 import { fakeNetlify } from './helpers/fake-netlify.js'
 import { fakeResolver } from './helpers/fake-dns.js'
 import { jsonResponse } from './helpers/fake-github.js'
+import { NETLIFY_API } from '../src/publish/netlify-api.js'
+import { NETLIFY_CLIENT_ID, NETLIFY_SIGN_IN, authorizeUrl } from '../src/publish/netlify-auth.js'
 
 // The Netlify adapter of `nera publish` (ROADMAP-ai.md L6 step 4, plan D4–D6
 // of the Netlify issue): the site, the credit estimate and the deploy job.
@@ -213,7 +215,8 @@ describe('netlify.setUp with --domain, and liveUrl', () => {
         await fs.rm(site, { recursive: true, force: true })
     })
 
-    async function setUp(options, netlifyHost = fakeNetlify({ token: TOKEN })) {
+    // `overrides` replace fields of the host context.
+    async function setUp(options, netlifyHost = fakeNetlify({ token: TOKEN }), overrides = {}) {
         const { lines, log } = recorder()
         const host = {
             cwd: site,
@@ -226,6 +229,7 @@ describe('netlify.setUp with --domain, and liveUrl', () => {
             fetch: netlifyHost.fetch,
             now: () => NOW,
             readNetlifyToken: async () => ({ accessToken: TOKEN, source: 'env' }),
+            ...overrides,
         }
         const result = await netlify.setUp(host)
         return { host, result, lines, netlifyHost }
@@ -238,6 +242,35 @@ describe('netlify.setUp with --domain, and liveUrl', () => {
         expect(await fs.readFile(path.join(site, 'config/app.yaml'), 'utf-8')).toBe('lang: en\n')
         expect(lines).toContain('DNS for www.example.com is set up: it points to Netlify.')
         await expect(netlify.liveUrl(host)).resolves.toBe('https://www.example.com/')
+    })
+
+    it('a new sign-in reports its action_required and action_done events to the host context\'s emit', async () => {
+        const TICKET_ID = 'fake_ticket_7d3b'
+        const netlifyHost = fakeNetlify({ token: TOKEN })
+        const api = netlifyHost.fetch
+        netlifyHost.fetch = async (url, init) => {
+            if (url === `${NETLIFY_API}/oauth/tickets?client_id=${NETLIFY_CLIENT_ID}`) return jsonResponse(201, { id: TICKET_ID, authorized: false })
+            if (url === `${NETLIFY_API}/oauth/tickets/${TICKET_ID}`) return jsonResponse(200, { id: TICKET_ID, authorized: true })
+            if (url === `${NETLIFY_API}/oauth/tickets/${TICKET_ID}/exchange`) return jsonResponse(201, { access_token: TOKEN })
+            return api(url, init)
+        }
+        const events = []
+        await setUp({}, netlifyHost, {
+            readNetlifyToken: async () => null,
+            saveNetlifyToken: async () => ({ store: 'keychain' }),
+            sleep: async () => {},
+            emit: (event) => events.push(event),
+        })
+        expect(events).toEqual([
+            { event: 'action_required', action: { kind: NETLIFY_SIGN_IN, url: authorizeUrl(TICKET_ID) } },
+            { event: 'action_done', kind: NETLIFY_SIGN_IN },
+        ])
+    })
+
+    it('a valid token needs no sign-in: no event', async () => {
+        const events = []
+        await setUp({}, undefined, { emit: (event) => events.push(event) })
+        expect(events).toEqual([])
     })
 
     it('without --domain, liveUrl is the site\'s netlify.app address', async () => {

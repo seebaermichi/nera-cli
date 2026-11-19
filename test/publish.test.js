@@ -21,6 +21,9 @@ import { fakeGitData, jsonResponse } from './helpers/fake-github.js'
 import { fakeResolver } from './helpers/fake-dns.js'
 import { fakeNetlify } from './helpers/fake-netlify.js'
 import { NETLIFY_API } from '../src/publish/netlify-api.js'
+import { DEVICE_PAGE, GITHUB_SIGN_IN } from '../src/publish/auth.js'
+import { INSTALL_PAGE, GITHUB_APP_INSTALL } from '../src/publish/repository.js'
+import { NETLIFY_CLIENT_ID, NETLIFY_SIGN_IN, authorizeUrl } from '../src/publish/netlify-auth.js'
 
 // The `nera publish` contract (ROADMAP-ai.md L6): flags, the TTY rule, the
 // target registry, config/publish.yaml and the --json object. The pipeline is
@@ -1013,6 +1016,186 @@ describe('publishSite with the netlify adapter — end to end over a fake GitHub
         expect(published['.github/workflows/deploy.yml'].content).not.toContain('deploy-pages')
         expect(await readPublishConfig(site)).toMatchObject({ target: 'netlify', netlify: { site_id: 'site-1' } })
         expect(logged()).toContain('Removed base_path from config/app.yaml: Netlify serves the site from the root.')
+    })
+})
+
+describe('nera publish --json: the sign-in steps as NDJSON events on stderr', () => {
+    const USER_CODE = 'WDJB-MJHT'
+    const DEVICE_CODE = 'fake_device_code_9c1e7a'
+    const REFRESH = 'ghr_fake_refresh_token'
+    const NETLIFY_TOKEN = 'nfp_fake_netlify_token'
+    const TICKET_ID = 'fake_ticket_7d3b'
+
+    // A fake GitHub with nobody signed in and the app not installed yet: the
+    // device flow is authorized at the first poll, and the installation is
+    // listed from the second look on.
+    function signedOutGitHub() {
+        const github = fakeGitHub()
+        const api = github.fetch
+        let looks = 0
+        github.fetch = async (url, init) => {
+            if (url === 'https://github.com/login/device/code') {
+                return jsonResponse(200, { device_code: DEVICE_CODE, user_code: USER_CODE, verification_uri: DEVICE_PAGE, expires_in: 900, interval: 5 })
+            }
+            if (url === 'https://github.com/login/oauth/access_token') {
+                return jsonResponse(200, { access_token: TOKEN, expires_in: 28800, refresh_token: REFRESH, refresh_token_expires_in: 15897600, token_type: 'bearer' })
+            }
+            if (url === `${GITHUB_API}/user/installations?per_page=100` && looks++ === 0) {
+                return jsonResponse(200, { installations: [] })
+            }
+            return api(url, init)
+        }
+        return github
+    }
+
+    // The Netlify stub with no stored token: the ticket is authorized at the
+    // first poll and exchanged for NETLIFY_TOKEN.
+    function signedOutNetlify() {
+        const netlifyHost = fakeNetlify({ token: NETLIFY_TOKEN })
+        const api = netlifyHost.fetch
+        netlifyHost.fetch = async (url, init) => {
+            if (url === `${NETLIFY_API}/oauth/tickets?client_id=${NETLIFY_CLIENT_ID}`) {
+                return jsonResponse(201, { id: TICKET_ID, client_id: NETLIFY_CLIENT_ID, authorized: false })
+            }
+            if (url === `${NETLIFY_API}/oauth/tickets/${TICKET_ID}`) return jsonResponse(200, { id: TICKET_ID, authorized: true })
+            if (url === `${NETLIFY_API}/oauth/tickets/${TICKET_ID}/exchange`) {
+                return jsonResponse(201, { access_token: NETLIFY_TOKEN, user_email: 'me@example.com' })
+            }
+            return api(url, init)
+        }
+        return netlifyHost
+    }
+
+    // runPublish with the real registry and pipeline, no token stored for
+    // either account; `wired` is what runPublish chose (its `emit`).
+    const publishSignedOut = (args, github, netlifyHost = fakeNetlify({ token: NETLIFY_TOKEN })) => runPublish(args, {
+        cwd: site,
+        stdin: pipe,
+        stdout: pipe,
+        env: {},
+        publish: (ctx, wired) => publishSite(ctx, {
+            ...wired,
+            fetch: (url, init) => (url.startsWith(NETLIFY_API) ? netlifyHost.fetch(url, init) : github.fetch(url, init)),
+            readToken: async () => null,
+            saveToken: async () => ({ store: 'keychain' }),
+            readNetlifyToken: async () => null,
+            saveNetlifyToken: async () => ({ store: 'keychain' }),
+            sleep: async () => {},
+            now: () => Date.UTC(2026, 10, 17),
+            open: () => {
+                throw new Error('no browser without a terminal')
+            },
+            useGit: false,
+        }),
+    })
+
+    // stderr as one stream: the log lines (console.error, where --json sends
+    // them) and the raw writes (the events), in the order they happened.
+    let stream, stderrWrite
+    beforeEach(async () => {
+        await makeSite()
+        stream = []
+        error.mockImplementation((...args) => stream.push(`${args.join(' ')}\n`))
+        stderrWrite = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+            stream.push(String(chunk))
+            return true
+        })
+    })
+    afterEach(() => {
+        stderrWrite.mockRestore()
+    })
+    const stderrLines = () => stream.join('').split('\n').filter(Boolean)
+    // Every stderr line that is JSON, parsed; a line that does not parse fails the test.
+    const events = () => stderrLines().filter((line) => line.startsWith('{')).map((line) => JSON.parse(line))
+    const eventLine = (event) => JSON.stringify(event)
+
+    it('GitHub sign-in and app installation: action_required right after each line, action_done once done, stdout one object', async () => {
+        const github = signedOutGitHub()
+        expect(await publishSignedOut(['--repo', REPO, '--json'], github)).toBe(0)
+
+        const signIn = { event: 'action_required', action: { kind: GITHUB_SIGN_IN, code: USER_CODE, url: DEVICE_PAGE } }
+        const install = { event: 'action_required', action: { kind: GITHUB_APP_INSTALL, url: INSTALL_PAGE } }
+        expect(events()).toEqual([
+            signIn,
+            { event: 'action_done', kind: GITHUB_SIGN_IN },
+            install,
+            { event: 'action_done', kind: GITHUB_APP_INSTALL },
+        ])
+        const lines = stderrLines()
+        expect(lines[lines.indexOf(`To sign in to GitHub, enter the code ${USER_CODE} at ${DEVICE_PAGE}`) + 1]).toBe(eventLine(signIn))
+        expect(lines[lines.indexOf(`Install it at ${INSTALL_PAGE}`) + 1]).toBe(eventLine(install))
+        expect(lines[lines.indexOf(`Signed in as ${OWNER}`) + 1]).toBe(eventLine({ event: 'action_done', kind: GITHUB_SIGN_IN }))
+
+        expect(printedJson()).toEqual({
+            ok: true,
+            url: `https://${OWNER}.github.io/${REPO}/`,
+            repository: REPOSITORY,
+            sha: github.git.refs.main,
+            run: `https://github.com/${REPOSITORY}/actions/runs/100`,
+        })
+        expect(log).not.toHaveBeenCalled()
+        for (const secret of [TOKEN, REFRESH, DEVICE_CODE]) expect(stream.join('')).not.toContain(secret)
+    })
+
+    it('Netlify authorization: its events follow GitHub\'s, with the authorize page the line prints', async () => {
+        const github = signedOutGitHub()
+        expect(await publishSignedOut(['--target', 'netlify', '--repo', REPO, '--json'], github, signedOutNetlify())).toBe(0)
+
+        const page = authorizeUrl(TICKET_ID)
+        const authorize = { event: 'action_required', action: { kind: NETLIFY_SIGN_IN, url: page } }
+        expect(events().map(({ event, kind, action }) => `${event} ${kind ?? action.kind}`)).toEqual([
+            `action_required ${GITHUB_SIGN_IN}`,
+            `action_done ${GITHUB_SIGN_IN}`,
+            `action_required ${GITHUB_APP_INSTALL}`,
+            `action_done ${GITHUB_APP_INSTALL}`,
+            `action_required ${NETLIFY_SIGN_IN}`,
+            `action_done ${NETLIFY_SIGN_IN}`,
+        ])
+        const lines = stderrLines()
+        expect(lines[lines.indexOf(`To sign in to Netlify, open ${page} and choose "Authorize".`) + 1]).toBe(eventLine(authorize))
+        expect(lines[lines.indexOf('Signed in to Netlify as me@example.com') + 1]).toBe(eventLine({ event: 'action_done', kind: NETLIFY_SIGN_IN }))
+        expect(printedJson()).toMatchObject({ ok: true, url: `https://${REPO}.netlify.app`, repository: REPOSITORY })
+        for (const secret of [TOKEN, REFRESH, DEVICE_CODE, NETLIFY_TOKEN]) expect(stream.join('')).not.toContain(secret)
+    })
+
+    it('a failed --json run still has its events before the one failure object', async () => {
+        const github = signedOutGitHub()
+        const fetch = github.fetch
+        github.fetch = async (url, init) => (url === `${GITHUB_API}/user/repos` ? jsonResponse(500, { message: 'Server Error' }) : fetch(url, init))
+        expect(await publishSignedOut(['--repo', REPO, '--json'], github)).toBe(1)
+        expect(events().map(({ event }) => event)).toEqual(['action_required', 'action_done', 'action_required', 'action_done'])
+        expect(printedJson()).toMatchObject({ ok: false, error: expect.stringContaining('500') })
+    })
+
+    it('text mode: the same sign-in prints its lines and no event at all', async () => {
+        const github = signedOutGitHub()
+        expect(await publishSignedOut(['--target', 'netlify', '--repo', REPO], github, signedOutNetlify())).toBe(0)
+        expect(logged()).toContain(`To sign in to GitHub, enter the code ${USER_CODE} at ${DEVICE_PAGE}`)
+        expect(logged()).toContain(`Install it at ${INSTALL_PAGE}`)
+        expect(logged()).toContain(`To sign in to Netlify, open ${authorizeUrl(TICKET_ID)}`)
+        expect(stderrWrite).not.toHaveBeenCalled()
+        expect(logged()).not.toContain('"event"')
+    })
+
+    it('a valid stored token and an installed app: --json writes no event', async () => {
+        const github = fakeGitHub()
+        const result = runPublish(['--repo', REPO, '--json'], {
+            cwd: site,
+            stdin: pipe,
+            stdout: pipe,
+            env: {},
+            publish: (ctx, wired) => publishSite(ctx, {
+                ...wired,
+                fetch: github.fetch,
+                readToken: async () => ({ accessToken: TOKEN, source: 'env' }),
+                sleep: async () => {},
+                now: () => 0,
+                useGit: false,
+            }),
+        })
+        expect(await result).toBe(0)
+        expect(events()).toEqual([])
+        expect(printedJson()).toMatchObject({ ok: true })
     })
 })
 

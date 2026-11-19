@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.0] - 2026-11-19
+
+### Added
+
+-   `nera publish --json` writes a machine-readable event as one JSON line on stderr for each step that waits for the user in the browser: `{"event":"action_required","action":{"kind":"github_sign_in","code","url"}}` for the GitHub sign-in (the code to enter and its page), `github_app_install` and `netlify_sign_in` with the page to open (`url`), and `{"event":"action_done","kind":…}` once the step is done. Each comes right after the log line that says the same, which stays as it was; stdout still holds only the one result object, and text mode writes no event. No event carries a token or GitHub's device code. An agent or the MCP server can follow the sign-in without parsing the log wording.
+
 ## [1.26.0] - 2026-11-19
 
 ### Added
