@@ -7,6 +7,7 @@ import {
     IDENTITY_LINES,
     SIGN_UP_LINE,
     EXPIRY_MARGIN_MS,
+    GITHUB_SIGN_IN,
 } from '../src/publish/auth.js'
 import { createGitHubClient, postOAuth, redact, GitHubError, GITHUB_API } from '../src/publish/github.js'
 
@@ -92,10 +93,13 @@ function fakeClock(start = START) {
     }
 }
 
-// signIn with stubs for everything; returns the lines it logged, the opened
-// urls and the saved token sets alongside its result or error.
+// signIn with stubs for everything; returns the lines it logged, the events
+// it emitted, both in one `timeline`, the opened urls and the saved token
+// sets alongside its result or error.
 async function runSignIn({ github = fakeGitHub(), clock = fakeClock(), tty = false, store = 'keychain' } = {}) {
     const lines = []
+    const events = []
+    const timeline = []
     const opened = []
     const saved = []
     let result, error
@@ -110,12 +114,19 @@ async function runSignIn({ github = fakeGitHub(), clock = fakeClock(), tty = fal
                 saved.push(tokens)
                 return store === 'file' ? { store: 'file', file: '/home/me/.config/nera/credentials.json' } : { store: 'keychain' }
             },
-            log: (line) => lines.push(line),
+            log: (line) => {
+                lines.push(line)
+                timeline.push(line)
+            },
+            emit: (event) => {
+                events.push(event)
+                timeline.push(event)
+            },
         })
     } catch (err) {
         error = err
     }
-    return { result, error, lines, opened, saved, github, clock }
+    return { result, error, lines, events, timeline, opened, saved, github, clock }
 }
 
 // Fails when any fake secret appears in the given text.
@@ -274,10 +285,73 @@ describe('signIn — the device flow', () => {
             await runSignIn({ github: fakeGitHub({ polls: [{ error: 'access_denied' }] }) }),
             await runSignIn({ github: fakeGitHub({ polls: [{ error: 'bogus', error_description: 'odd' }] }) }),
         ]
-        for (const { lines, error } of runs) {
+        for (const { lines, events, error } of runs) {
             expectNoSecret(lines.join('\n'))
+            expectNoSecret(JSON.stringify(events))
             if (error) expectNoSecret(`${error.message}\n${error.stack}`)
         }
+    })
+})
+
+describe('signIn — machine-readable events', () => {
+    const required = { event: 'action_required', action: { kind: 'github_sign_in', code: USER_CODE, url: DEVICE_PAGE } }
+    const done = { event: 'action_done', kind: 'github_sign_in' }
+
+    it('emits action_required with the user code and page, then action_done, each right after its line', async () => {
+        const { events, timeline } = await runSignIn()
+        expect(GITHUB_SIGN_IN).toBe('github_sign_in')
+        expect(events).toEqual([required, done])
+        const codeLine = timeline.indexOf(`To sign in to GitHub, enter the code ${USER_CODE} at ${DEVICE_PAGE}`)
+        expect(timeline[codeLine + 1]).toEqual(required)
+        expect(timeline.at(-2)).toBe('Signed in as octo')
+        expect(timeline.at(-1)).toEqual(done)
+    })
+
+    it('names the page GitHub gave', async () => {
+        const github = fakeGitHub({ device: { verification_uri: 'https://github.com/login/device/other' } })
+        const { events } = await runSignIn({ github })
+        expect(events[0].action.url).toBe('https://github.com/login/device/other')
+    })
+
+    it('emits no action_done when the code expires, the user cancels or GitHub fails', async () => {
+        const runs = [
+            await runSignIn({ github: fakeGitHub({ polls: [{ error: 'expired_token' }] }) }),
+            await runSignIn({ github: fakeGitHub({ device: { expires_in: 12, interval: 5 }, polls: [] }) }),
+            await runSignIn({ github: fakeGitHub({ polls: [{ error: 'access_denied' }] }) }),
+            await runSignIn({ github: fakeGitHub({ polls: [{ error: 'bogus' }] }) }),
+        ]
+        for (const { error, events } of runs) {
+            expect(error).toBeInstanceOf(GitHubError)
+            expect(events).toEqual([required])
+        }
+    })
+
+    it('emits nothing when GitHub sends no device code', async () => {
+        const github = fakeGitHub({ device: { device_code: undefined, user_code: undefined, error: 'unauthorized_client' } })
+        const { error, events } = await runSignIn({ github })
+        expect(error).toBeInstanceOf(GitHubError)
+        expect(events).toEqual([])
+    })
+
+    it('carries no secret beyond the user code', async () => {
+        const { events } = await runSignIn({ store: 'file' })
+        expectNoSecret(JSON.stringify(events))
+        expect(Object.keys(events[0].action).sort()).toEqual(['code', 'kind', 'url'])
+        expect(Object.keys(events[1]).sort()).toEqual(['event', 'kind'])
+    })
+
+    it('works without an emit, as before', async () => {
+        const github = fakeGitHub()
+        const clock = fakeClock()
+        const result = await signIn({
+            fetch: github.fetch,
+            sleep: clock.sleep,
+            now: clock.now,
+            tty: false,
+            saveToken: async () => ({ store: 'keychain' }),
+            log: () => {},
+        })
+        expect(result.login).toBe('octo')
     })
 })
 
@@ -285,6 +359,7 @@ describe('signIn — the device flow', () => {
 // the saved sets and whether a new sign-in started.
 async function runEnsure({ stored, github = fakeGitHub(), clock = fakeClock() }) {
     const lines = []
+    const events = []
     const saved = []
     let result, error
     try {
@@ -300,12 +375,13 @@ async function runEnsure({ stored, github = fakeGitHub(), clock = fakeClock() })
             open: () => {},
             tty: false,
             log: (line) => lines.push(line),
+            emit: (event) => events.push(event),
         })
     } catch (err) {
         error = err
     }
     const signedInAgain = github.requests.some(({ url }) => url.endsWith('/login/device/code'))
-    return { result, error, lines, saved, github, signedInAgain }
+    return { result, error, lines, events, saved, github, signedInAgain }
 }
 
 const storedSet = (overrides = {}) => ({
@@ -401,6 +477,31 @@ describe('ensureToken', () => {
         })
         expect(github.requests.some(({ form }) => form?.grant_type === 'refresh_token')).toBe(false)
         expect(signedInAgain).toBe(true)
+    })
+
+    it('emits nothing for a valid, env or refreshed token', async () => {
+        const refreshing = fakeGitHub({ refreshAnswer: tokenAnswer(NEW_ACCESS, NEW_REFRESH) })
+        const runs = [
+            await runEnsure({ stored: storedSet() }),
+            await runEnsure({ stored: { accessToken: ACCESS, source: 'env' } }),
+            await runEnsure({ stored: storedSet({ expiresAt: START - 1 }), github: refreshing }),
+        ]
+        for (const { events, signedInAgain } of runs) {
+            expect(signedInAgain).toBe(false)
+            expect(events).toEqual([])
+        }
+    })
+
+    it('forwards emit to a new sign-in, also after an expired sign-in', async () => {
+        const runs = [
+            await runEnsure({ stored: null }),
+            await runEnsure({ stored: storedSet({ expiresAt: START - 2, refreshTokenExpiresAt: START - 1 }) }),
+            await runEnsure({ stored: storedSet({ expiresAt: START - 1 }), github: fakeGitHub({ refreshAnswer: { error: 'bad_refresh_token' } }) }),
+        ]
+        for (const { events } of runs) {
+            expect(events.map(({ event }) => event)).toEqual(['action_required', 'action_done'])
+            expectNoSecret(JSON.stringify(events))
+        }
     })
 
     it('signs in when nothing is stored, without the "expired" line', async () => {

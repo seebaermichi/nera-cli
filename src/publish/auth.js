@@ -12,6 +12,8 @@ export const DEVICE_PAGE = 'https://github.com/login/device'
 const DEVICE_CODE_PATH = '/login/device/code'
 const ACCESS_TOKEN_PATH = '/login/oauth/access_token'
 const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
+// The `kind` of the sign-in's action_required / action_done events.
+export const GITHUB_SIGN_IN = 'github_sign_in'
 
 // RFC 8628: poll every 5 s unless told otherwise, and 5 s slower after each
 // `slow_down`, for the rest of the poll.
@@ -116,6 +118,11 @@ async function store(tokens, { saveToken, log }) {
 // - `open(url)`: the browser opener, called only when `tty` is true
 // - `saveToken(tokens)`: the token store (credentials.js)
 // - `log(line)`: where the lines go; stderr in --json mode
+// - `emit(event)`: the machine-readable events, each right after its line:
+//   `{ event: 'action_required', action: { kind: 'github_sign_in', code,
+//   url } }` once the code is shown (`code` is the user code, never the
+//   device code), `{ event: 'action_done', kind: 'github_sign_in' }` once
+//   signed in; nothing on a failure. A no-op by default
 export async function signIn({
     fetch = globalThis.fetch,
     sleep = sleepFor,
@@ -124,6 +131,7 @@ export async function signIn({
     tty = Boolean(process.stdin.isTTY && process.stdout.isTTY),
     saveToken = defaultSaveToken,
     log = (line) => console.log(line),
+    emit = () => {},
 } = {}) {
     for (const line of IDENTITY_LINES) log(line)
     const device = await postOAuth(DEVICE_CODE_PATH, { client_id: CLIENT_ID }, { fetch })
@@ -133,6 +141,7 @@ export async function signIn({
     const page = device.verification_uri ?? DEVICE_PAGE
 
     log(`To sign in to GitHub, enter the code ${device.user_code} at ${page}`)
+    emit({ event: 'action_required', action: { kind: GITHUB_SIGN_IN, code: device.user_code, url: page } })
     log(SIGN_UP_LINE)
     if (tty) open(page)
     log('Waiting for you to authorize Nera Static on GitHub…')
@@ -142,6 +151,7 @@ export async function signIn({
     const login = await fetchLogin(tokens.accessToken, fetch)
     await store(tokens, { saveToken, log })
     log(`Signed in as ${login}`)
+    emit({ event: 'action_done', kind: GITHUB_SIGN_IN })
     return { ...tokens, login }
 }
 
@@ -170,7 +180,9 @@ async function refresh(tokens, { fetch, now }) {
 // A usable token set for GitHub: the stored one while it is valid,
 // NERA_GITHUB_TOKEN as it is, a refreshed one when the access token has
 // expired, and a new device-flow sign-in when there is none or the refresh
-// fails. Takes the options of signIn plus `readToken` (credentials.js).
+// fails. Takes the options of signIn plus `readToken` (credentials.js);
+// `emit` reaches a new sign-in only, since a valid, env or refreshed token
+// needs nothing from the user.
 export async function ensureToken(options = {}) {
     const {
         readToken = defaultReadToken,

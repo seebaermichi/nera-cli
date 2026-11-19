@@ -10,6 +10,7 @@ import {
     INSTALL_POLL_MS,
     INSTALL_TIMEOUT_MS,
     PRIVATE_NOTE,
+    GITHUB_APP_INSTALL,
 } from '../src/publish/repository.js'
 import { createGitHubClient, GITHUB_API } from '../src/publish/github.js'
 import { readPublishConfig, writePublishConfig, isValidRepoName, parseRepository } from '../src/publish/site-config.js'
@@ -157,6 +158,59 @@ describe('ensureInstallation', () => {
             .rejects.toThrow(`Install it at ${INSTALL_PAGE}, then run nera publish again.`)
         expect(clock.waits).toHaveLength(INSTALL_TIMEOUT_MS / INSTALL_POLL_MS)
         expect(requests).toHaveLength(INSTALL_TIMEOUT_MS / INSTALL_POLL_MS + 1)
+    })
+})
+
+describe('ensureInstallation — machine-readable events', () => {
+    const required = { event: 'action_required', action: { kind: 'github_app_install', url: INSTALL_PAGE } }
+    const done = { event: 'action_done', kind: 'github_app_install' }
+
+    // ensureInstallation with log and emit recorded in one timeline.
+    async function runInstall(installations, clock = fakeClock()) {
+        const { client } = fakeGitHub({ 'GET /user/installations?per_page=100': installations })
+        const events = []
+        const timeline = []
+        let error
+        try {
+            await ensureInstallation({
+                client,
+                login: 'octo',
+                tty: false,
+                log: (line) => timeline.push(line),
+                emit: (event) => {
+                    events.push(event)
+                    timeline.push(event)
+                },
+                ...clock,
+            })
+        } catch (err) {
+            error = err
+        }
+        return { events, timeline, error }
+    }
+
+    it('emits action_required with the install page, then action_done, each right after its line', async () => {
+        const { events, timeline } = await runInstall([
+            () => [200, { installations: [] }],
+            () => [200, { installations: [installation()] }],
+        ])
+        expect(GITHUB_APP_INSTALL).toBe('github_app_install')
+        expect(events).toEqual([required, done])
+        expect(timeline[timeline.indexOf(`Install it at ${INSTALL_PAGE}`) + 1]).toEqual(required)
+        expect(timeline.at(-2)).toBe('Nera Static is installed on octo.')
+        expect(timeline.at(-1)).toEqual(done)
+        expect(JSON.stringify(events)).not.toContain(TOKEN)
+    })
+
+    it('emits nothing when the app is already installed', async () => {
+        const { events } = await runInstall(() => [200, { installations: [installation()] }])
+        expect(events).toEqual([])
+    })
+
+    it('emits no action_done when the installation never appears', async () => {
+        const { events, error } = await runInstall(() => [200, { installations: [] }])
+        expect(error.message).toContain('was not installed within')
+        expect(events).toEqual([required])
     })
 })
 

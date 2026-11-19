@@ -14,6 +14,8 @@ export const INSTALL_PAGE = `https://github.com/apps/${APP_SLUG}/installations/n
 // How often and how long to wait for the user to install the app.
 export const INSTALL_POLL_MS = 5_000
 export const INSTALL_TIMEOUT_MS = 15 * 60_000
+// The `kind` of the installation's action_required / action_done events.
+export const GITHUB_APP_INSTALL = 'github_app_install'
 
 // What the app may do, shown before the install page (the device-flow page
 // lists no permissions; the install page does). The repository selection
@@ -47,7 +49,12 @@ async function findInstallation(client, login) {
 // do, print the install page (and open it when `tty` is true), then poll
 // every INSTALL_POLL_MS until it appears; give up after INSTALL_TIMEOUT_MS
 // with the page in the message. Resolves the installation as GitHub lists it
-// (`id`, `account`, `repository_selection`, …).
+// (`id`, `account`, `repository_selection`, …). `emit(event)` gets the
+// machine-readable events, each right after its line: `{ event:
+// 'action_required', action: { kind: 'github_app_install', url } }` once the
+// install page is shown, `{ event: 'action_done', kind: 'github_app_install' }`
+// once the installation appears; none when it is already there or on the
+// timeout. A no-op by default.
 export async function ensureInstallation({
     client,
     login,
@@ -56,12 +63,14 @@ export async function ensureInstallation({
     sleep = sleepFor,
     now = Date.now,
     log = (line) => console.log(line),
+    emit = () => {},
 } = {}) {
     const existing = await findInstallation(client, login)
     if (existing) return existing
 
     for (const line of INSTALL_LINES) log(line)
     log(`Install it at ${INSTALL_PAGE}`)
+    emit({ event: 'action_required', action: { kind: GITHUB_APP_INSTALL, url: INSTALL_PAGE } })
     if (tty) open(INSTALL_PAGE)
     log('Waiting for you to install Nera Static on GitHub…')
 
@@ -71,6 +80,7 @@ export async function ensureInstallation({
         const installation = await findInstallation(client, login)
         if (installation) {
             log(`Nera Static is installed on ${installation.account?.login ?? 'your account'}.`)
+            emit({ event: 'action_done', kind: GITHUB_APP_INSTALL })
             return installation
         }
         if (now() >= deadline) {

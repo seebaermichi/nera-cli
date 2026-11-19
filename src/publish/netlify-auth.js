@@ -18,6 +18,8 @@ export const SIGN_UP_PAGE = `${NETLIFY_WEB}/signup`
 // often and give up after 15 minutes, like GitHub's device code.
 export const POLL_INTERVAL_MS = 2_000
 export const TICKET_TIMEOUT_MS = 15 * 60_000
+// The `kind` of the sign-in's action_required / action_done events.
+export const NETLIFY_SIGN_IN = 'netlify_sign_in'
 
 // Who runs the OAuth app and where to read about it (D11), shown before
 // sign-in, and the guided sign-up for a user without an account.
@@ -84,6 +86,11 @@ async function store(tokens, { saveToken, log }) {
 // - `open(url)`: the browser opener, called only when `tty` is true
 // - `saveToken(tokens)`: the token store (credentials.js, account netlify)
 // - `log(line)`: where the lines go; stderr in --json mode
+// - `emit(event)`: the machine-readable events, each right after its line:
+//   `{ event: 'action_required', action: { kind: 'netlify_sign_in', url } }`
+//   once the authorize address is shown (the same address), `{ event:
+//   'action_done', kind: 'netlify_sign_in' }` once signed in; nothing on a
+//   failure, and never the token. A no-op by default
 export async function signInToNetlify({
     fetch = globalThis.fetch,
     sleep = sleepFor,
@@ -92,6 +99,7 @@ export async function signInToNetlify({
     tty = Boolean(process.stdin.isTTY && process.stdout.isTTY),
     saveToken = saveNetlifyToken,
     log = (line) => console.log(line),
+    emit = () => {},
 } = {}) {
     for (const line of NETLIFY_IDENTITY_LINES) log(line)
     const ticket = await createNetlifyClient({ fetch })
@@ -103,6 +111,7 @@ export async function signInToNetlify({
     const page = authorizeUrl(ticket.id)
 
     log(`To sign in to Netlify, open ${page} and choose "Authorize".`)
+    emit({ event: 'action_required', action: { kind: NETLIFY_SIGN_IN, url: page } })
     log(NETLIFY_SIGN_UP_LINE)
     if (tty) open(page)
     log('Waiting for you to authorize Nera CLI on Netlify…')
@@ -116,6 +125,7 @@ export async function signInToNetlify({
     await store(tokens, { saveToken, log })
     const email = typeof answer.user_email === 'string' && answer.user_email !== '' ? answer.user_email : undefined
     log(email ? `Signed in to Netlify as ${email}` : 'Signed in to Netlify.')
+    emit({ event: 'action_done', kind: NETLIFY_SIGN_IN })
     return email ? { ...tokens, email } : tokens
 }
 
@@ -135,8 +145,8 @@ async function checkToken(accessToken, fetch) {
 // Netlify accepts it, a new ticket sign-in when there is none or a stored one
 // was revoked. A refused NERA_NETLIFY_TOKEN fails instead, since it is the
 // user's to replace. Takes the options of signInToNetlify plus `readToken`
-// (credentials.js, account netlify). Resolves `{ accessToken, source?,
-// email? }`.
+// (credentials.js, account netlify); `emit` reaches a new sign-in only.
+// Resolves `{ accessToken, source?, email? }`.
 export async function ensureNetlifyToken(options = {}) {
     const {
         readToken = readNetlifyToken,

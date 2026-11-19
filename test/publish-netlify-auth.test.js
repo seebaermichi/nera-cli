@@ -9,6 +9,7 @@ import {
     SIGN_UP_PAGE,
     POLL_INTERVAL_MS,
     TICKET_TIMEOUT_MS,
+    NETLIFY_SIGN_IN,
 } from '../src/publish/netlify-auth.js'
 import { createNetlifyClient, NetlifyError, NETLIFY_API } from '../src/publish/netlify-api.js'
 
@@ -80,10 +81,12 @@ function fakeClock(start = START) {
 }
 
 // signInToNetlify (or ensureNetlifyToken with `stored`) with stubs for
-// everything; returns the logged lines, opened urls and saved token sets
-// alongside its result or error.
+// everything; returns the logged lines, the emitted events, both in one
+// `timeline`, opened urls and saved token sets alongside its result or error.
 async function run({ netlify = fakeNetlify(), clock = fakeClock(), tty = false, store = 'keychain', stored, ensure = false } = {}) {
     const lines = []
+    const events = []
+    const timeline = []
     const opened = []
     const saved = []
     const options = {
@@ -97,7 +100,14 @@ async function run({ netlify = fakeNetlify(), clock = fakeClock(), tty = false, 
             return store === 'file' ? { store: 'file', file: '/home/me/.config/nera/netlify-credentials.json' } : { store: 'keychain' }
         },
         readToken: async () => stored ?? null,
-        log: (line) => lines.push(line),
+        log: (line) => {
+            lines.push(line)
+            timeline.push(line)
+        },
+        emit: (event) => {
+            events.push(event)
+            timeline.push(event)
+        },
     }
     let result, error
     try {
@@ -105,7 +115,7 @@ async function run({ netlify = fakeNetlify(), clock = fakeClock(), tty = false, 
     } catch (err) {
         error = err
     }
-    return { result, error, lines, opened, saved, netlify, clock }
+    return { result, error, lines, events, timeline, opened, saved, netlify, clock }
 }
 
 const expectNoSecret = (text, secrets = SECRETS) => {
@@ -246,6 +256,64 @@ describe('ensureNetlifyToken', () => {
         expect(saved).toEqual([])
         expect(stub.requests).toHaveLength(1)
         expectNoSecret(error.message)
+    })
+})
+
+describe('signInToNetlify — machine-readable events', () => {
+    const required = { event: 'action_required', action: { kind: 'netlify_sign_in', url: authorizeUrl(TICKET_ID) } }
+    const done = { event: 'action_done', kind: 'netlify_sign_in' }
+
+    it('emits action_required with the authorize page, then action_done, each right after its line', async () => {
+        const { events, timeline } = await run()
+        expect(NETLIFY_SIGN_IN).toBe('netlify_sign_in')
+        expect(events).toEqual([required, done])
+        const pageLine = timeline.indexOf(`To sign in to Netlify, open ${authorizeUrl(TICKET_ID)} and choose "Authorize".`)
+        expect(timeline[pageLine + 1]).toEqual(required)
+        expect(timeline.at(-2)).toBe(`Signed in to Netlify as ${EMAIL}`)
+        expect(timeline.at(-1)).toEqual(done)
+    })
+
+    it('carries no token and no exchange address, only the authorize page', async () => {
+        const { events } = await run({ store: 'file' })
+        expectNoSecret(JSON.stringify(events), [ACCESS, NEW_ACCESS])
+        expect(JSON.stringify(events)).not.toContain('/exchange')
+        expect(Object.keys(events[0].action).sort()).toEqual(['kind', 'url'])
+        expect(Object.keys(events[1]).sort()).toEqual(['event', 'kind'])
+    })
+
+    it('emits no action_done when the ticket is refused, times out or the exchange fails', async () => {
+        const runs = [
+            await run({ netlify: fakeNetlify({ polls: [false, 410] }) }),
+            await run({ netlify: fakeNetlify({ polls: [] }) }),
+            await run({ netlify: fakeNetlify({ exchange: { user_email: EMAIL } }) }),
+        ]
+        for (const { error, events } of runs) {
+            expect(error).toBeInstanceOf(NetlifyError)
+            expect(events).toEqual([required])
+        }
+    })
+
+    it('emits nothing when the ticket answer has no id', async () => {
+        const { error, events } = await run({ netlify: fakeNetlify({ ticket: {} }) })
+        expect(error).toBeInstanceOf(NetlifyError)
+        expect(events).toEqual([])
+    })
+
+    it('ensureNetlifyToken emits nothing for an accepted or env token', async () => {
+        const runs = [
+            await run({ ensure: true, stored: { accessToken: ACCESS, source: 'keychain' } }),
+            await run({ ensure: true, stored: { accessToken: ACCESS, source: 'env' } }),
+            await run({ ensure: true, netlify: fakeNetlify({ tokens: {} }), stored: { accessToken: ACCESS, source: 'env' } }),
+        ]
+        for (const { events } of runs) expect(events).toEqual([])
+    })
+
+    it('ensureNetlifyToken forwards emit to a new sign-in, also after a revoked one', async () => {
+        const runs = [
+            await run({ ensure: true }),
+            await run({ ensure: true, netlify: fakeNetlify({ tokens: { [NEW_ACCESS]: { email: EMAIL } } }), stored: { accessToken: ACCESS, source: 'file' } }),
+        ]
+        for (const { events } of runs) expect(events).toEqual([required, done])
     })
 })
 
