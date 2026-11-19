@@ -5,6 +5,13 @@ import { execFileSync, spawn } from 'child_process'
 // ends the command line.
 const CMD_UNSAFE = /["%\r\n\0]/
 
+// The stdio of a child (npm, a plugin's template bin) whose parent's stdout
+// is a protocol channel or a --json object: stdin closed, so it never waits
+// for an answer, and its stdout and stderr both on fd 2. Rerouting this
+// process's writes (json-output.js) does not reach a child, so 'inherit'
+// would let it write straight into stdout.
+export const STDIO_OFF_STDOUT = Object.freeze(['ignore', 2, 2])
+
 // Quote one argument for cmd.exe and the C runtime that parses it again for
 // node.exe (npm.cmd hands `%*` on): inside quotes `&|<>^` and spaces are
 // literal; backslashes before the closing quote are doubled, or the last one

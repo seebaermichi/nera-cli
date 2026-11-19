@@ -7,6 +7,7 @@ import { runUpdate } from '../src/commands/update.js'
 import { runValidate } from '../src/commands/validate.js'
 import { runCheck } from '../src/commands/check.js'
 import { runPublish } from '../src/commands/publish.js'
+import { runAdd } from '../src/commands/add.js'
 
 const [, , command, ...rest] = process.argv
 const json = rest.includes('--json')
@@ -19,6 +20,7 @@ Usage:
   nera build         render pages/ → public/ (--check to check the output after, --json for machine-readable output)
   nera dev           build, serve and live-reload
   nera serve         serve the built public/ folder
+  nera add <plugin>  add an official plugin: npm install it, copy its default config/<name>.yaml when the site has none, publish its templates (e.g. nera add sitemap; --json for machine-readable output)
   nera update        update Nera packages (or migrate a cloned site with --migrate)
   nera validate      check the site (layouts, includes, YAML) before publish (--json for machine-readable output)
   nera check         check the built public/ (accessibility, privacy, legal hints) (--json for machine-readable output)
@@ -38,6 +40,9 @@ try {
         break
     case 'serve':
         await runServe(rest)
+        break
+    case 'add':
+        process.exitCode = await runAdd(rest)
         break
     case 'update':
         await runUpdate(rest)

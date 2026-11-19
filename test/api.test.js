@@ -34,6 +34,7 @@ describe('the @nera-static/nera entry point', () => {
         expect(Object.keys(api).sort()).toEqual([
             'BUNDLED_STARTERS',
             'CatalogError',
+            'addPlugin',
             'check',
             'createSite',
             'hasErrors',
@@ -154,6 +155,59 @@ describe('createSite', () => {
         ).rejects.toMatchObject({ name: 'AbortError' })
         await expect(fs.access(path.join(workdir, 'site'))).rejects.toThrow()
         expect(stdout).not.toHaveBeenCalled()
+    })
+})
+
+describe('addPlugin', () => {
+    let site
+
+    beforeEach(async () => {
+        site = path.join(workdir, 'site')
+        await fs.mkdir(site)
+        await fs.writeFile(
+            path.join(site, 'package.json'),
+            JSON.stringify({ name: 'site', dependencies: { '@nera-static/nera': '^1.25.0' } })
+        )
+    })
+
+    // A fake `npm install` that lays a plugin with a default config and a
+    // template bin into the site's node_modules.
+    const runNpm = vi.fn(async (args, { cwd }) => {
+        const dir = path.join(cwd, 'node_modules', '@nera-static', 'plugin-x')
+        await fs.mkdir(path.join(dir, 'config'), { recursive: true })
+        await fs.mkdir(path.join(dir, 'bin'))
+        await fs.writeFile(
+            path.join(dir, 'package.json'),
+            JSON.stringify({ name: '@nera-static/plugin-x', bin: { 'nera-x': 'bin/publish-template.js' } })
+        )
+        await fs.writeFile(path.join(dir, 'config', 'x.yaml'), 'enabled: true\n')
+        await fs.writeFile(path.join(dir, 'bin', 'publish-template.js'), '')
+    })
+
+    it('adds a plugin without writing to stdout, its children and log on stderr', async () => {
+        const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+        const runNode = vi.fn(async () => '')
+        const env = { PATH: '/shim' }
+        const result = await api.addPlugin('x', { cwd: site, env, runNpm, runNode })
+        expect(result).toEqual({
+            plugin: '@nera-static/plugin-x',
+            config: { file: 'config/x.yaml', status: 'copied' },
+            templates: 'published',
+        })
+        for (const fake of [runNpm, runNode]) {
+            expect(fake.mock.calls.at(-1)[1]).toMatchObject({ cwd: site, stdio: ['ignore', 2, 2], env })
+        }
+        expect(stdout).not.toHaveBeenCalled()
+        expect(stderr.mock.calls.map(([chunk]) => chunk).join('')).toContain('✅ Added @nera-static/plugin-x')
+    })
+
+    it('sends every line to an injected log instead', async () => {
+        const stderr = vi.spyOn(process.stderr, 'write')
+        const lines = []
+        await api.addPlugin('x', { cwd: site, runNpm, runNode: async () => '', log: (line) => lines.push(line) })
+        expect(lines).toContain('✅ Added @nera-static/plugin-x')
+        expect(stdout).not.toHaveBeenCalled()
+        expect(stderr).not.toHaveBeenCalled()
     })
 })
 

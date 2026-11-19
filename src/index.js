@@ -9,6 +9,8 @@
 // dependencies (vite, chokidar) are not loaded by this module.
 import { validateSite, validateOutput } from '@nera-static/validate'
 import { createSite as createSiteWithOptions } from './scaffold.js'
+import { addPlugin as addPluginWithOptions } from './plugin.js'
+import { STDIO_OFF_STDOUT } from './npm.js'
 
 export { listCatalog, CatalogError } from './catalog.js'
 export { listStarters } from './starter.js'
@@ -16,10 +18,6 @@ export { BUNDLED_STARTERS } from './starters.js'
 export { hasErrors } from '@nera-static/validate'
 
 const logToStderr = (line) => process.stderr.write(`${line}\n`)
-
-// npm install's output goes to stderr and its stdin is closed, so npm can
-// neither write to stdout nor wait for an answer.
-const INSTALL_STDIO = ['ignore', 2, 2]
 
 /**
  * Create a Nera site, the same way `nera new` does, without a prompt.
@@ -47,7 +45,38 @@ const INSTALL_STDIO = ['ignore', 2, 2]
 export function createSite(projectName, options = {}) {
     return createSiteWithOptions(projectName, {
         ...options,
-        stdio: options.stdio ?? INSTALL_STDIO,
+        stdio: options.stdio ?? STDIO_OFF_STDOUT,
+        log: options.log ?? logToStderr,
+    })
+}
+
+/**
+ * Add an official plugin to a site, the same way `nera add` does: install
+ * `@nera-static/plugin-<name>`, copy its default `config/<name>.yaml` when
+ * the site has none (an existing file is never touched), and run its
+ * `publish-template.js` bin when it ships one.
+ *
+ * The spec and the folder are checked before npm runs: only an official
+ * plugin (no other scope, version, path or `plugin-utils`) and only a site
+ * that depends on @nera-static/nera.
+ *
+ * @param {string} spec `<name>`, `plugin-<name>` or `@nera-static/plugin-<name>`
+ * @param {{ cwd?: string, log?: (line: string) => void,
+ *     env?: NodeJS.ProcessEnv, signal?: AbortSignal }} [options]
+ *     `cwd` (default process.cwd()) is the site's folder; `log` receives every
+ *     progress line (default: stderr); npm's and the template bin's output go
+ *     to stderr with stdin closed; `env` (default process.env) is the
+ *     environment of both children; `signal` kills the running child and
+ *     rejects with `signal.reason`
+ * @returns {Promise<{ plugin: string, config: { file: string,
+ *     status: 'copied'|'kept'|'none' }, templates: 'published'|'none' }>}
+ *     the package name, the site-relative config file and what happened to
+ *     it, and whether templates were published
+ */
+export function addPlugin(spec, options = {}) {
+    return addPluginWithOptions(spec, {
+        ...options,
+        stdio: options.stdio ?? STDIO_OFF_STDOUT,
         log: options.log ?? logToStderr,
     })
 }
