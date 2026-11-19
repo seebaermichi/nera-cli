@@ -92,21 +92,16 @@ pagination or image handling. Two that sites often need:
 
 - `@nera-static/plugin-contact-form` — a contact form that opens the visitor's
   mail client (`mailto:`). No backend and no form service; configured in
-  `config/contact-form.yaml`.
+  `config/contact-form.yaml`. `npx nera add contact-form` copies the form to
+  `theme/views/vendor/plugin-contact-form/` (its script to `theme/assets/js/`).
 - `@nera-static/plugin-navigation` — menus from `config/navigation.yaml`.
+  `npx nera add navigation` copies them to
+  `theme/views/vendor/plugin-navigation/`.
 
-Plugin templates are not used automatically. `nera add` copies them into the
-site, and you include them by hand in your own template:
-
-- `npx nera add contact-form` copies the form to
-  `theme/views/vendor/plugin-contact-form/` (and its script to
-  `theme/assets/js/`); include it with
-  `include /vendor/plugin-contact-form/contact-form`
-- `npx nera add navigation` copies the menus to
-  `theme/views/vendor/plugin-navigation/`
-
-The copy is skipped when the target folder already exists, so later plugin
-updates do not reach it. The plugin's own binary, `npx nera-<name> --force`
+Plugin templates are not used automatically: include the copy by hand in your
+own template, e.g. `include /vendor/plugin-contact-form/contact-form`. The copy
+is skipped when the target folder already exists, so later plugin updates do
+not reach it. The plugin's own binary, `npx nera-<name> --force`
 (e.g. `npx nera-navigation --force`), overwrites the copy.
 
 ## Preview
