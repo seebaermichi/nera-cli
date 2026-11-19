@@ -6,7 +6,8 @@ Responsive images with `@nera-static/plugin-images`: each picture becomes a
 
 ## Steps
 
-1. `npm install @nera-static/plugin-images`
+1. `npx nera add images` installs the plugin and copies its `picture`
+   mixin to `theme/views/vendor/plugin-images/`.
 2. Put the originals in the assets folder, e.g. `theme/assets/images/`.
    They are referenced without `theme/assets`: `/images/photo.jpg`.
 3. In Markdown, write images as usual; the plugin rewrites them:
@@ -14,8 +15,7 @@ Responsive images with `@nera-static/plugin-images`: each picture becomes a
    (`![Alt](/images/pier.jpg "Caption")`), and query parameters crop or
    size one image (`?w=800&ratio=16:9`, see the README).
 4. In frontmatter, `image: /images/hero.jpg` gets precomputed variants for
-   templates. Run `npx nera-images` to copy the `picture` mixin to
-   `theme/views/vendor/plugin-images/`, then in a template:
+   templates. Show them with the copied `picture` mixin in a template:
 
    ```pug
    include /vendor/plugin-images/picture

@@ -24,17 +24,16 @@ instead, with different files.
    `title`, `description`, `date` and `image: /images/<file>.jpg` (the cover
    picture). Show more photos in the body with
    `![Alt text](/images/<file>.jpg "Caption")`.
-4. Project list: `npm install @nera-static/plugin-simple-page-list`, set
-   `page_path: /projects` in `config/simple-page-list.yaml`, run
-   `npx nera-simple-page-list`, and render `app.pageList` on the home page.
-   For a grid with cover images, loop over `app.pageList` in your own Pug
-   template instead of the published one.
+4. Project list: `npx nera add simple-page-list`, change `page_paths` in
+   the copied `config/simple-page-list.yaml` to `[/projects]`, and render
+   `app.pageList.projects` on the home page. For a grid with cover images,
+   loop over it in your own Pug template instead of the published one.
 5. A project template, `theme/views/pages/project.pug`, extending
    `../layouts/layout`, that shows the cover with the images plugin's
    `+picture` mixin and then `content`, with exactly one `main`.
-6. Optional: `@nera-static/plugin-tags` to group projects by kind,
-   `@nera-static/plugin-page-pagination` for previous/next project,
-   `@nera-static/plugin-social-media-links`, `@nera-static/plugin-sitemap`.
+6. Optional, each with `npx nera add <name>`: `tags` to group projects by
+   kind, `page-pagination` for previous/next project, `social-media-links`,
+   `sitemap`.
 7. `npx nera validate`, then `npx nera build --check`. The check reports
    images without alt text; describe what each picture shows.
 

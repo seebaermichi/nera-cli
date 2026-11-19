@@ -6,10 +6,14 @@ Do not hand-write a `<form>` or post to a third-party service.
 
 ## Steps
 
-1. `npm install @nera-static/plugin-contact-form`
-2. Create `config/contact-form.yaml`. `recipient` and at least one field
-   are required; without them the form does not render and the build only
-   warns:
+1. `npx nera add contact-form` installs the plugin, copies its default
+   `config/contact-form.yaml`, the form to
+   `theme/views/vendor/plugin-contact-form/` and its script to
+   `theme/assets/js/contact-form.js`.
+2. Edit the copied `config/contact-form.yaml`: put the real address in
+   `recipient` (the copy has the placeholder `hello@example.com`).
+   `recipient` and at least one field are required; without them the form
+   does not render and the build only warns. A minimal config:
 
    ```yaml
    recipient: hello@example.com
@@ -31,10 +35,7 @@ Do not hand-write a `<form>` or post to a third-party service.
    Field types: `text`, `email`, `tel`, `textarea`, `select`, `checkbox`,
    `radio`. The README lists the optional keys (subject, labels, honeypot,
    `consent_text` with a link to the privacy page).
-3. `npx nera-contact-form` copies the form to
-   `theme/views/vendor/plugin-contact-form/` and its script to
-   `theme/assets/js/contact-form.js`.
-4. A page template for the contact page, `theme/views/pages/contact.pug`:
+3. A page template for the contact page, `theme/views/pages/contact.pug`:
 
    ```pug
    extends ../layouts/layout
@@ -45,9 +46,9 @@ Do not hand-write a `<form>` or post to a third-party service.
        include /vendor/plugin-contact-form/contact-form
    ```
 
-5. `pages/contact.md` with `layout: pages/contact.pug`, a `title` and a
+4. `pages/contact.md` with `layout: pages/contact.pug`, a `title` and a
    short text above the form.
-6. `npx nera validate`, then `npx nera build --check`. Open
+5. `npx nera validate`, then `npx nera build --check`. Open
    `/contact.html` with `npm run dev` and submit once: the mail client
    should open with the message filled in.
 

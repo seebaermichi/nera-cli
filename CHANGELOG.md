@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.0] - 2026-11-19
+
+### Added
+
+-   `nera add <plugin>` adds an official plugin in one step: it runs `npm install @nera-static/plugin-<name>`, copies the plugin's default `config/<name>.yaml` into the site's config folder when the site has none (an existing file is kept as it is), and runs the plugin's `publish-template.js` binary when it ships one, which copies its templates into `theme/views/vendor/plugin-<name>/`. The plugin is `<name>`, `plugin-<name>` or `@nera-static/plugin-<name>` (e.g. `nera add sitemap`); another scope, a version, a path or `plugin-utils` is refused before npm runs, and so is a folder that is no thin Nera site. `--json` prints one object, `{ ok, plugin, config: { file, status }, templates }` (`status` `copied | kept | none`, `templates` `published | none`), with npm's and the binary's output on stderr.
+-   `addPlugin(spec, { cwd, log, env, signal })` in the programmatic API: what `nera add` does, returning the `--json` object without `ok`. It never prompts and writes nothing to stdout.
+
+### Changed
+
+-   The scaffold's `AGENTS.md` (new sites, and existing ones on `nera update`), the bundled skill `SKILL.md` and its recipes (blog, business site, contact form, images, portfolio, search) add plugins with `npx nera add <name>` instead of `npm install` followed by the plugin's own `npx nera-<name>`. The blog and portfolio recipes now read the post or project list from `app.pageList.posts` / `app.pageList.projects`, the shape the copied default `config/simple-page-list.yaml` (`page_paths`) produces.
+
 ## [1.25.0] - 2026-11-18
 
 ### Added

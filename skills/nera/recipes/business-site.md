@@ -24,16 +24,16 @@ below build the site by hand instead, with different files.
    `pages/imprint.md` and `pages/privacy.md` as placeholders, linked from
    the layout's footer: replace their text, or write them if they are
    missing.
-4. Menu: `npm install @nera-static/plugin-navigation`, list the pages in
-   `config/navigation.yaml` (`href` ending in `.html`, `name`; groups such
-   as `main:` and `footer:`; a footer menu replaces the layout's own
-   imprint and privacy links, so keep only one of the two), run
-   `npx nera-navigation` and include a menu in
+4. Menu: `npx nera add navigation`, then replace the sample entry in the
+   copied `config/navigation.yaml` with the pages (`href` ending in
+   `.html`, `name`; groups such as `main:` and `footer:`; a footer menu
+   replaces the layout's own imprint and privacy links, so keep only one of
+   the two), and include a published menu in
    `theme/views/layouts/layout.pug` (see the plugin README for the mixins).
 5. Contact form: follow [contact-form](contact-form.md).
-6. Optional, for search engines: `@nera-static/plugin-sitemap` (needs
-   `origin`) and `@nera-static/plugin-canonical-links`. Social profiles:
-   `@nera-static/plugin-social-media-links`.
+6. Optional, for search engines: `npx nera add sitemap` (needs `origin`)
+   and `npx nera add canonical-links`. Social profiles:
+   `npx nera add social-media-links`.
 7. Styles: a CSS file in `theme/assets/css/`, linked from the layout's
    `head` (`link(rel="stylesheet" href="/css/main.css")`).
 8. `npx nera validate`, then `npx nera build --check`; fix what they report.
