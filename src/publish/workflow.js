@@ -4,7 +4,10 @@ import { stringify } from 'yaml'
 
 // The site's deploy workflow, `.github/workflows/deploy.yml` (ROADMAP-ai.md
 // L6 step 5): one shared build job (`npm ci`, `npm run build`, the `public/`
-// folder as an artifact) plus the deploy job of the target adapter. Only
+// folder as an artifact) plus the deploy job of the target adapter. An
+// adapter whose deploy needs the artifact in another form brings the build
+// job's upload step itself (`uploadStep`, GitHub Pages: `github-pages`, which
+// deploy-pages cannot find when it is uploaded in the deploy job itself). Only
 // `nera publish` writes it, and it overwrites the file only while the file
 // still starts with GENERATED_HEADER, so a workflow the user took over stays
 // theirs.
@@ -15,7 +18,8 @@ import { stringify } from 'yaml'
 
 export const WORKFLOW_FILE = path.join('.github', 'workflows', 'deploy.yml')
 
-// The artifact the build job uploads; a deploy job downloads it by this name.
+// The artifact the build job uploads unless the adapter brings its own upload
+// step; a deploy job downloads it by this name.
 export const BUILD_ARTIFACT = 'site'
 // The folder `npm run build` renders into, which the artifact holds.
 export const BUILD_OUTPUT = 'public'
@@ -47,6 +51,7 @@ const HEADER = `${GENERATED_HEADER}
 const BASE_PERMISSIONS = { contents: 'read' }
 const PERMISSION_LEVELS = ['none', 'read', 'write']
 
+// The shared build job up to its upload step, which uploadStepOf() appends.
 const BUILD_JOB = `    ${BUILD_JOB_ID}:
         runs-on: ubuntu-latest
 
@@ -78,12 +83,40 @@ const BUILD_JOB = `    ${BUILD_JOB_ID}:
             - name: ${BUILD_STEPS.render}
               run: npm run build
 
-            - name: ${BUILD_STEPS.upload}
+`
+
+// The build job's last step when the adapter brings none: `public/` as the
+// BUILD_ARTIFACT artifact.
+const DEFAULT_UPLOAD = `            - name: ${BUILD_STEPS.upload}
               uses: actions/upload-artifact@v7
               with:
                   name: ${BUILD_ARTIFACT}
                   path: ${BUILD_OUTPUT}
                   if-no-files-found: error`
+
+// Throw when the adapter's optional `uploadStep` is set but is not a step
+// object `{ uses, with? }` without a `name`: the workflow names it
+// BUILD_STEPS.upload, which status.js picks its fix hint by.
+export function assertUploadStep(adapter) {
+    const step = adapter.uploadStep
+    if (step === undefined) return
+    if (!step || typeof step !== 'object' || Array.isArray(step) || typeof step.uses !== 'string' || step.uses === '') {
+        throw new TypeError(`Publish target "${adapter.id}": uploadStep must be a step object with uses when it is set`)
+    }
+    if ('name' in step) {
+        throw new TypeError(`Publish target "${adapter.id}" must not set uploadStep.name; the workflow names it`)
+    }
+}
+
+// The build job's upload step as text: the adapter's, rendered under
+// BUILD_STEPS.upload at the indentation of the hand-written steps, or
+// DEFAULT_UPLOAD.
+function uploadStepOf(adapter) {
+    assertUploadStep(adapter)
+    if (adapter.uploadStep === undefined) return DEFAULT_UPLOAD
+    const step = { name: BUILD_STEPS.upload, ...adapter.uploadStep }
+    return indent(stringify([step], { indent: 4, lineWidth: 0 }).trimEnd(), 12)
+}
 
 // The adapter's deploy job, checked: `{ permissions, job }`, where
 // `permissions` maps scopes to none/read/write and `job` is a job object
@@ -129,6 +162,7 @@ function indent(text, spaces) {
 
 // The workflow for `adapter` as text. `ctx` is handed to adapter.deployJob.
 export async function renderWorkflow(adapter, ctx = {}) {
+    const upload = uploadStepOf(adapter)
     const { permissions, job } = await deployJobOf(adapter, ctx)
     // Only the deploy job gets the adapter's scopes: the build job runs
     // `npm ci` (dependency install scripts) with `contents: read` alone.
@@ -157,7 +191,7 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
-${BUILD_JOB}
+${BUILD_JOB}${upload}
 
 ${indent(deployJob, 4)}
 `

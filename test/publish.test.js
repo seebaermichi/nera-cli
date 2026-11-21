@@ -183,6 +183,17 @@ describe('target registry', () => {
         )
     })
 
+    it('accepts an optional uploadStep and refuses one that is not a step object or names itself', () => {
+        const uploadStep = { uses: 'actions/upload-pages-artifact@v5', with: { path: 'public' } }
+        expect(assertAdapter(fakeAdapter('x', { uploadStep })).uploadStep).toBe(uploadStep)
+        expect(() => assertAdapter(fakeAdapter('x', { uploadStep: 'actions/upload-pages-artifact@v5' }))).toThrow(
+            'Publish target "x": uploadStep must be a step object with uses when it is set'
+        )
+        expect(() => assertAdapter(fakeAdapter('x', { uploadStep: { name: 'Upload', ...uploadStep } }))).toThrow(
+            'Publish target "x" must not set uploadStep.name; the workflow names it'
+        )
+    })
+
     it('accepts an optional summary and refuses one that is not a non-empty string', () => {
         expect(assertAdapter(fakeAdapter('x', { summary: 'for a blog' })).summary).toBe('for a blog')
         for (const summary of ['', 3]) {

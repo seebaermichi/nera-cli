@@ -1,15 +1,18 @@
 import { githubPages } from './pages.js'
 import { netlify } from './netlify.js'
+import { assertUploadStep } from './workflow.js'
 
 // The hosts `nera publish` can deploy to (ROADMAP-ai.md L6, D6). A target
 // adapter is a plain object:
 //
-//   { id, label, summary?, setUp(ctx), deployJob(ctx), liveUrl(ctx), leftBehind?(ctx) }
+//   { id, label, summary?, setUp(ctx), uploadStep?, deployJob(ctx), liveUrl(ctx), leftBehind?(ctx) }
 //
 // `id` is what `--target` and `config/publish.yaml` name, `label` the name
 // shown to people, the optional `summary` one line on what the host suits,
 // shown next to the label when `nera publish` asks for the target. `setUp` prepares the host before the first push, `deployJob`
 // returns `{ permissions, job }` for the generated workflow (workflow.js),
+// the optional `uploadStep` (a step object `{ uses, with }`, no `name`)
+// replaces the build job's upload of `public/` as the `site` artifact,
 // `liveUrl` the site's address. The optional `leftBehind` returns the lines
 // printed when a site moves away from this host: what is still online there
 // and how to remove it, from what the run already knows (no sign-in to the
@@ -48,6 +51,7 @@ export function assertAdapter(adapter) {
             throw new TypeError(`Publish target "${id}": ${method} must be a function when it is set`)
         }
     }
+    assertUploadStep(adapter)
     return adapter
 }
 

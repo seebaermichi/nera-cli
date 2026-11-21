@@ -15,7 +15,7 @@ import {
 import { assertAdapter } from '../src/publish/targets.js'
 import { createGitHubClient, GitHubError, GITHUB_API } from '../src/publish/github.js'
 import { PRIVATE_NOTE } from '../src/publish/repository.js'
-import { renderWorkflow, BUILD_ARTIFACT, BUILD_JOB_ID } from '../src/publish/workflow.js'
+import { renderWorkflow, BUILD_JOB_ID, BUILD_STEPS } from '../src/publish/workflow.js'
 import { fakeResolver } from './helpers/fake-dns.js'
 
 // The GitHub Pages adapter of `nera publish` (ROADMAP-ai.md L6 step 4).
@@ -136,20 +136,27 @@ describe('githubPages.deployJob, in the rendered workflow', () => {
         })
     })
 
-    it('downloads the build artifact into public, configures, uploads and deploys it', async () => {
-        const workflow = await rendered()
-        const { steps } = workflow.jobs.deploy
+    it('uploads public as the github-pages artifact in the build job, under the build job\'s upload step name', async () => {
+        const { build } = (await rendered()).jobs
+        const uploads = build.steps.filter((step) => step.name === BUILD_STEPS.upload)
+        expect(uploads).toEqual([{
+            name: BUILD_STEPS.upload,
+            uses: 'actions/upload-pages-artifact@v5',
+            with: { path: 'public' },
+        }])
+        expect(build.steps.at(-1)).toBe(uploads[0])
+        expect(build.steps.some((step) => step.uses?.startsWith('actions/upload-artifact@'))).toBe(false)
+    })
+
+    it('only configures Pages and deploys in the deploy job, with no site artifact', async () => {
+        const text = await renderWorkflow(githubPages, {})
+        const { steps } = (await rendered()).jobs.deploy
         expect(steps.map((step) => step.uses)).toEqual([
-            'actions/download-artifact@v8',
             'actions/configure-pages@v6',
-            'actions/upload-pages-artifact@v5',
             'actions/deploy-pages@v5',
         ])
-        const upload = workflow.jobs[BUILD_JOB_ID].steps.find((step) => step.uses?.startsWith('actions/upload-artifact@'))
-        expect(steps[0].with).toEqual({ name: BUILD_ARTIFACT, path: upload.with.path })
-        expect(upload.with).toMatchObject({ name: BUILD_ARTIFACT, path: 'public' })
-        expect(steps[2].with).toEqual({ path: 'public' })
-        expect(steps[3].id).toBe('deployment')
+        expect(steps[1].id).toBe('deployment')
+        expect(text).not.toMatch(/download-artifact|name: site\b/)
     })
 
     it('needs no secret or token', async () => {

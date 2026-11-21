@@ -142,6 +142,47 @@ describe('renderWorkflow', () => {
             .rejects.toThrow(/permission "pages" must be one of none, read, write, got "admin"/)
     })
 
+    it('keeps the hand-written site upload when the adapter brings no upload step', async () => {
+        const { text } = await render()
+        expect(text).toContain(`            - name: ${BUILD_STEPS.upload}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: ${BUILD_ARTIFACT}
+                  path: public
+                  if-no-files-found: error
+`)
+    })
+
+    it('puts the adapter upload step in place of the site upload, as the build job\'s last step, under the fixed name', async () => {
+        const uploadStep = { uses: 'actions/upload-pages-artifact@v5', with: { path: 'public' } }
+        const adapter = { ...fakeAdapter(pagesLike), uploadStep }
+        const text = await renderWorkflow(adapter)
+        const doc = parseDocument(text)
+        expect(doc.errors).toEqual([])
+        const { steps } = doc.toJS().jobs.build
+        expect(steps).toHaveLength(6)
+        expect(steps[5]).toEqual({ name: BUILD_STEPS.upload, ...uploadStep })
+        expect(steps.some((step) => step.uses === 'actions/upload-artifact@v7')).toBe(false)
+        // Laid out like the hand-written steps around it.
+        expect(text).toContain(`            - name: ${BUILD_STEPS.upload}
+              uses: actions/upload-pages-artifact@v5
+              with:
+                  path: public
+
+    deploy:
+`)
+        expect(uploadStep).toEqual({ uses: 'actions/upload-pages-artifact@v5', with: { path: 'public' } })
+    })
+
+    it('rejects an upload step that is not a step object or names itself', async () => {
+        const withUpload = (uploadStep) => renderWorkflow({ ...fakeAdapter(pagesLike), uploadStep })
+        for (const bad of [null, 'actions/upload-pages-artifact@v5', [], {}]) {
+            await expect(withUpload(bad)).rejects.toThrow(/uploadStep must be a step object with uses/)
+        }
+        await expect(withUpload({ name: 'Upload', uses: 'actions/upload-pages-artifact@v5' }))
+            .rejects.toThrow(/must not set uploadStep\.name; the workflow names it/)
+    })
+
     it('writes no secret or token of its own', async () => {
         const { text } = await render()
         expect(text).not.toMatch(/secrets\.|github_token|gh[opsu]_/i)

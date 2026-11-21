@@ -4,7 +4,7 @@ import { parseDocument } from 'yaml'
 import { checkDns, movedDomainNote, reportDns } from './dns.js'
 import { GitHubError } from './github.js'
 import { PRIVATE_NOTE } from './repository.js'
-import { BUILD_ARTIFACT, BUILD_OUTPUT } from './workflow.js'
+import { BUILD_OUTPUT } from './workflow.js'
 
 // The GitHub Pages target of `nera publish` (ROADMAP-ai.md L6 step 4): the
 // site is built and deployed by the generated Actions workflow, so Pages runs
@@ -235,12 +235,20 @@ async function liveUrl({ client, repository }) {
     return pages.html_url
 }
 
-// The deploy job of the generated workflow (D5): fetch the `public/` folder
-// the build job uploaded, hand it to Pages and deploy it. `pages: write` and
+// The build job's upload step (GitHub #18): `public/` as the `github-pages`
+// artifact deploy-pages deploys. It is uploaded in the build job, as GitHub's
+// starter workflow does, because deploy-pages does not yet see an artifact
+// uploaded earlier in its own job and fails.
+const uploadStep = {
+    uses: 'actions/upload-pages-artifact@v5',
+    with: { path: BUILD_OUTPUT },
+}
+
+// The deploy job of the generated workflow (D5): configure Pages and deploy
+// the `github-pages` artifact the build job uploaded. `pages: write` and
 // `id-token: write` are what deploy-pages needs; the `github-pages`
 // environment shows the deployment's address on the run. Action majors follow
-// nera-website's workflow; download-artifact@v8 pairs with the build job's
-// upload-artifact@v7.
+// nera-website's workflow.
 function deployJob() {
     return {
         permissions: { pages: 'write', 'id-token': 'write' },
@@ -251,17 +259,7 @@ function deployJob() {
                 url: '${{ steps.deployment.outputs.page_url }}',
             },
             steps: [
-                {
-                    name: 'Download the built site',
-                    uses: 'actions/download-artifact@v8',
-                    with: { name: BUILD_ARTIFACT, path: BUILD_OUTPUT },
-                },
                 { name: 'Configure Pages', uses: 'actions/configure-pages@v6' },
-                {
-                    name: 'Upload Pages artifact',
-                    uses: 'actions/upload-pages-artifact@v5',
-                    with: { path: BUILD_OUTPUT },
-                },
                 { name: 'Deploy to GitHub Pages', id: 'deployment', uses: 'actions/deploy-pages@v5' },
             ],
         },
@@ -284,6 +282,7 @@ export const githubPages = {
     label: 'GitHub Pages',
     summary: 'free with your GitHub account; for a blog, portfolio or personal site, not for running a business',
     setUp,
+    uploadStep,
     deployJob,
     liveUrl,
     leftBehind,
