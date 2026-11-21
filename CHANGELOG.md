@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.2] - 2026-11-21
+
+### Fixed
+
+-   `nera dev` now reloads an open browser tab after every successful rebuild, as README, the bundled skill and the scaffold's start page promise. The rebuild deletes and rewrites `public/`, the folder Vite serves, and Vite's file watcher did not reliably notice that, so the page stayed on the old build until a manual reload (seen in Safari). Each successful rebuild now sends Vite's `full-reload` message to the connected tabs itself; a failed build leaves the tab as it is, and the terminal shows the error.
+
 ## [1.27.1] - 2026-11-21
 
 ### Fixed
