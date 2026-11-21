@@ -23,35 +23,24 @@ export async function runDev(args = []) {
     const watched = new Set(watchTargets())
     const watcher = chokidar.watch([...watched], { ignoreInitial: true })
 
-    // Serialise rebuilds: coalesce changes that land mid-build into one re-run.
-    let building = false
-    let queued = false
-    const rebuild = async () => {
-        if (building) {
-            queued = true
-            return
-        }
-        building = true
-        try {
-            await run()
-        } catch (err) {
-            console.error('❌ Build error:', err.message)
-        }
-        building = false
+    const rebuild = createRebuilder({
+        build: run,
         // config/app.yaml may now name a different local theme — start
         // watching it too. A dropped one stays watched; that only costs an
         // extra rebuild if it is edited.
-        for (const dir of watchTargets()) {
-            if (!watched.has(dir)) {
-                watched.add(dir)
-                watcher.add(dir)
+        afterBuild: () => {
+            for (const dir of watchTargets()) {
+                if (!watched.has(dir)) {
+                    watched.add(dir)
+                    watcher.add(dir)
+                }
             }
-        }
-        if (queued) {
-            queued = false
-            await rebuild()
-        }
-    }
+        },
+        // run() deletes and rewrites public/, Vite's root. Its watcher does
+        // not reliably notice a vanished and recreated root, so the browser
+        // is told to reload explicitly.
+        onBuilt: () => server.ws.send({ type: 'full-reload', path: '*' }),
+    })
 
     watcher.on('all', async (event, filePath) => {
         console.log(
@@ -61,6 +50,43 @@ export async function runDev(args = []) {
     })
 
     return server
+}
+
+// The rebuild loop of `nera dev`. Rebuilds are serialised: changes that land
+// mid-build coalesce into one re-run. `afterBuild` runs after every build,
+// failed ones included; `onBuilt` (the browser reload) only after a build
+// that resolved, never before or in parallel with it. A failed build leaves
+// the browser alone — the terminal shows the error, the next good build
+// reloads.
+export function createRebuilder({
+    build,
+    afterBuild = () => {},
+    onBuilt = () => {},
+}) {
+    let building = false
+    let queued = false
+    const rebuild = async () => {
+        if (building) {
+            queued = true
+            return
+        }
+        building = true
+        let built = false
+        try {
+            await build()
+            built = true
+        } catch (err) {
+            console.error('❌ Build error:', err.message)
+        }
+        building = false
+        afterBuild()
+        if (built) onBuilt()
+        if (queued) {
+            queued = false
+            await rebuild()
+        }
+    }
+    return rebuild
 }
 
 // What a rebuild depends on: pages/, config/, the site's presentation folder

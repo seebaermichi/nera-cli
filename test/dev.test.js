@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { watchTargets } from '../src/commands/dev.js'
+import { createRebuilder, watchTargets } from '../src/commands/dev.js'
 
 describe('watchTargets', () => {
     let site
@@ -85,5 +85,103 @@ describe('watchTargets', () => {
         expect(watchTargets(site).some((d) => d.includes('node_modules'))).toBe(
             false
         )
+    })
+})
+
+describe('createRebuilder', () => {
+    // A build that resolves only when the test says so, to land changes
+    // mid-build.
+    const deferred = () => {
+        let resolve
+        const promise = new Promise((r) => (resolve = r))
+        return { promise, resolve }
+    }
+
+    it('reloads once after a successful build, never before it resolves', async () => {
+        const events = []
+        const gate = deferred()
+        const rebuild = createRebuilder({
+            build: async () => {
+                events.push('build:start')
+                await gate.promise
+                events.push('build:end')
+            },
+            onBuilt: () => events.push('reload'),
+        })
+
+        const done = rebuild()
+        await Promise.resolve()
+        expect(events).toEqual(['build:start'])
+
+        gate.resolve()
+        await done
+        expect(events).toEqual(['build:start', 'build:end', 'reload'])
+    })
+
+    it('does not reload after a build that throws', async () => {
+        const onBuilt = vi.fn()
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const rebuild = createRebuilder({
+            build: async () => {
+                throw new Error('bad frontmatter')
+            },
+            onBuilt,
+        })
+
+        await rebuild()
+
+        expect(onBuilt).not.toHaveBeenCalled()
+        expect(error).toHaveBeenCalledWith('❌ Build error:', 'bad frontmatter')
+        error.mockRestore()
+    })
+
+    it('coalesces changes during a build into one re-run and one more reload', async () => {
+        const gates = [deferred(), deferred()]
+        let calls = 0
+        const build = vi.fn(() => gates[calls++].promise)
+        const onBuilt = vi.fn()
+        const rebuild = createRebuilder({ build, onBuilt })
+
+        const first = rebuild()
+        // Three changes land while the first build runs.
+        await Promise.all([rebuild(), rebuild(), rebuild()])
+        expect(build).toHaveBeenCalledTimes(1)
+        expect(onBuilt).not.toHaveBeenCalled()
+
+        gates[0].resolve()
+        await vi.waitFor(() => expect(build).toHaveBeenCalledTimes(2))
+        expect(onBuilt).toHaveBeenCalledTimes(1)
+
+        gates[1].resolve()
+        await first
+        expect(build).toHaveBeenCalledTimes(2)
+        expect(onBuilt).toHaveBeenCalledTimes(2)
+    })
+
+    it('runs afterBuild after every build, failed ones included', async () => {
+        const events = []
+        let fail = true
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const rebuild = createRebuilder({
+            build: async () => {
+                events.push('build')
+                if (fail) throw new Error('boom')
+            },
+            afterBuild: () => events.push('rewatch'),
+            onBuilt: () => events.push('reload'),
+        })
+
+        await rebuild()
+        fail = false
+        await rebuild()
+
+        expect(events).toEqual([
+            'build',
+            'rewatch',
+            'build',
+            'rewatch',
+            'reload',
+        ])
+        error.mockRestore()
     })
 })
