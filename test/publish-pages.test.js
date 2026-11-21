@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import { parseDocument } from 'yaml'
 import {
     githubPages,
@@ -15,7 +16,7 @@ import {
 import { assertAdapter } from '../src/publish/targets.js'
 import { createGitHubClient, GitHubError, GITHUB_API } from '../src/publish/github.js'
 import { PRIVATE_NOTE } from '../src/publish/repository.js'
-import { renderWorkflow, BUILD_JOB_ID, BUILD_STEPS } from '../src/publish/workflow.js'
+import { renderWorkflow, writeWorkflow, BUILD_JOB_ID, BUILD_STEPS, WORKFLOW_FILE } from '../src/publish/workflow.js'
 import { fakeResolver } from './helpers/fake-dns.js'
 
 // The GitHub Pages adapter of `nera publish` (ROADMAP-ai.md L6 step 4).
@@ -162,6 +163,28 @@ describe('githubPages.deployJob, in the rendered workflow', () => {
     it('needs no secret or token', async () => {
         const text = await renderWorkflow(githubPages, {})
         expect(text).not.toMatch(/secrets\.|github_token|gh[opsu]_/i)
+    })
+})
+
+// The Pages workflow 1.27.0 generated, rendered from that release's source:
+// its deploy job uploaded github-pages and deployed it in the same job, which
+// deploy-pages could not find (GitHub #18).
+const PAGES_WORKFLOW_1_27_0 = fileURLToPath(new URL('./fixtures/pages-deploy-1.27.0.yml', import.meta.url))
+
+describe('a site with the 1.27.0 Pages workflow', () => {
+    it('gets the new workflow when nera publish writes it again', async () => {
+        const old = await fs.readFile(PAGES_WORKFLOW_1_27_0, 'utf-8')
+        const file = path.join(site, WORKFLOW_FILE)
+        await fs.mkdir(path.dirname(file), { recursive: true })
+        await fs.writeFile(file, old)
+
+        const result = await writeWorkflow(githubPages, {}, site)
+
+        expect(result).toEqual({ file, status: 'updated', message: `Updated ${WORKFLOW_FILE}.` })
+        const written = await fs.readFile(file, 'utf-8')
+        expect(written).toBe(await renderWorkflow(githubPages, {}))
+        expect(old).toMatch(/download-artifact/)
+        expect(written).not.toMatch(/download-artifact/)
     })
 })
 

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.1] - 2026-11-21
+
+### Fixed
+
+-   The GitHub Pages workflow `nera publish` writes (`.github/workflows/deploy.yml`) failed in "Deploy to GitHub Pages" on every run: its deploy job uploaded the `github-pages` artifact and deployed it in the same job, and `actions/deploy-pages` could not find that artifact yet (GitHub #18). The build job now uploads `public/` as `github-pages` (`actions/upload-pages-artifact`, still named "Upload the built site"), and the deploy job only configures Pages and deploys; the build job keeps `contents: read`. A site that published to GitHub Pages runs `nera publish` again, which rewrites the generated workflow (one you took over, without the generated first line, is kept); `nera update` does not change it. The Netlify workflow is unchanged.
+
 ## [1.27.0] - 2026-11-19
 
 ### Added
