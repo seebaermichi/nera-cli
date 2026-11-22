@@ -2,7 +2,9 @@
 // spawning the `nera` bin, such as @nera-static/mcp. It covers the catalogs,
 // site creation and the two validator passes; build, dev, serve and publish
 // stay `nera` child processes, because the engine and every plugin read
-// process.cwd() and log to stdout.
+// process.cwd() and log to stdout. The one piece of publish in the API is the
+// text of its deploy workflow (and the base_path rule that goes with it), so
+// another tool can commit the same `.github/workflows/deploy.yml`.
 //
 // Nothing here writes to stdout or reads stdin, so a caller whose stdout is a
 // protocol channel (an MCP server over stdio) can import it as is. Heavy
@@ -11,11 +13,21 @@ import { validateSite, validateOutput } from '@nera-static/validate'
 import { createSite as createSiteWithOptions } from './scaffold.js'
 import { addPlugin as addPluginWithOptions } from './plugin.js'
 import { STDIO_OFF_STDOUT } from './npm.js'
+import { createRegistry } from './publish/targets.js'
+import { renderWorkflow } from './publish/workflow.js'
 
 export { listCatalog, CatalogError } from './catalog.js'
 export { listStarters } from './starter.js'
 export { BUNDLED_STARTERS } from './starters.js'
 export { hasErrors } from '@nera-static/validate'
+/**
+ * basePathOf(htmlUrl): the `base_path` (config/app.yaml) a site served at
+ * `htmlUrl` needs, as `nera publish` sets it for GitHub Pages — the URL's
+ * path without its trailing slash (`https://octo.github.io/site/` →
+ * `/site`), or '' when the site is served from the root (`user.github.io`,
+ * a custom domain).
+ */
+export { basePathOf } from './publish/pages.js'
 
 const logToStderr = (line) => process.stderr.write(`${line}\n`)
 
@@ -102,4 +114,19 @@ export function validate({ cwd = process.cwd() } = {}) {
  */
 export function check({ cwd = process.cwd() } = {}) {
     return validateOutput({ cwd })
+}
+
+/**
+ * The deploy workflow `nera publish` writes into a site as
+ * `.github/workflows/deploy.yml`, as text: the very file, generated first
+ * line included, so a site whose workflow came from here is left unchanged
+ * by a later `nera publish` to the same target.
+ *
+ * @param {{ target?: string }} [options] `target` is a `nera publish
+ *     --target` id: `github-pages` (the default) or `netlify`. Any other id
+ *     rejects with a message naming the available ones.
+ * @returns {Promise<string>} the workflow file's content
+ */
+export async function renderDeployWorkflow({ target } = {}) {
+    return renderWorkflow(createRegistry().resolve(target))
 }

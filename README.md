@@ -329,8 +329,9 @@ GitHub's device code. Without `--json` no event is written.
 
 ## Programmatic API
 
-A program can use the catalogs, site creation, adding a plugin and both
-validator passes without spawning `nera`:
+A program can use the catalogs, site creation, adding a plugin, both
+validator passes and the text of `nera publish`'s deploy workflow without
+spawning `nera`:
 
 ```js
 import { listCatalog, createSite, validate, check, hasErrors } from '@nera-static/nera'
@@ -382,9 +383,17 @@ if (hasErrors(results)) console.error(results)
     for the site in `cwd`, returning the validator's records (the `results` of
     the JSON above). `check` throws when there is no build yet. `hasErrors(results)`
     is `true` when any record is an error.
+-   `renderDeployWorkflow({ target })` — the deploy workflow `nera publish`
+    writes as `.github/workflows/deploy.yml`, as text (a `Promise<string>`),
+    its generated first line included: commit it unchanged and a later
+    `nera publish` to the same target leaves the file as it is. `target` is a
+    `--target` id, `github-pages` (default) or `netlify`; any other id rejects,
+    naming the available ones. `basePathOf(htmlUrl)` is the `base_path` a site
+    served at that URL needs, as `nera publish` sets it for GitHub Pages:
+    `/site` for `https://octo.github.io/site/`, `''` for a site at the root.
 
-Building, `nera dev`, `nera serve` and `nera publish` are not part of the API:
-run the `nera` bin for those. Only `@nera-static/nera` and
+Building, `nera dev`, `nera serve` and `nera publish` are not part of the API
+(except the workflow text above): run the `nera` bin for those. Only `@nera-static/nera` and
 `@nera-static/nera/package.json` can be imported; the bin and the `skills/`
 folder are reached by path from `package.json`'s folder.
 

@@ -6,6 +6,9 @@ import fs from 'fs/promises'
 import os from 'os'
 import * as api from '@nera-static/nera'
 import { BUNDLED_STARTERS as bundledStarters } from '../src/starters.js'
+import { githubPages } from '../src/publish/pages.js'
+import { netlify } from '../src/publish/netlify.js'
+import { renderWorkflow, writeWorkflow, WORKFLOW_FILE, GENERATED_HEADER } from '../src/publish/workflow.js'
 
 // The public entry point, imported by package name the way @nera-static/mcp
 // does (a self-reference through the `exports` map).
@@ -35,11 +38,13 @@ describe('the @nera-static/nera entry point', () => {
             'BUNDLED_STARTERS',
             'CatalogError',
             'addPlugin',
+            'basePathOf',
             'check',
             'createSite',
             'hasErrors',
             'listCatalog',
             'listStarters',
+            'renderDeployWorkflow',
             'validate',
         ])
         expect(api.BUNDLED_STARTERS).toBe(bundledStarters)
@@ -237,5 +242,53 @@ describe('validate and check', () => {
         expect(results).toContainEqual(expect.objectContaining({ rule: 'a11y-html-lang', severity: 'warning' }))
         expect(api.hasErrors(results)).toBe(false)
         expect(stdout).not.toHaveBeenCalled()
+    })
+})
+
+describe('renderDeployWorkflow', () => {
+    // A host context shaped like the one `nera publish` hands writeWorkflow,
+    // so a deployJob that started to depend on it would make the text differ.
+    const hostLikeCtx = {
+        cwd: '/elsewhere',
+        repository: { owner: 'octo', name: 'site', repository: 'octo/site', private: false },
+        user: { login: 'octo' },
+        options: { target: 'github-pages' },
+        config: { target: 'github-pages', repository: 'octo/site' },
+        interactive: false,
+        log: () => {},
+    }
+
+    it('returns the very file nera publish writes for GitHub Pages, by default and by id', async () => {
+        await writeWorkflow(githubPages, hostLikeCtx, workdir)
+        const written = await fs.readFile(path.join(workdir, WORKFLOW_FILE), 'utf-8')
+        expect(written.split('\n')[0]).toBe(GENERATED_HEADER)
+        expect(await api.renderDeployWorkflow()).toBe(written)
+        expect(await api.renderDeployWorkflow({ target: 'github-pages' })).toBe(written)
+        expect(stdout).not.toHaveBeenCalled()
+    })
+
+    it('returns the Netlify workflow for target netlify', async () => {
+        await writeWorkflow(netlify, hostLikeCtx, workdir)
+        const written = await fs.readFile(path.join(workdir, WORKFLOW_FILE), 'utf-8')
+        const text = await api.renderDeployWorkflow({ target: 'netlify' })
+        expect(text).toBe(written)
+        expect(text).toBe(await renderWorkflow(netlify))
+        expect(text).not.toBe(await api.renderDeployWorkflow())
+        expect(stdout).not.toHaveBeenCalled()
+    })
+
+    it('rejects an unknown target, naming the available ones', async () => {
+        await expect(api.renderDeployWorkflow({ target: 'pages' })).rejects.toThrow(
+            'Unknown publish target "pages". Available targets: github-pages, netlify.'
+        )
+        expect(stdout).not.toHaveBeenCalled()
+    })
+})
+
+describe('basePathOf', () => {
+    it('is the path of a project page without its trailing slash, and empty for the root', () => {
+        expect(api.basePathOf('https://octo.github.io/site/')).toBe('/site')
+        expect(api.basePathOf('https://octo.github.io/')).toBe('')
+        expect(api.basePathOf('https://www.example.com')).toBe('')
     })
 })

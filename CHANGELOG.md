@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.0] - 2026-11-22
+
+### Added
+
+-   The programmatic API exports `renderDeployWorkflow({ target })`, which returns the deploy workflow `nera publish` writes as `.github/workflows/deploy.yml`, as text and byte for byte (generated first line included), so another tool, such as Nera Pro, can commit the same file and a later `nera publish` to the same target leaves it unchanged. `target` is a `--target` id, `github-pages` (default) or `netlify`; an unknown id rejects with a message naming the available ones. It also exports `basePathOf(htmlUrl)`, the `base_path` a site served at that URL needs (`/site` for `https://octo.github.io/site/`, `''` at the root). The workflow `nera publish` writes is unchanged.
+
 ## [1.27.2] - 2026-11-21
 
 ### Fixed
