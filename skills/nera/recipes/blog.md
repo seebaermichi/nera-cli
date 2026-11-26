@@ -5,11 +5,15 @@ links and a sitemap.
 
 ## Fast path
 
-`npx @nera-static/nera new my-blog --starter blog` creates a blog on
-`@nera-static/theme-blog`: sample posts, tags, an archive by year,
-previous/next, an Atom feed, a sitemap and navigation. The theme's own
-templates list the posts; it does not use simple-page-list. Read its
-`AGENTS.md`, then replace the sample posts and the placeholder
+`npx @nera-static/nera new my-blog --starter blog` creates a plain blog on
+`@nera-static/theme-blog` 2.x: sample posts with a series, tags, an archive
+by year, previous/next, an Atom feed, a sitemap and navigation. With `--yes`
+or without a terminal it is always this plain blog; on a terminal without
+`--yes` it first asks which blog. `--starter stack` (a blog for developers,
+highlighted code), `--starter ansitz` (a photo blog) and `--starter umwege`
+(a travel blog) pick another one directly, each on its own theme with the
+same post fields. The theme's own templates list the posts; it does not use
+simple-page-list. Read the new site's `AGENTS.md`, then replace the sample posts and the placeholder
 `origin: https://example.com` in `config/app.yaml` with the live URL; step 9
 below still applies. The steps below build the blog by hand instead, with
 different files.

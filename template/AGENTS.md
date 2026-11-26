@@ -41,7 +41,7 @@ Markdown file.
   the same exit code; the build log goes to stderr
 - Start another site from outside this one (`<name>` is a plain folder
   name; with `--yes` or without a terminal it never asks):
-  `npx @nera-static/nera new <name> --starter <blank|blog|business|portfolio> --name "<site name>" --lang <code> --yes`
+  `npx @nera-static/nera new <name> --starter <blank|blog|stack|ansitz|umwege|business|portfolio> --name "<site name>" --lang <code> --yes`
 
 ## After every change
 

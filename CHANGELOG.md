@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.0] - 2026-11-26
+
+### Added
+
+-   `nera new --starter blog` on a terminal asks which blog: `Blog` (`@nera-static/starter-blog`, the plain blog on `@nera-static/theme-blog` 2.x), `Blog for developers` (`stack`), `Photo blog` (`ansitz`) or `Travel blog` (`umwege`). Enter or the end of input takes the plain blog; a number or a name picks another; Ctrl-C cancels with nothing created. It is the only question asked, as with any `--starter`. With `--yes` or without a terminal (scripts, CI, AI agents), `--starter blog` stays the plain `@nera-static/starter-blog`, unchanged.
+-   The starter names `stack`, `ansitz` and `umwege` (`@nera-static/starter-stack`, `starter-ansitz`, `starter-umwege`) are in the bundled starter list, so the "What are you building?" picker offers them also when the npm registry cannot be reached, and `listCatalog('starters')` falls back to them. The bundled description of `blog` now names its four sample posts and their series.
+-   The scaffold's `AGENTS.md` (written by `nera new` and, in its CLI-owned part, by `nera update`) and the bundled `nera` skill name the three new starters next to `blank`, `blog`, `business` and `portfolio`; the skill's blog recipe names all four blogs.
+
 ## [1.28.0] - 2026-11-22
 
 ### Added

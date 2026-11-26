@@ -27,7 +27,7 @@ package is named after the folder (`My Bakery` → `my-bakery`).
 
 | Command | What it does |
 |---|---|
-| `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--starter <spec>` to start from a starter kit or `--theme <name>` to start from a theme (not both), `--name "<site name>"` and `--lang <code>` to set `name:` and `lang:` in `config/app.yaml` (a new language gets a copy of the current language's `translations:` entry to translate), `--no-install` to skip `npm install`. On a terminal, without `--starter` or `--yes`, it asks what you are building, the site name and the language; without a terminal it never asks. `nera new .` scaffolds into the current, empty folder (dotfiles, `AGENTS.md` and `CLAUDE.md` allowed). Every new site also gets the `nera` skill for AI assistants. |
+| `nera new <name>` | Scaffold a new thin Nera site (one dependency: `@nera-static/nera`). Add `--starter <spec>` to start from a starter kit or `--theme <name>` to start from a theme (not both), `--name "<site name>"` and `--lang <code>` to set `name:` and `lang:` in `config/app.yaml` (a new language gets a copy of the current language's `translations:` entry to translate), `--no-install` to skip `npm install`. On a terminal, without `--starter` or `--yes`, it asks what you are building, the site name and the language (`--starter blog` asks only which blog); without a terminal it never asks. `nera new .` scaffolds into the current, empty folder (dotfiles, `AGENTS.md` and `CLAUDE.md` allowed). Every new site also gets the `nera` skill for AI assistants. |
 | `nera add <plugin>` | Add an official plugin to the site: `npm install @nera-static/plugin-<name>`, copy the plugin's default `config/<name>.yaml` when the site has none (an existing file is kept as it is), and run the plugin's `publish-template.js` binary when it ships one, which copies its templates into `theme/views/vendor/plugin-<name>/` (skipped when that folder exists; `npx nera-<name> --force` overwrites it). The plugin is `<name>` or `@nera-static/plugin-<name>` (e.g. `nera add sitemap`); another scope, a version, a path or `plugin-utils` is refused before npm runs, and so is a folder that is no thin Nera site. Templates still have to be included by hand. `--json` prints one JSON object (see [Machine-readable output](#machine-readable-output)). |
 | `nera build` | Render `pages/` → `public/`. With `--check`, then run `nera check` on the result — one command for CI. `--json` prints the result as one JSON object (see [Machine-readable output](#machine-readable-output)). |
 | `nera dev` | Build, serve `public/`, and rebuild on change; an open browser tab reloads after each successful rebuild. Watches `pages/`, `config/`, `theme/` and a local theme (`theme: ./themes/<name>`). |
@@ -147,7 +147,9 @@ depends on still updates through npm).
 `--starter` takes:
 
 - a starter name: `blank` → `@nera-static/starter-blank`, `blog` →
-  `@nera-static/starter-blog`, `business` → `@nera-static/starter-business`,
+  `@nera-static/starter-blog`, `stack` → `@nera-static/starter-stack`,
+  `ansitz` → `@nera-static/starter-ansitz`, `umwege` →
+  `@nera-static/starter-umwege`, `business` → `@nera-static/starter-business`,
   `portfolio` → `@nera-static/starter-portfolio`;
 - a package name: `@acme/starter-shop`, or unscoped `nera-starter-shop`;
 - a GitHub URL: `https://github.com/owner/repo` (optionally `.git`, `#ref`),
@@ -179,9 +181,32 @@ default. Every question has a flag (`--starter`, `--name`, `--lang`); with
 `--yes`, or without a terminal (scripts, CI, AI agents), nothing is asked and
 `nera new` scaffolds the base template.
 
+`--starter blog` on a terminal asks one question, which blog:
+
+```text
+Which blog?
+  1) Blog (blog)
+  2) Blog for developers (stack)
+  3) Photo blog (ansitz)
+  4) Travel blog (umwege)
+Choose 1–4 [1]:
+```
+
+Enter, or the end of input, takes the plain blog; a number or a name picks
+another. With `--yes`, or without a terminal, `--starter blog` is the plain
+`@nera-static/starter-blog`, as before, so a script or agent that runs
+`--starter blog --yes` gets the same site. `--starter stack`, `ansitz` or
+`umwege` picks the blog directly and asks nothing.
+
 The official starters: `blank` (`@nera-static/starter-blank`, one accessible
-layout, no theme), `blog` (`@nera-static/starter-blog`, a blog on
-`@nera-static/theme-blog` with tags, an archive, an Atom feed and a sitemap),
+layout, no theme), `blog` (`@nera-static/starter-blog`, a plain blog on
+`@nera-static/theme-blog` 2.x with a series, tags, an archive by year, an Atom
+feed and a sitemap), `stack` (`@nera-static/starter-stack`, a blog for
+developers on `@nera-static/theme-stack` with highlighted code, series and
+search), `ansitz` (`@nera-static/starter-ansitz`, a photo blog on
+`@nera-static/theme-ansitz` with large photographs, a series and search),
+`umwege` (`@nera-static/starter-umwege`, a travel blog on
+`@nera-static/theme-umwege` with trip facts, places, photographs and search),
 `business` (`@nera-static/starter-business`, a small-business site on
 `@nera-static/theme-business` with services, opening hours and a contact
 form) and `portfolio` (`@nera-static/starter-portfolio`, a designer's
