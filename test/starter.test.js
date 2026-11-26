@@ -77,6 +77,9 @@ describe('validateStarterSpec', () => {
 describe('starterSource', () => {
     it.each([
         ['blank', { kind: 'npm', spec: '@nera-static/starter-blank' }],
+        ['stack', { kind: 'npm', spec: '@nera-static/starter-stack' }],
+        ['ansitz', { kind: 'npm', spec: '@nera-static/starter-ansitz' }],
+        ['umwege', { kind: 'npm', spec: '@nera-static/starter-umwege' }],
         ['@acme/starter-x', { kind: 'npm', spec: '@acme/starter-x' }],
         ['nera-starter-x', { kind: 'npm', spec: 'nera-starter-x' }],
         ['https://github.com/o/r', { kind: 'npm', spec: 'github:o/r' }],
@@ -481,7 +484,31 @@ describe('listStarters', () => {
             throw new TypeError('fetch failed')
         }
         expect(await listStarters({ fetch })).toEqual(bundled)
-        expect(bundled.map((starter) => starter.package)).toEqual(['@nera-static/starter-blank', '@nera-static/starter-blog', '@nera-static/starter-business', '@nera-static/starter-portfolio'])
+        expect(bundled.map((starter) => starter.package)).toEqual([
+            '@nera-static/starter-ansitz',
+            '@nera-static/starter-blank',
+            '@nera-static/starter-blog',
+            '@nera-static/starter-business',
+            '@nera-static/starter-portfolio',
+            '@nera-static/starter-stack',
+            '@nera-static/starter-umwege',
+        ])
+    })
+
+    it('keeps every bundled starter resolvable by its name, sorted by package', () => {
+        for (const { name, package: pkg } of BUNDLED_STARTERS) expect(starterSource(name).spec).toBe(pkg)
+        const packages = BUNDLED_STARTERS.map((starter) => starter.package)
+        expect(packages).toEqual([...packages].sort())
+    })
+
+    it('names the blog starters by what they are for', () => {
+        const labels = Object.fromEntries(BUNDLED_STARTERS.map(({ name, label }) => [name, label]))
+        expect(labels).toMatchObject({
+            blog: 'Blog',
+            stack: 'Blog for developers',
+            ansitz: 'Photo blog',
+            umwege: 'Travel blog',
+        })
     })
 
     it('falls back on a non-200 and on bad JSON', async () => {

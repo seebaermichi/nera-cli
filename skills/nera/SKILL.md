@@ -25,6 +25,9 @@ Eleventy, Hugo, Astro or Jekyll; do not apply their conventions.
    Start from an official starter when one fits, with `--starter <name>`:
    - `blank`: a home page, imprint and privacy placeholders, one layout
    - `blog`: sample posts, tags, archive, prev/next, feed, sitemap
+   - `stack`: a blog for developers with highlighted code, series and search
+   - `ansitz`: a photo blog with large photographs, series and search
+   - `umwege`: a travel blog with trip facts, places, photographs and search
    - `business`: home, about, services, opening hours, contact form
    - `portfolio`: project pages with image galleries, about, contact form
 
