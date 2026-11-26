@@ -1,13 +1,21 @@
 import readline from 'readline'
+import { BLOG_STARTERS, BUNDLED_STARTERS } from './starters.js'
 
 // The interactive parts of `nera new` (ROADMAP-ai.md L5, principle 5) and of
 // `nera publish` (L6, "Choosing the target"). They only collect options;
 // scaffoldProject and the publish pipeline do the work, the same as with flags.
 
-// Questions are asked only on a terminal, never with --yes, and never once
-// --starter is given.
+// Questions are asked only on a terminal and never with --yes.
+const interactive = ({ yes, stdin, stdout }) => Boolean(stdin.isTTY && stdout.isTTY) && !yes
+
+// The picker is never asked once --starter is given.
 export const shouldPrompt = ({ yes, starter, stdin = process.stdin, stdout = process.stdout }) =>
-    Boolean(stdin.isTTY && stdout.isTTY) && !yes && starter === undefined
+    interactive({ yes, stdin, stdout }) && starter === undefined
+
+// `--starter blog` alone asks which blog (runBlogPicker); every other spec,
+// and `blog` without a terminal or with --yes, is used as given.
+export const shouldAskBlog = ({ yes, starter, stdin = process.stdin, stdout = process.stdout }) =>
+    interactive({ yes, stdin, stdout }) && starter === 'blog'
 
 export const EMPTY_CHOICE = 'Empty — the base template, no starter'
 const TEMPLATE_NAME = 'My Nera Site'
@@ -141,6 +149,22 @@ export async function runPicker({
         }
 
         return result
+    })
+}
+
+// `nera new --starter blog` on a terminal: ask which of BLOG_STARTERS
+// (plain first, the default on Enter and at the end of input), by number or
+// name. Returns the picked starter name.
+export async function runBlogPicker({ input = process.stdin, output = process.stdout }) {
+    const choices = BLOG_STARTERS.map((name) => BUNDLED_STARTERS.find((s) => s.name === name))
+    return withSession({ input, output, cancelled: 'nothing was created.' }, async ({ ask, check, say }) => {
+        say('Which blog?')
+        choices.forEach((s, i) => say(`  ${i + 1}) ${s.label} (${s.name})`))
+        const picked = await ask(`Choose 1–${choices.length} [1]: `, (answer) =>
+            choose(say, choices, answer, choices[0], (s) => s.name === answer)
+        )
+        check()
+        return picked.name
     })
 }
 

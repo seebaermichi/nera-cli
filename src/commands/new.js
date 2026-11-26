@@ -46,11 +46,29 @@ async function defaultPrompt(options) {
     return runPicker({ ...options, listStarters, validateSiteName, validateLang })
 }
 
-// `prompt`, `scaffold`, `npmVersion` and the streams are injectable for tests.
+async function defaultBlogPrompt(options) {
+    const { runBlogPicker } = await import('../prompt.js')
+    return runBlogPicker(options)
+}
+
+// Fail on a bad flag before asking anything. An npm that would crash on
+// install is refused before the questions too; scaffoldProject checks again
+// for every caller.
+async function checkBeforeAsking(projectName, options, install, npmVersion) {
+    if (!isCurrentDir(projectName)) validateProjectName(projectName)
+    if (options.theme !== undefined) validateThemeSpec(options.theme)
+    if (options.name !== undefined) validateSiteName(options.name)
+    if (options.lang !== undefined) validateLang(options.lang)
+    if (install) assertNpmCanInstall(await npmVersion())
+}
+
+// `prompt`, `blogPrompt`, `scaffold`, `npmVersion` and the streams are
+// injectable for tests.
 export async function runNew(args = [], {
     stdin = process.stdin,
     stdout = process.stdout,
     prompt = defaultPrompt,
+    blogPrompt = defaultBlogPrompt,
     scaffold = scaffoldProject,
     npmVersion = probeNpmVersion,
 } = {}) {
@@ -59,16 +77,9 @@ export async function runNew(args = [], {
         Object.entries(rest).filter(([, v]) => v !== undefined)
     )
 
-    const { shouldPrompt } = await import('../prompt.js')
+    const { shouldPrompt, shouldAskBlog } = await import('../prompt.js')
     if (shouldPrompt({ yes, starter: options.starter, stdin, stdout })) {
-        // Fail on a bad flag before asking anything.
-        if (!isCurrentDir(projectName)) validateProjectName(projectName)
-        if (options.theme !== undefined) validateThemeSpec(options.theme)
-        if (options.name !== undefined) validateSiteName(options.name)
-        if (options.lang !== undefined) validateLang(options.lang)
-        // An npm that would crash on install is refused before the
-        // questions too; scaffoldProject checks again for every caller.
-        if (install) assertNpmCanInstall(await npmVersion())
+        await checkBeforeAsking(projectName, options, install, npmVersion)
         const answers = await prompt({
             input: stdin,
             output: stdout,
@@ -81,6 +92,13 @@ export async function runNew(args = [], {
         })
         Object.assign(options, answers)
         if (options.starter !== undefined) validateStarterSpec(options.starter)
+    } else if (
+        // With --theme, scaffoldProject refuses the starter anyway: no question.
+        options.theme === undefined &&
+        shouldAskBlog({ yes, starter: options.starter, stdin, stdout })
+    ) {
+        await checkBeforeAsking(projectName, options, install, npmVersion)
+        options.starter = await blogPrompt({ input: stdin, output: stdout })
     }
 
     return scaffold(projectName, { ...options, install })

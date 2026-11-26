@@ -46,3 +46,8 @@ export const BUNDLED_STARTERS = [
         description: 'A ready-to-edit Nera travel blog on @nera-static/theme-umwege: fifteen sample posts with trip facts, places and a series, ten photographs, tags, an archive, search, an Atom feed, a sitemap, structured data, canonical links, responsive images, social links and imprint and privacy placeholders.',
     },
 ]
+
+// The blogs `nera new --starter blog` asks between on a terminal, in the
+// order shown; the plain one first, as the default. Each is in
+// BUNDLED_STARTERS, which gives its label.
+export const BLOG_STARTERS = ['blog', 'stack', 'ansitz', 'umwege']

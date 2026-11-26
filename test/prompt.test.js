@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { PassThrough } from 'stream'
-import { runPicker, runTargetPicker, recommendTarget, shouldPrompt, EMPTY_CHOICE, BUSINESS_TARGET } from '../src/prompt.js'
+import { runPicker, runBlogPicker, runTargetPicker, recommendTarget, shouldPrompt, shouldAskBlog, EMPTY_CHOICE, BUSINESS_TARGET } from '../src/prompt.js'
 import { runNew } from '../src/commands/new.js'
 import { validateSiteName, validateLang } from '../src/scaffold.js'
 
@@ -94,6 +94,46 @@ describe('runPicker', () => {
     })
 })
 
+// runBlogPicker over fake streams answering `answers`.
+const blogPicker = (answers, tty = false) => {
+    const streams = fakeStreams(answers)
+    if (tty) streams.output.isTTY = true
+    return { streams, run: () => runBlogPicker({ input: streams.input, output: streams.output }) }
+}
+
+describe('runBlogPicker', () => {
+    it('lists the four blogs, plain first, and takes it on Enter', async () => {
+        const { run, streams } = blogPicker([''])
+        expect(await run()).toBe('blog')
+        const lines = streams.text().split('\n')
+        expect(lines.slice(0, 6)).toEqual([
+            'Which blog?',
+            '  1) Blog (blog)',
+            '  2) Blog for developers (stack)',
+            '  3) Photo blog (ansitz)',
+            '  4) Travel blog (umwege)',
+            'Choose 1–4 [1]: ',
+        ])
+    })
+
+    it('picks by number or by name, and asks again on a bad answer', async () => {
+        expect(await blogPicker(['3']).run()).toBe('ansitz')
+        expect(await blogPicker(['ansitz']).run()).toBe('ansitz')
+        const { run, streams } = blogPicker(['7', 'umwege'])
+        expect(await run()).toBe('umwege')
+        expect(streams.text()).toContain('Please enter a number from 1 to 4.')
+    })
+
+    it('takes the plain blog when the input ends', async () => {
+        expect(await blogPicker([]).run()).toBe('blog')
+    })
+
+    it('Ctrl-C on a terminal cancels: nothing was created', async () => {
+        const { run } = blogPicker(['\u0003'], true)
+        await expect(run()).rejects.toThrow('Cancelled — nothing was created.')
+    })
+})
+
 const TARGETS = [{ id: 'github-pages', label: 'GitHub Pages' }, { id: 'netlify', label: 'Netlify' }]
 
 // runTargetPicker over fake streams answering `answers`.
@@ -181,6 +221,20 @@ describe('shouldPrompt', () => {
         expect(shouldPrompt({ stdin: tty, stdout: {} })).toBe(false)
         expect(shouldPrompt({ yes: true, stdin: tty, stdout: tty })).toBe(false)
         expect(shouldPrompt({ starter: 'blank', stdin: tty, stdout: tty })).toBe(false)
+        expect(shouldPrompt({ starter: 'blog', stdin: tty, stdout: tty })).toBe(false)
+    })
+})
+
+describe('shouldAskBlog', () => {
+    const tty = { isTTY: true }
+    it('only for --starter blog, on a terminal, without --yes', () => {
+        expect(shouldAskBlog({ starter: 'blog', stdin: tty, stdout: tty })).toBe(true)
+        expect(shouldAskBlog({ starter: 'blog', stdin: {}, stdout: tty })).toBe(false)
+        expect(shouldAskBlog({ starter: 'blog', stdin: tty, stdout: {} })).toBe(false)
+        expect(shouldAskBlog({ starter: 'blog', yes: true, stdin: tty, stdout: tty })).toBe(false)
+        for (const starter of [undefined, 'stack', '@nera-static/starter-blog']) {
+            expect(shouldAskBlog({ starter, stdin: tty, stdout: tty })).toBe(false)
+        }
     })
 })
 
@@ -191,6 +245,7 @@ describe('runNew', () => {
         stdin,
         stdout,
         prompt: vi.fn(async () => answers),
+        blogPrompt: vi.fn(async () => 'stack'),
         scaffold: vi.fn(async () => '/x'),
         npmVersion: vi.fn(() => '10.9.0'),
     })
@@ -262,6 +317,49 @@ describe('runNew', () => {
             const d = deps(tty, tty)
             await expect(runNew(args, d)).rejects.toThrow(/Invalid/)
             expect(d.prompt).not.toHaveBeenCalled()
+            expect(d.scaffold).not.toHaveBeenCalled()
+        }
+    })
+
+    it('--starter blog on a TTY asks which blog and scaffolds the answer', async () => {
+        const d = deps(tty, tty)
+        await runNew(['site', '--starter', 'blog'], d)
+        expect(d.prompt).not.toHaveBeenCalled()
+        expect(d.blogPrompt).toHaveBeenCalledWith({ input: tty, output: tty })
+        expect(d.scaffold).toHaveBeenCalledWith('site', { starter: 'stack', install: true })
+    })
+
+    it('--starter blog asks nothing without a TTY, with --yes or with --theme', async () => {
+        const cases = [
+            [notTty, ['site', '--starter', 'blog'], { starter: 'blog', install: true }],
+            [tty, ['site', '--starter', 'blog', '--yes'], { starter: 'blog', install: true }],
+            [tty, ['site', '--starter', 'blog', '--theme', 'blog'], { starter: 'blog', theme: 'blog', install: true }],
+        ]
+        for (const [stream, args, passed] of cases) {
+            const d = deps(stream, stream)
+            await runNew(args, d)
+            expect(d.blogPrompt).not.toHaveBeenCalled()
+            expect(d.prompt).not.toHaveBeenCalled()
+            expect(d.scaffold).toHaveBeenCalledWith('site', passed)
+        }
+    })
+
+    it('any other starter spec is used as given, even on a TTY', async () => {
+        for (const starter of ['stack', 'ansitz', 'umwege', '@nera-static/starter-blog']) {
+            const d = deps(tty, tty)
+            await runNew(['site', '--starter', starter], d)
+            expect(d.blogPrompt).not.toHaveBeenCalled()
+            expect(d.scaffold).toHaveBeenCalledWith('site', { starter, install: true })
+        }
+    })
+
+    it('--starter blog refuses a bad flag or npm before asking', async () => {
+        const bad = deps(tty, tty)
+        await expect(runNew(['site', '--starter', 'blog', '--lang', 'Deutsch'], bad)).rejects.toThrow(/Invalid/)
+        const oldNpm = { ...deps(tty, tty), npmVersion: vi.fn(() => '10.8.2') }
+        await expect(runNew(['site', '--starter', 'blog'], oldNpm)).rejects.toThrow(/npm 10\.8\.2 cannot install/)
+        for (const d of [bad, oldNpm]) {
+            expect(d.blogPrompt).not.toHaveBeenCalled()
             expect(d.scaffold).not.toHaveBeenCalled()
         }
     })
