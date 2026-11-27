@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.0] - 2026-11-27
+
+### Added
+
+-   `nera dev` also watches the site's data folder, the one `@nera-static/plugin-page-data` reads: `data/`, or the folder `folders.data` in `config/app.yaml` names. Editing, adding or removing a data file rebuilds the site and reloads an open browser tab; a data folder created while `nera dev` runs is picked up after the next rebuild. A `folders.data` that contains the build output, or lies inside it, is not watched.
+
+### Changed
+
+-   `@nera-static/validate` is required at `^1.9.0` (was `^1.2.0`), so `nera validate` and `nera check` report the `page-data-*` rules: `page-data-type`, `page-data-missing` and `page-data-invalid` (errors) for a `page_data:` value that is mistyped, names no data file or names one that is not valid YAML, and `page-data-language` (warning) for a language map that lacks a site language. A site whose pages never set `page_data` sees no change.
+
 ## [1.29.0] - 2026-11-26
 
 ### Added
