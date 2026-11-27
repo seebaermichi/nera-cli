@@ -98,6 +98,9 @@ export function createRebuilder({
 // the root the site itself, and watching public/ would rebuild forever. An
 // installed theme package under node_modules is left alone: it changes only on
 // npm install, and watching node_modules is expensive.
+//
+// Also the site's data folder, which @nera-static/plugin-page-data reads:
+// `folders.data` from app.yaml, else `data` (see dataFolder below).
 export function watchTargets(cwd = process.cwd()) {
     const dirs = [
         'pages',
@@ -105,7 +108,7 @@ export function watchTargets(cwd = process.cwd()) {
         fssync.existsSync(path.join(cwd, 'theme')) ? 'theme' : 'views',
     ].map((d) => path.join(cwd, d))
 
-    const { theme } = resolveSiteModel({ cwd })
+    const { theme, folders } = resolveSiteModel({ cwd })
     if (theme && !theme.root.split(path.sep).includes('node_modules')) {
         dirs.push(
             theme.viewsRoot,
@@ -114,7 +117,35 @@ export function watchTargets(cwd = process.cwd()) {
         )
     }
 
+    const data = dataFolder(cwd, folders)
+    if (data) dirs.push(data)
+
     return [...new Set(dirs)].filter((d) => fssync.existsSync(d))
+}
+
+// The folder plugin-page-data reads, with the plugin's own fallback: a
+// missing, empty or non-string `folders.data` means `data`
+// (resolveDataFolder in nera-plugin-page-data/src/config.js). null when it
+// overlaps the build output in either direction — `.` or `..` contain
+// public/, `public/x` lies inside it — since every build rewrites public/
+// and watching it would rebuild forever.
+const dataFolder = (cwd, folders) => {
+    const value = folders.data
+    const name =
+        typeof value === 'string' && value.trim() !== '' ? value.trim() : 'data'
+    const dir = path.resolve(cwd, name)
+    const dist = path.resolve(cwd, folders.dist)
+    return isWithin(dir, dist) || isWithin(dist, dir) ? null : dir
+}
+
+// true when `child` is `parent` itself or lies below it.
+const isWithin = (child, parent) => {
+    const rel = path.relative(parent, child)
+    return (
+        rel !== '..' &&
+        !rel.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(rel)
+    )
 }
 
 const parsePort = (args) => {

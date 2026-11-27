@@ -86,6 +86,81 @@ describe('watchTargets', () => {
             false
         )
     })
+
+    describe('data folder', () => {
+        const setDataFolder = (value) =>
+            fs.writeFile(
+                path.join(site, 'config', 'app.yaml'),
+                `folders:\n    data: ${value}\n`
+            )
+
+        it('watches data/ by default', async () => {
+            await setTheme(null)
+            await mkdirs('data')
+            expect(watchTargets(site)).toEqual(
+                ['pages', 'config', 'theme', 'data'].map((d) =>
+                    path.join(site, d)
+                )
+            )
+        })
+
+        it('watches folders.data from app.yaml instead of data/', async () => {
+            await mkdirs('data', 'catalog')
+            await setDataFolder('./catalog')
+
+            const targets = watchTargets(site)
+            expect(targets).toContain(path.join(site, 'catalog'))
+            expect(targets).not.toContain(path.join(site, 'data'))
+        })
+
+        it('adds nothing when the data folder is missing', async () => {
+            await setDataFolder('./catalog')
+            expect(watchTargets(site)).toEqual(
+                ['pages', 'config', 'theme'].map((d) => path.join(site, d))
+            )
+        })
+
+        it.each([['42'], ['""'], ['"   "']])(
+            'falls back to data/ for folders.data: %s',
+            async (value) => {
+                await mkdirs('data')
+                await setDataFolder(value)
+                expect(watchTargets(site)).toContain(path.join(site, 'data'))
+            }
+        )
+
+        it.each([['.'], ['./public'], ['public/data'], ['..']])(
+            'never watches the build output for folders.data: %s',
+            async (value) => {
+                await mkdirs('public/data')
+                await setDataFolder(value)
+
+                const targets = watchTargets(site)
+                expect(targets).toEqual(
+                    ['pages', 'config', 'theme'].map((d) => path.join(site, d))
+                )
+            }
+        )
+
+        it('never watches a data folder inside a custom folders.dist', async () => {
+            await mkdirs('out/data')
+            await fs.writeFile(
+                path.join(site, 'config', 'app.yaml'),
+                'folders:\n    dist: ./out\n    data: ./out/data\n'
+            )
+            expect(watchTargets(site)).not.toContain(
+                path.join(site, 'out', 'data')
+            )
+        })
+
+        it('picks up a data folder created after a first call', async () => {
+            await setTheme(null)
+            expect(watchTargets(site)).not.toContain(path.join(site, 'data'))
+
+            await mkdirs('data')
+            expect(watchTargets(site)).toContain(path.join(site, 'data'))
+        })
+    })
 })
 
 describe('createRebuilder', () => {
