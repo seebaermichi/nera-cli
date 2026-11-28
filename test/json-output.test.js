@@ -7,7 +7,9 @@ import { validateSite, validateOutput } from '@nera-static/validate'
 import { scaffoldProject } from '../src/scaffold.js'
 import { runValidate } from '../src/commands/validate.js'
 import { runCheck } from '../src/commands/check.js'
-import { cliRoot } from './helpers/cli-root.js'
+
+// This repo, `@nera-static/nera` itself: `nera()` runs its own bin/nera.js.
+const REPO = path.resolve(import.meta.dirname, '..')
 
 // `--json` (ROADMAP-ai.md L3): one JSON object on stdout, logs on stderr, the
 // same exit code as text mode. In-process tests prove the shape and the exit
@@ -16,7 +18,7 @@ import { cliRoot } from './helpers/cli-root.js'
 // the site, with the engine's build log on stderr.
 
 // `nera ...args` in the scaffolded site, with this repo's bin/nera.js.
-const cli = (args) => nera(target, args, { root: cliRoot() })
+const cli = (args) => nera(target, args, { root: REPO })
 
 // A built page that is clean except for its missing `lang` (a11y-html-lang).
 const builtHtml = (htmlAttrs) =>

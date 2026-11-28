@@ -6,7 +6,9 @@ import os from 'node:os'
 import { nera } from '@nera-static/test-utils'
 import { scaffoldProject } from '../src/scaffold.js'
 import { runValidate } from '../src/commands/validate.js'
-import { cliRoot } from './helpers/cli-root.js'
+
+// This repo, `@nera-static/nera` itself: `nera()` runs its own bin/nera.js.
+const REPO = path.resolve(import.meta.dirname, '..')
 
 const STARTER_FIXTURE = path.resolve(import.meta.dirname, 'fixtures/starter-minimal')
 
@@ -17,7 +19,7 @@ const STARTER_FIXTURE = path.resolve(import.meta.dirname, 'fixtures/starter-mini
 let workdir
 
 // `nera build ...args` in `target`, with this repo's bin/nera.js.
-const build = (target, args = []) => nera(target, ['build', ...args], { root: cliRoot() })
+const build = (target, args = []) => nera(target, ['build', ...args], { root: REPO })
 
 beforeEach(async () => {
     workdir = await fs.mkdtemp(path.join(os.tmpdir(), 'nera-build-'))
