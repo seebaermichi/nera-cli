@@ -22,7 +22,7 @@ import { assertAdapter } from '../src/publish/targets.js'
 import { renderWorkflow } from '../src/publish/workflow.js'
 import { fakeNetlify } from './helpers/fake-netlify.js'
 import { fakeResolver } from './helpers/fake-dns.js'
-import { jsonResponse } from './helpers/fake-github.js'
+import { jsonResponse, recorder } from './helpers/fake-github.js'
 import { NETLIFY_API } from '../src/publish/netlify-api.js'
 import { NETLIFY_CLIENT_ID, NETLIFY_SIGN_IN, authorizeUrl } from '../src/publish/netlify-auth.js'
 
@@ -35,10 +35,6 @@ const TOKEN = 'nfp_fake_netlify_token'
 const NOW = Date.UTC(2026, 10, 17, 12)
 
 const clientFor = (host) => createNetlifyClient({ token: TOKEN, fetch: host.fetch })
-const recorder = () => {
-    const lines = []
-    return { lines, log: (line) => lines.push(line) }
-}
 
 describe('the netlify adapter', () => {
     it('has the adapter interface', () => {
@@ -183,7 +179,10 @@ describe('applyDomain', () => {
             .catch((err) => err)
         expect(error).toBeInstanceOf(NetlifyError)
         expect(error.status).toBe(422)
-        expect(error.message).toMatch(/^Netlify refused the custom domain example\.com \(.*\)\. It may be set on another Netlify site: remove it there under Domain management, or pass another --domain\.$/)
+        expect(error.message).toMatch(new RegExp(
+            '^Netlify refused the custom domain example\\.com \\(.*\\)\\. It may be set on another Netlify site: ' +
+            'remove it there under Domain management, or pass another --domain\\.$',
+        ))
         expect(error.message).not.toContain(TOKEN)
         expect(lookups.lookups).toEqual([])
     })
@@ -255,9 +254,12 @@ describe('netlify.setUp with --domain, and liveUrl', () => {
         const netlifyHost = fakeNetlify({ token: TOKEN })
         const api = netlifyHost.fetch
         netlifyHost.fetch = async (url, init) => {
-            if (url === `${NETLIFY_API}/oauth/tickets?client_id=${NETLIFY_CLIENT_ID}`) return jsonResponse(201, { id: TICKET_ID, authorized: false })
-            if (url === `${NETLIFY_API}/oauth/tickets/${TICKET_ID}`) return jsonResponse(200, { id: TICKET_ID, authorized: true })
-            if (url === `${NETLIFY_API}/oauth/tickets/${TICKET_ID}/exchange`) return jsonResponse(201, { access_token: TOKEN })
+            const tickets = `${NETLIFY_API}/oauth/tickets`
+            if (url === `${tickets}?client_id=${NETLIFY_CLIENT_ID}`) {
+                return jsonResponse(201, { id: TICKET_ID, authorized: false })
+            }
+            if (url === `${tickets}/${TICKET_ID}`) return jsonResponse(200, { id: TICKET_ID, authorized: true })
+            if (url === `${tickets}/${TICKET_ID}/exchange`) return jsonResponse(201, { access_token: TOKEN })
             return api(url, init)
         }
         const events = []
@@ -288,7 +290,8 @@ describe('netlify.setUp with --domain, and liveUrl', () => {
 
 describe('checkCredits', () => {
     const production = (created_at, overrides = {}) => ({ context: 'production', state: 'ready', created_at, ...overrides })
-    const thisMonth = (n) => Array.from({ length: n }, (_, i) => production(new Date(Date.UTC(2026, 10, 1 + (i % 16), 8)).toISOString()))
+    const thisMonth = (n) => Array.from({ length: n }, (_, i) =>
+        production(new Date(Date.UTC(2026, 10, 1 + (i % 16), 8)).toISOString()))
 
     async function check(deploys, now = NOW) {
         const host = fakeNetlify({ token: TOKEN, deploys })
@@ -307,7 +310,10 @@ describe('checkCredits', () => {
         const { result, lines } = await check(thisMonth(16))
         expect(result).toEqual({ deploys: 16, credits: 240 })
         expect(lines).toHaveLength(1)
-        expect(lines[0]).toContain(`this site had 16 production deploys this month (UTC), about 240 of the free plan's ${FREE_CREDITS} credits`)
+        expect(lines[0]).toContain(
+            'this site had 16 production deploys this month (UTC), ' +
+            `about 240 of the free plan's ${FREE_CREDITS} credits`,
+        )
         expect(lines[0]).toContain('Bandwidth and your other Netlify sites are not counted')
     })
 
@@ -342,7 +348,10 @@ describe('checkCredits', () => {
         const { result, lines } = await check(500)
         expect(result).toBeNull()
         expect(lines).toHaveLength(1)
-        expect(lines[0]).toMatch(/^Could not count this month's Netlify deploys \(Netlify answered 500 .*\); the credit estimate is skipped and the publish goes on\.$/)
+        expect(lines[0]).toMatch(new RegExp(
+            '^Could not count this month\'s Netlify deploys \\(Netlify answered 500 .*\\); ' +
+            'the credit estimate is skipped and the publish goes on\\.$',
+        ))
     })
 
     it('an answer that is not a list: a short note, null', async () => {

@@ -12,6 +12,7 @@ import {
     NETLIFY_SIGN_IN,
 } from '../src/publish/netlify-auth.js'
 import { createNetlifyClient, NetlifyError, NETLIFY_API } from '../src/publish/netlify-api.js'
+import { fakeClock, jsonResponse, START } from './helpers/fake-github.js'
 
 // Netlify sign-in for `nera publish --target netlify` (ROADMAP-ai.md L6 step
 // 4, plan D1). `fetch` is a stub, the clock is fake and advanced by `sleep`,
@@ -25,15 +26,7 @@ const TICKET_ID = 'fake_ticket_5f2a9c'
 const EMAIL = 'me@example.com'
 const SECRETS = [ACCESS, NEW_ACCESS, TICKET_ID]
 
-const START = 1_800_000_000_000
 const TICKET_PATH = `${NETLIFY_API}/oauth/tickets/${TICKET_ID}`
-
-const jsonResponse = (status, body) => ({
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: `status ${status}`,
-    text: async () => (body === undefined ? '' : JSON.stringify(body)),
-})
 
 // A stub Netlify. `polls` are the answers to the ticket poll, in order:
 // `true` for authorized, `false` for pending, a number for an HTTP error
@@ -65,19 +58,6 @@ function fakeNetlify({
         return jsonResponse(404, { message: 'Not Found' })
     }
     return { fetch, requests }
-}
-
-function fakeClock(start = START) {
-    let time = start
-    const sleeps = []
-    return {
-        now: () => time,
-        sleep: async (ms) => {
-            sleeps.push(ms)
-            time += ms
-        },
-        sleeps,
-    }
 }
 
 // signInToNetlify (or ensureNetlifyToken with `stored`) with stubs for
@@ -267,7 +247,9 @@ describe('signInToNetlify — machine-readable events', () => {
         const { events, timeline } = await run()
         expect(NETLIFY_SIGN_IN).toBe('netlify_sign_in')
         expect(events).toEqual([required, done])
-        const pageLine = timeline.indexOf(`To sign in to Netlify, open ${authorizeUrl(TICKET_ID)} and choose "Authorize".`)
+        const pageLine = timeline.indexOf(
+            `To sign in to Netlify, open ${authorizeUrl(TICKET_ID)} and choose "Authorize".`,
+        )
         expect(timeline[pageLine + 1]).toEqual(required)
         expect(timeline.at(-2)).toBe(`Signed in to Netlify as ${EMAIL}`)
         expect(timeline.at(-1)).toEqual(done)

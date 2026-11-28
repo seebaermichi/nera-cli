@@ -3,7 +3,8 @@ import { x25519 } from '@noble/curves/ed25519.js'
 import { blake2b } from '@noble/hashes/blake2.js'
 import { hsalsa, xsalsa20poly1305 } from '@noble/ciphers/salsa.js'
 import { sealSecret, setRepositorySecrets } from '../src/publish/secrets.js'
-import { createGitHubClient, GitHubError, GITHUB_API } from '../src/publish/github.js'
+import { GitHubError } from '../src/publish/github.js'
+import { fakeGitHub } from './helpers/fake-github.js'
 
 // Encrypted repository secrets of `nera publish` (Netlify issue, D3). The
 // sealed box is pinned to libsodium itself: the vectors below come from
@@ -11,7 +12,6 @@ import { createGitHubClient, GitHubError, GITHUB_API } from '../src/publish/gith
 // recipient and 0x64…0x83 for the ephemeral key). GitHub is a stub behind the
 // real github.js client; no test uses the network or a real token.
 
-const TOKEN = 'ghu_fake_access_token'
 const VALUE = 'nfp_fake_netlify_token'
 
 const hex = (text) => Uint8Array.from(Buffer.from(text, 'hex'))
@@ -45,32 +45,10 @@ function openSealed(sealed, publicKey, secretKey) {
 
 const fromBase64 = (text) => Uint8Array.from(Buffer.from(text, 'base64'))
 
-const jsonResponse = (status, body) => ({
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: `status ${status}`,
-    text: async () => (body === undefined ? '' : JSON.stringify(body)),
-})
-
 const repository = { repository: 'octo/site', owner: 'octo', name: 'site', private: false }
 const PUBLIC_KEY = 'GET /repos/octo/site/actions/secrets/public-key'
 const putSecret = (name) => `PUT /repos/octo/site/actions/secrets/${name}`
 const KEY_ID = '568250167242549743'
-
-// A stub GitHub. `routes` maps "METHOD /path" to a handler(body) returning
-// [status, json]; every request is recorded with its raw body.
-function fakeGitHub(routes) {
-    const requests = []
-    const fetch = async (url, init = {}) => {
-        const route = `${init.method} ${url.slice(GITHUB_API.length)}`
-        requests.push({ route, raw: init.body, body: init.body === undefined ? undefined : JSON.parse(init.body) })
-        const handler = routes[route]
-        if (!handler) return jsonResponse(404, { message: 'Not Found' })
-        const [status, json] = handler()
-        return jsonResponse(status, json)
-    }
-    return { client: createGitHubClient({ token: TOKEN, fetch }), requests }
-}
 
 const github = (extra = {}) => fakeGitHub({
     [PUBLIC_KEY]: () => [200, { key_id: KEY_ID, key: RECIPIENT_PK_BASE64 }],

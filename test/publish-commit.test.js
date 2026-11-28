@@ -15,7 +15,7 @@ import {
     BOOTSTRAP_TEXT,
 } from '../src/publish/commit.js'
 import { createGitHubClient, GITHUB_API } from '../src/publish/github.js'
-import { fakeGitData, jsonResponse } from './helpers/fake-github.js'
+import { fakeGitData, jsonResponse, recorder } from './helpers/fake-github.js'
 
 // Committing and pushing the site for `nera publish` (ROADMAP-ai.md L6 step
 // 5). The git path runs the real `git` against a local bare repository
@@ -116,11 +116,6 @@ function recordingExec() {
         return execFileAsync(file, args, options)
     }
     return { exec, calls }
-}
-
-function recorder() {
-    const lines = []
-    return { lines, log: (line) => lines.push(line) }
 }
 
 const gitPublish = (bare, extra = {}) => commitAndPush({
@@ -256,7 +251,9 @@ describe('commitAndPush with git', { timeout: GIT_TIMEOUT }, () => {
         const { bare } = await makeRemote()
         const error = await gitPublish(bare).catch((err) => err)
         expect(error.code).toBe('remote-moved')
-        expect(error.message).toMatch(/Nothing was published from this folder to it before.*--allow-unrelated-histories/)
+        expect(error.message).toMatch(
+            /Nothing was published from this folder to it before.*--allow-unrelated-histories/,
+        )
         expect(await git(bare, ['rev-list', '--count', 'main'])).toBe('1')
     })
 
@@ -309,7 +306,9 @@ describe('commitAndPush with git', { timeout: GIT_TIMEOUT }, () => {
         const { bare } = await makeRemote()
         await git(site, ['init', '-q', '-b', 'master'])
         const error = await gitPublish(bare, { created: true }).catch((err) => err)
-        expect(error.message).toMatch(/publishes the branch main, but this folder is on "master".*git branch -m master main/)
+        expect(error.message).toMatch(
+            /publishes the branch main, but this folder is on "master".*git branch -m master main/,
+        )
     })
 
     it('refuses a site inside another git repository', async () => {
@@ -454,7 +453,8 @@ describe('listPublishFiles', { timeout: GIT_TIMEOUT }, () => {
     async function gitWouldAdd(dir) {
         await git(dir, ['init', '-q', '-b', 'main'])
         const listed = (await git(dir, ['-c', 'core.excludesFile=/dev/null', 'ls-files', '--others', '--exclude-standard'])).split('\n')
-        return listed.filter((file) => file && !ALWAYS_EXCLUDED.some((top) => file === top || file.startsWith(`${top}/`))).sort()
+        const excluded = (file) => ALWAYS_EXCLUDED.some((top) => file === top || file.startsWith(`${top}/`))
+        return listed.filter((file) => file && !excluded(file)).sort()
     }
 
     it('agrees with git for the scaffold\'s .gitignore', async () => {

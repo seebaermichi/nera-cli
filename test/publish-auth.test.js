@@ -10,6 +10,7 @@ import {
     GITHUB_SIGN_IN,
 } from '../src/publish/auth.js'
 import { createGitHubClient, postOAuth, redact, GitHubError, GITHUB_API } from '../src/publish/github.js'
+import { fakeClock, fakeGitHub, jsonResponse, START } from './helpers/fake-github.js'
 
 // GitHub sign-in for `nera publish` (ROADMAP-ai.md L6 steps 1–2). `fetch` is a
 // stub, the clock is fake and advanced by `sleep`, the browser opener is a
@@ -24,15 +25,6 @@ const DEVICE_CODE = 'fake_device_code_3584d83530557fdd1f46af8289938c8ef79f9dc5'
 const USER_CODE = 'WDJB-MJHT'
 const SECRETS = [ACCESS, REFRESH, NEW_ACCESS, NEW_REFRESH, DEVICE_CODE]
 
-const START = 1_800_000_000_000
-
-const jsonResponse = (status, body) => ({
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: `status ${status}`,
-    text: async () => (body === undefined ? '' : JSON.stringify(body)),
-})
-
 const tokenAnswer = (access = ACCESS, refresh = REFRESH) => ({
     access_token: access,
     expires_in: 28800,
@@ -45,58 +37,32 @@ const tokenAnswer = (access = ACCESS, refresh = REFRESH) => ({
 // A stub GitHub. `polls` are the access-token answers to the device-code
 // grant, in order; `refreshAnswer` answers the refresh grant. Every request
 // is recorded with its form or JSON body.
-function fakeGitHub({ device = {}, polls = [tokenAnswer()], refreshAnswer, user = { login: 'octo' } } = {}) {
-    const requests = []
+function oauthGitHub({ device = {}, polls = [tokenAnswer()], refreshAnswer, user = { login: 'octo' } } = {}) {
     const pollQueue = [...polls]
-    const fetch = async (url, init = {}) => {
-        const form = init.headers?.['Content-Type'] === 'application/x-www-form-urlencoded'
-            ? Object.fromEntries(new URLSearchParams(init.body))
-            : undefined
-        requests.push({ url, init, form })
-        if (url === 'https://github.com/login/device/code') {
-            return jsonResponse(200, {
-                device_code: DEVICE_CODE,
-                user_code: USER_CODE,
-                verification_uri: DEVICE_PAGE,
-                expires_in: 900,
-                interval: 5,
-                ...device,
-            })
-        }
-        if (url === 'https://github.com/login/oauth/access_token') {
+    return fakeGitHub({
+        'POST https://github.com/login/device/code': () => [200, {
+            device_code: DEVICE_CODE,
+            user_code: USER_CODE,
+            verification_uri: DEVICE_PAGE,
+            expires_in: 900,
+            interval: 5,
+            ...device,
+        }],
+        'POST https://github.com/login/oauth/access_token': (form) => {
             if (form.grant_type === 'refresh_token') {
                 if (refreshAnswer instanceof Error) throw refreshAnswer
-                return jsonResponse(200, refreshAnswer)
+                return [200, refreshAnswer]
             }
-            return jsonResponse(200, pollQueue.shift() ?? { error: 'authorization_pending' })
-        }
-        if (url === `${GITHUB_API}/user`) return jsonResponse(200, user)
-        return jsonResponse(404, { message: 'Not Found' })
-    }
-    return { fetch, requests }
-}
-
-// A fake clock that `sleep` advances, recording every wait.
-function fakeClock(start = START) {
-    let time = start
-    const sleeps = []
-    return {
-        now: () => time,
-        sleep: async (ms) => {
-            sleeps.push(ms)
-            time += ms
+            return [200, pollQueue.shift() ?? { error: 'authorization_pending' }]
         },
-        advance: (ms) => {
-            time += ms
-        },
-        sleeps,
-    }
+        'GET /user': () => [200, user],
+    })
 }
 
 // signIn with stubs for everything; returns the lines it logged, the events
 // it emitted, both in one `timeline`, the opened urls and the saved token
 // sets alongside its result or error.
-async function runSignIn({ github = fakeGitHub(), clock = fakeClock(), tty = false, store = 'keychain' } = {}) {
+async function runSignIn({ github = oauthGitHub(), clock = fakeClock(), tty = false, store = 'keychain' } = {}) {
     const lines = []
     const events = []
     const timeline = []
@@ -186,7 +152,7 @@ describe('signIn — the device flow', () => {
     })
 
     it('keeps polling while authorization is pending, at the interval GitHub gave', async () => {
-        const github = fakeGitHub({
+        const github = oauthGitHub({
             device: { interval: 7 },
             polls: [{ error: 'authorization_pending' }, { error: 'authorization_pending' }, tokenAnswer()],
         })
@@ -197,13 +163,13 @@ describe('signIn — the device flow', () => {
     })
 
     it('waits 5 s by default when GitHub names no interval', async () => {
-        const github = fakeGitHub({ device: { interval: undefined } })
+        const github = oauthGitHub({ device: { interval: undefined } })
         const { clock } = await runSignIn({ github })
         expect(clock.sleeps).toEqual([5000])
     })
 
     it('slow_down adds 5 s to the interval for the rest of the poll', async () => {
-        const github = fakeGitHub({
+        const github = oauthGitHub({
             polls: [
                 { error: 'slow_down' },
                 { error: 'authorization_pending' },
@@ -218,13 +184,13 @@ describe('signIn — the device flow', () => {
     })
 
     it('slow_down takes GitHub\'s interval when that is longer', async () => {
-        const github = fakeGitHub({ polls: [{ error: 'slow_down', interval: 20 }, tokenAnswer()] })
+        const github = oauthGitHub({ polls: [{ error: 'slow_down', interval: 20 }, tokenAnswer()] })
         const { clock } = await runSignIn({ github })
         expect(clock.sleeps).toEqual([5000, 20000])
     })
 
     it('stops on expired_token with a hint to run again', async () => {
-        const github = fakeGitHub({ polls: [{ error: 'authorization_pending' }, { error: 'expired_token' }] })
+        const github = oauthGitHub({ polls: [{ error: 'authorization_pending' }, { error: 'expired_token' }] })
         const { error, saved, lines } = await runSignIn({ github })
         expect(error).toBeInstanceOf(GitHubError)
         expect(error.code).toBe('expired_token')
@@ -234,7 +200,7 @@ describe('signIn — the device flow', () => {
     })
 
     it('stops on access_denied with a hint to authorize', async () => {
-        const github = fakeGitHub({ polls: [{ error: 'access_denied' }] })
+        const github = oauthGitHub({ polls: [{ error: 'access_denied' }] })
         const { error, saved } = await runSignIn({ github })
         expect(error.code).toBe('access_denied')
         expect(error.message).toMatch(/cancelled.*"Authorize"/)
@@ -242,7 +208,7 @@ describe('signIn — the device flow', () => {
     })
 
     it('stops once the code has expired even if GitHub keeps answering pending', async () => {
-        const github = fakeGitHub({ device: { expires_in: 12, interval: 5 }, polls: [] })
+        const github = oauthGitHub({ device: { expires_in: 12, interval: 5 }, polls: [] })
         const { error, clock } = await runSignIn({ github })
         expect(error.code).toBe('expired_token')
         expect(clock.sleeps).toEqual([5000, 5000, 5000])
@@ -250,14 +216,14 @@ describe('signIn — the device flow', () => {
     })
 
     it('reports any other OAuth error with GitHub\'s description', async () => {
-        const github = fakeGitHub({ polls: [{ error: 'device_flow_disabled', error_description: 'Device flow is disabled for this app.' }] })
+        const github = oauthGitHub({ polls: [{ error: 'device_flow_disabled', error_description: 'Device flow is disabled for this app.' }] })
         const { error } = await runSignIn({ github })
         expect(error.code).toBe('device_flow_disabled')
         expect(error.message).toBe('GitHub sign-in failed: Device flow is disabled for this app.')
     })
 
     it('fails clearly when GitHub sends no device code', async () => {
-        const github = fakeGitHub({ device: { device_code: undefined, user_code: undefined, error: 'unauthorized_client' } })
+        const github = oauthGitHub({ device: { device_code: undefined, user_code: undefined, error: 'unauthorized_client' } })
         const { error } = await runSignIn({ github })
         expect(error.message).toBe('GitHub sign-in failed: unauthorized_client')
     })
@@ -281,9 +247,9 @@ describe('signIn — the device flow', () => {
     it('never prints a token or the device code, on success or on any failure', async () => {
         const runs = [
             await runSignIn({ store: 'file' }),
-            await runSignIn({ github: fakeGitHub({ polls: [{ error: 'slow_down' }, { error: 'expired_token' }] }) }),
-            await runSignIn({ github: fakeGitHub({ polls: [{ error: 'access_denied' }] }) }),
-            await runSignIn({ github: fakeGitHub({ polls: [{ error: 'bogus', error_description: 'odd' }] }) }),
+            await runSignIn({ github: oauthGitHub({ polls: [{ error: 'slow_down' }, { error: 'expired_token' }] }) }),
+            await runSignIn({ github: oauthGitHub({ polls: [{ error: 'access_denied' }] }) }),
+            await runSignIn({ github: oauthGitHub({ polls: [{ error: 'bogus', error_description: 'odd' }] }) }),
         ]
         for (const { lines, events, error } of runs) {
             expectNoSecret(lines.join('\n'))
@@ -308,17 +274,17 @@ describe('signIn — machine-readable events', () => {
     })
 
     it('names the page GitHub gave', async () => {
-        const github = fakeGitHub({ device: { verification_uri: 'https://github.com/login/device/other' } })
+        const github = oauthGitHub({ device: { verification_uri: 'https://github.com/login/device/other' } })
         const { events } = await runSignIn({ github })
         expect(events[0].action.url).toBe('https://github.com/login/device/other')
     })
 
     it('emits no action_done when the code expires, the user cancels or GitHub fails', async () => {
         const runs = [
-            await runSignIn({ github: fakeGitHub({ polls: [{ error: 'expired_token' }] }) }),
-            await runSignIn({ github: fakeGitHub({ device: { expires_in: 12, interval: 5 }, polls: [] }) }),
-            await runSignIn({ github: fakeGitHub({ polls: [{ error: 'access_denied' }] }) }),
-            await runSignIn({ github: fakeGitHub({ polls: [{ error: 'bogus' }] }) }),
+            await runSignIn({ github: oauthGitHub({ polls: [{ error: 'expired_token' }] }) }),
+            await runSignIn({ github: oauthGitHub({ device: { expires_in: 12, interval: 5 }, polls: [] }) }),
+            await runSignIn({ github: oauthGitHub({ polls: [{ error: 'access_denied' }] }) }),
+            await runSignIn({ github: oauthGitHub({ polls: [{ error: 'bogus' }] }) }),
         ]
         for (const { error, events } of runs) {
             expect(error).toBeInstanceOf(GitHubError)
@@ -327,7 +293,7 @@ describe('signIn — machine-readable events', () => {
     })
 
     it('emits nothing when GitHub sends no device code', async () => {
-        const github = fakeGitHub({ device: { device_code: undefined, user_code: undefined, error: 'unauthorized_client' } })
+        const github = oauthGitHub({ device: { device_code: undefined, user_code: undefined, error: 'unauthorized_client' } })
         const { error, events } = await runSignIn({ github })
         expect(error).toBeInstanceOf(GitHubError)
         expect(events).toEqual([])
@@ -341,7 +307,7 @@ describe('signIn — machine-readable events', () => {
     })
 
     it('works without an emit, as before', async () => {
-        const github = fakeGitHub()
+        const github = oauthGitHub()
         const clock = fakeClock()
         const result = await signIn({
             fetch: github.fetch,
@@ -357,7 +323,7 @@ describe('signIn — machine-readable events', () => {
 
 // ensureToken with a fake store holding `stored`; returns the logged lines,
 // the saved sets and whether a new sign-in started.
-async function runEnsure({ stored, github = fakeGitHub(), clock = fakeClock() }) {
+async function runEnsure({ stored, github = oauthGitHub(), clock = fakeClock() }) {
     const lines = []
     const events = []
     const saved = []
@@ -417,7 +383,7 @@ describe('ensureToken', () => {
     })
 
     it('refreshes an expired access token with the refresh token and stores the new set', async () => {
-        const github = fakeGitHub({ refreshAnswer: tokenAnswer(NEW_ACCESS, NEW_REFRESH) })
+        const github = oauthGitHub({ refreshAnswer: tokenAnswer(NEW_ACCESS, NEW_REFRESH) })
         const { result, saved, signedInAgain, lines } = await runEnsure({
             stored: storedSet({ expiresAt: START - 1 }),
             github,
@@ -438,7 +404,7 @@ describe('ensureToken', () => {
     })
 
     it('refreshes a token that expires within the margin', async () => {
-        const github = fakeGitHub({ refreshAnswer: tokenAnswer(NEW_ACCESS, NEW_REFRESH) })
+        const github = oauthGitHub({ refreshAnswer: tokenAnswer(NEW_ACCESS, NEW_REFRESH) })
         const { result } = await runEnsure({
             stored: storedSet({ expiresAt: START + EXPIRY_MARGIN_MS - 1 }),
             github,
@@ -447,7 +413,7 @@ describe('ensureToken', () => {
     })
 
     it('signs in again when GitHub refuses the refresh token', async () => {
-        const github = fakeGitHub({ refreshAnswer: { error: 'bad_refresh_token', error_description: 'The refresh token passed is incorrect or expired.' } })
+        const github = oauthGitHub({ refreshAnswer: { error: 'bad_refresh_token', error_description: 'The refresh token passed is incorrect or expired.' } })
         const { result, lines, signedInAgain } = await runEnsure({
             stored: storedSet({ expiresAt: START - 1 }),
             github,
@@ -459,7 +425,7 @@ describe('ensureToken', () => {
     })
 
     it('signs in again when the refresh call cannot reach GitHub', async () => {
-        const github = fakeGitHub({ refreshAnswer: new Error(`socket hang up ${REFRESH}`) })
+        const github = oauthGitHub({ refreshAnswer: new Error(`socket hang up ${REFRESH}`) })
         const { result, signedInAgain, lines } = await runEnsure({
             stored: storedSet({ expiresAt: START - 1 }),
             github,
@@ -470,7 +436,7 @@ describe('ensureToken', () => {
     })
 
     it('signs in again, without trying, when the refresh token has expired too', async () => {
-        const github = fakeGitHub()
+        const github = oauthGitHub()
         const { signedInAgain } = await runEnsure({
             stored: storedSet({ expiresAt: START - 2, refreshTokenExpiresAt: START - 1 }),
             github,
@@ -480,7 +446,7 @@ describe('ensureToken', () => {
     })
 
     it('emits nothing for a valid, env or refreshed token', async () => {
-        const refreshing = fakeGitHub({ refreshAnswer: tokenAnswer(NEW_ACCESS, NEW_REFRESH) })
+        const refreshing = oauthGitHub({ refreshAnswer: tokenAnswer(NEW_ACCESS, NEW_REFRESH) })
         const runs = [
             await runEnsure({ stored: storedSet() }),
             await runEnsure({ stored: { accessToken: ACCESS, source: 'env' } }),
@@ -496,7 +462,7 @@ describe('ensureToken', () => {
         const runs = [
             await runEnsure({ stored: null }),
             await runEnsure({ stored: storedSet({ expiresAt: START - 2, refreshTokenExpiresAt: START - 1 }) }),
-            await runEnsure({ stored: storedSet({ expiresAt: START - 1 }), github: fakeGitHub({ refreshAnswer: { error: 'bad_refresh_token' } }) }),
+            await runEnsure({ stored: storedSet({ expiresAt: START - 1 }), github: oauthGitHub({ refreshAnswer: { error: 'bad_refresh_token' } }) }),
         ]
         for (const { events } of runs) {
             expect(events.map(({ event }) => event)).toEqual(['action_required', 'action_done'])
@@ -514,7 +480,7 @@ describe('ensureToken', () => {
 
 describe('github.js', () => {
     it('sends the token in the Authorization header with the API version', async () => {
-        const github = fakeGitHub()
+        const github = oauthGitHub()
         const client = createGitHubClient({ token: ACCESS, fetch: github.fetch })
         expect(await client.get('/user')).toEqual({ login: 'octo' })
         const [{ url, init }] = github.requests

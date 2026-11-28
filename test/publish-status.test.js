@@ -13,13 +13,13 @@ import {
     WORKFLOW_PATH,
 } from '../src/publish/status.js'
 import { BUILD_STEPS } from '../src/publish/workflow.js'
-import { jsonResponse } from './helpers/fake-github.js'
+import { FAKE_TOKEN, fakeClock, jsonResponse, recorder, START } from './helpers/fake-github.js'
 
 // Following the deploy run after the push (ROADMAP-ai.md L6 step 5). The
 // Actions API is an in-memory fake behind the real github.js client; the
 // clock is fake too, so no test waits or touches the network.
 
-const TOKEN = 'ghu_fake_access_token'
+const TOKEN = FAKE_TOKEN
 const REPOSITORY = 'octo/site'
 const SHA = 'a'.repeat(40)
 const OTHER_SHA = 'b'.repeat(40)
@@ -54,7 +54,8 @@ function fakeActions({ polls = [[]], jobs = [], logs = {} } = {}) {
             return jsonResponse(200, { total_count: runs.length, workflow_runs: runs })
         }
         if ((match = route.match(/\/actions\/runs\/(\d+)\/jobs/))) {
-            return jsonResponse(200, { total_count: jobs.length, jobs: jobs.filter((job) => job.run_id === Number(match[1])) })
+            const ofRun = jobs.filter((job) => job.run_id === Number(match[1]))
+            return jsonResponse(200, { total_count: jobs.length, jobs: ofRun })
         }
         if ((match = route.match(/\/actions\/jobs\/(\d+)\/logs$/))) {
             const text = logs[match[1]]
@@ -66,24 +67,8 @@ function fakeActions({ polls = [[]], jobs = [], logs = {} } = {}) {
     return { client: createGitHubClient({ token: TOKEN, fetch }), requests }
 }
 
-// A clock that advances only when slept.
-function fakeClock() {
-    let time = 0
-    const sleeps = []
-    return {
-        sleeps,
-        now: () => time,
-        sleep: async (ms) => {
-            sleeps.push(ms)
-            time += ms
-        },
-    }
-}
-
-const recorder = () => {
-    const lines = []
-    return { lines, log: (line) => lines.push(line) }
-}
+// What waitForRun and watchDeploy follow: the pushed SHA on REPOSITORY.
+const target = (github) => ({ client: github.client, repository: REPOSITORY, sha: SHA })
 
 const step = (name, conclusion = 'success') => ({ name, status: 'completed', conclusion })
 
@@ -109,35 +94,35 @@ describe('waitForRun', () => {
                 run(5, { conclusion: 'success' }),
             ]],
         })
-        const result = await waitForRun({ client: github.client, repository: REPOSITORY, sha: SHA, log: () => {}, ...fakeClock() })
+        const result = await waitForRun({ ...target(github), log: () => {}, ...fakeClock() })
         expect(result.id).toBe(5)
     })
 
     it('accepts the workflow path with the ref GitHub may append (deploy.yml@main)', async () => {
         const github = fakeActions({ polls: [[run(6, { path: `${WORKFLOW_PATH}@main` }), run(5, { path: '.github/workflows/test.yml@main' })]] })
-        const result = await waitForRun({ client: github.client, repository: REPOSITORY, sha: SHA, log: () => {}, ...fakeClock() })
+        const result = await waitForRun({ ...target(github), log: () => {}, ...fakeClock() })
         expect(result.id).toBe(6)
     })
 
     it('of several runs for the sha (a manual re-run), takes the newest', async () => {
         const github = fakeActions({ polls: [[run(3, { conclusion: 'failure' }), run(4)]] })
-        const result = await waitForRun({ client: github.client, repository: REPOSITORY, sha: SHA, log: () => {}, ...fakeClock() })
+        const result = await waitForRun({ ...target(github), log: () => {}, ...fakeClock() })
         expect(result.id).toBe(4)
     })
 
     it('times out with the run\'s address when it does not finish', async () => {
         const github = fakeActions({ polls: [[run(7, { status: 'in_progress', conclusion: null })]] })
         const clock = fakeClock()
-        const error = await waitForRun({ client: github.client, repository: REPOSITORY, sha: SHA, log: () => {}, ...clock }).catch((err) => err)
+        const error = await waitForRun({ ...target(github), log: () => {}, ...clock }).catch((err) => err)
         expect(error).toBeInstanceOf(DeployError)
         expect(error.message).toBe(`The deploy run did not finish within 15 minutes. Follow it at https://github.com/${REPOSITORY}/actions/runs/7, then run nera publish again once it is done.`)
         expect(error.details.run).toBe(`https://github.com/${REPOSITORY}/actions/runs/7`)
-        expect(clock.now()).toBe(RUN_TIMEOUT_MS)
+        expect(clock.now()).toBe(START + RUN_TIMEOUT_MS)
     })
 
     it('times out with the Actions page when no run ever started', async () => {
         const github = fakeActions({ polls: [[]] })
-        const error = await waitForRun({ client: github.client, repository: REPOSITORY, sha: SHA, log: () => {}, ...fakeClock() }).catch((err) => err)
+        const error = await waitForRun({ ...target(github), log: () => {}, ...fakeClock() }).catch((err) => err)
         expect(error.message).toContain('No deploy run started within 15 minutes')
         expect(error.details.run).toBe(`https://github.com/${REPOSITORY}/actions`)
     })
@@ -184,11 +169,12 @@ describe('waitForRun — transient errors', () => {
     })
 
     it('the deadline still ends the wait while errors and good answers alternate', async () => {
-        const github = fakeActions({ polls: Array.from({ length: RUN_TIMEOUT_MS / RUN_POLL_MS + 1 }, (_, i) => (i % 2 ? 503 : [])) })
+        const polls = Array.from({ length: RUN_TIMEOUT_MS / RUN_POLL_MS + 1 }, (_, i) => (i % 2 ? 503 : []))
+        const github = fakeActions({ polls })
         const clock = fakeClock()
         const error = await wait(github, clock).catch((err) => err)
         expect(error.message).toContain('No deploy run started within 15 minutes')
-        expect(clock.now()).toBe(RUN_TIMEOUT_MS)
+        expect(clock.now()).toBe(START + RUN_TIMEOUT_MS)
     })
 })
 
@@ -221,7 +207,7 @@ describe('logExcerpt', () => {
 })
 
 describe('watchDeploy', () => {
-    const options = (github) => ({ client: github.client, repository: REPOSITORY, sha: SHA, adapter, log: () => {}, ...fakeClock() })
+    const options = (github) => ({ ...target(github), adapter, log: () => {}, ...fakeClock() })
 
     it('resolves the run when it succeeded, without asking for jobs or logs', async () => {
         const github = fakeActions({ polls: [[run(7)]] })

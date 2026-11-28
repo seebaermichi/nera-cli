@@ -14,26 +14,19 @@ import {
     writeBasePath,
 } from '../src/publish/pages.js'
 import { assertAdapter } from '../src/publish/targets.js'
-import { createGitHubClient, GitHubError, GITHUB_API } from '../src/publish/github.js'
+import { GitHubError, GITHUB_API } from '../src/publish/github.js'
 import { PRIVATE_NOTE } from '../src/publish/repository.js'
 import { renderWorkflow, writeWorkflow, BUILD_JOB_ID, BUILD_STEPS, WORKFLOW_FILE } from '../src/publish/workflow.js'
 import { fakeResolver } from './helpers/fake-dns.js'
+import { fakeGitHub } from './helpers/fake-github.js'
 
 // The GitHub Pages adapter of `nera publish` (ROADMAP-ai.md L6 step 4).
 // GitHub is a stub behind the real github.js client and DNS a stub resolver:
 // no test uses the network or a real token.
 
-const TOKEN = 'ghu_fake_access_token'
 const PAGES = 'GET /repos/octo/site/pages'
 const ENABLE = 'POST /repos/octo/site/pages'
 const SWITCH = 'PUT /repos/octo/site/pages'
-
-const jsonResponse = (status, body) => ({
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: `status ${status}`,
-    text: async () => (body === undefined ? '' : JSON.stringify(body)),
-})
 
 const pagesSite = (extra = {}) => ({
     url: `${GITHUB_API}/repos/octo/site/pages`,
@@ -50,23 +43,6 @@ const repository = (extra = {}) => ({
     private: false,
     ...extra,
 })
-
-// A stub GitHub. `routes` maps "METHOD /path" to a handler(body) returning
-// [status, json] (or a queue of them); every request is recorded.
-function fakeGitHub(routes) {
-    const requests = []
-    const fetch = async (url, init = {}) => {
-        const route = `${init.method} ${url.slice(GITHUB_API.length)}`
-        const body = init.body === undefined ? undefined : JSON.parse(init.body)
-        requests.push({ route, body })
-        let handler = routes[route]
-        if (Array.isArray(handler)) handler = handler.length > 1 ? handler.shift() : handler[0]
-        if (!handler) return jsonResponse(404, { message: 'Not Found' })
-        const [status, json] = handler(body)
-        return jsonResponse(status, json)
-    }
-    return { client: createGitHubClient({ token: TOKEN, fetch }), requests }
-}
 
 // The host context publishSite hands every adapter method, with a log that
 // records its lines. `cwd` is the temp site of the test; `extra` adds to the
@@ -100,7 +76,8 @@ afterEach(async () => {
 
 // The line setUp logs while GitHub has no certificate for the custom domain.
 const httpsLater = (domain) =>
-    `HTTPS is not enforced for ${domain} yet: GitHub issues its certificate once the DNS records point to GitHub Pages, and running nera publish again then switches HTTPS on.`
+    `HTTPS is not enforced for ${domain} yet: GitHub issues its certificate once the DNS records point to ` +
+    'GitHub Pages, and running nera publish again then switches HTTPS on.'
 
 describe('githubPages adapter', () => {
     it('has the adapter interface', () => {
@@ -251,7 +228,9 @@ describe('githubPages.setUp', () => {
 
         const error = await githubPages.setUp(ctx).catch((err) => err)
         expect(error).not.toBeInstanceOf(GitHubError)
-        expect(error.message).toBe(`GitHub Pages cannot be switched on for the private repository octo/site. ${PRIVATE_NOTE}`)
+        expect(error.message).toBe(
+            `GitHub Pages cannot be switched on for the private repository octo/site. ${PRIVATE_NOTE}`,
+        )
     })
 
     it('lets a 403 without a plan message through unchanged (missing permission)', async () => {
@@ -405,7 +384,8 @@ describe('writeBasePath', () => {
         ['2-space', '  '],
     ])('keeps the rest of a %s file as written', async (_, pad) => {
         const long = 'A description that runs well past the eighty characters yaml folds lines at by default'
-        const text = `lang: en\ndescription: ${long}\nlist: [a, b]\nfolders:\n${pad}plugins: ./plugins\ntranslations:\n${pad}en:\n${pad}${pad}imprint: Imprint\n`
+        const text = `lang: en\ndescription: ${long}\nlist: [a, b]\nfolders:\n${pad}plugins: ./plugins\n` +
+            `translations:\n${pad}en:\n${pad}${pad}imprint: Imprint\n`
         await writeAppYaml(text)
 
         await expect(writeBasePath(site, '/site')).resolves.toBe(true)
@@ -522,7 +502,9 @@ describe('githubPages.setUp: --domain', () => {
 describe('githubPages.setUp: HTTPS for a custom domain', () => {
     const DOMAIN = 'www.example.com'
     const domainSite = (extra = {}) => pagesSite({ cname: DOMAIN, html_url: `http://${DOMAIN}/`, https_enforced: false, ...extra })
-    const certificate = (state) => ({ https_certificate: { state, description: `Certificate ${state}`, domains: [DOMAIN] } })
+    const certificate = (state) => ({
+        https_certificate: { state, description: `Certificate ${state}`, domains: [DOMAIN] },
+    })
     const setUp = async (routes, options) => {
         const github = fakeGitHub(routes)
         const { ctx, lines } = host(github.client, repository(), undefined, { options, resolver: fakeResolver({ CNAME: ['octo.github.io'] }) })

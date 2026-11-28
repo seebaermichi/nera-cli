@@ -17,7 +17,7 @@ import { netlify } from '../src/publish/netlify.js'
 import { PUBLISH_STATE } from '../src/publish/commit.js'
 import { WORKFLOW_PATH } from '../src/publish/status.js'
 import { BUILD_STEPS, GENERATED_HEADER } from '../src/publish/workflow.js'
-import { fakeGitData, jsonResponse } from './helpers/fake-github.js'
+import { FAKE_TOKEN, fakeGitData, fakeGitHub, jsonResponse } from './helpers/fake-github.js'
 import { fakeResolver } from './helpers/fake-dns.js'
 import { fakeNetlify } from './helpers/fake-netlify.js'
 import { NETLIFY_API } from '../src/publish/netlify-api.js'
@@ -536,9 +536,9 @@ describe('runPublish', () => {
 const OWNER = 'octo'
 const REPO = 'my-site'
 const REPOSITORY = `${OWNER}/${REPO}`
-const TOKEN = 'ghu_fake_access_token'
+const TOKEN = FAKE_TOKEN
 
-function fakeGitHub({ conclusion = 'success' } = {}) {
+function pipelineGitHub({ conclusion = 'success' } = {}) {
     const git = fakeGitData({ repository: REPOSITORY, token: TOKEN })
     const events = []
     const runs = []
@@ -556,48 +556,60 @@ function fakeGitHub({ conclusion = 'success' } = {}) {
         default_branch: 'main',
         html_url: `https://github.com/${REPOSITORY}`,
     })
+    const notFound = [404, { message: 'Not Found' }]
     // A queued run for a head that has none yet, completed one poll later.
     const startRun = () => {
         if (!git.refs.main || runs.some((run) => run.head_sha === git.refs.main)) return
         const id = nextRun++
-        runs.push({ id, head_sha: git.refs.main, path: WORKFLOW_PATH, status: 'queued', conclusion: null, html_url: `https://github.com/${REPOSITORY}/actions/runs/${id}` })
+        runs.push({
+            id,
+            head_sha: git.refs.main,
+            path: WORKFLOW_PATH,
+            status: 'queued',
+            conclusion: null,
+            html_url: `https://github.com/${REPOSITORY}/actions/runs/${id}`,
+        })
     }
 
-    const fetch = async (url, init) => {
-        const route = `${init.method} ${url.slice(GITHUB_API.length)}`
-        if (route === 'GET /user') return jsonResponse(200, { login: OWNER, id: 4242 })
-        if (route === 'GET /user/installations?per_page=100') {
+    const routes = {
+        'GET /user': () => [200, { login: OWNER, id: 4242 }],
+        'GET /user/installations?per_page=100': () => {
             events.push('installation')
-            return jsonResponse(200, { installations: [{ id: 1, app_slug: 'nera-static', account: { login: OWNER } }] })
-        }
-        if (route === `GET /repos/${REPOSITORY}`) return created ? jsonResponse(200, repoObject()) : jsonResponse(404, { message: 'Not Found' })
-        if (route === 'POST /user/repos') {
+            return [200, { installations: [{ id: 1, app_slug: 'nera-static', account: { login: OWNER } }] }]
+        },
+        [`GET /repos/${REPOSITORY}`]: () => (created ? [200, repoObject()] : notFound),
+        'POST /user/repos': () => {
             events.push('create repository')
             created = true
             git.autoInit()
-            return jsonResponse(201, repoObject())
-        }
-        if (route === `GET /repos/${REPOSITORY}/pages`) return pages ? jsonResponse(200, pages) : jsonResponse(404, { message: 'Not Found' })
-        if (route === `POST /repos/${REPOSITORY}/pages`) {
+            return [201, repoObject()]
+        },
+        [`GET /repos/${REPOSITORY}/pages`]: () => (pages ? [200, pages] : notFound),
+        [`POST /repos/${REPOSITORY}/pages`]: (body) => {
             events.push('enable pages')
-            pages = { html_url: `https://${OWNER}.github.io/${REPO}/`, build_type: JSON.parse(init.body).build_type, cname: null }
-            return jsonResponse(201, pages)
-        }
-        if (route === `PUT /repos/${REPOSITORY}/pages`) {
-            const body = JSON.parse(init.body)
+            pages = { html_url: `https://${OWNER}.github.io/${REPO}/`, build_type: body.build_type, cname: null }
+            return [201, pages]
+        },
+        [`PUT /repos/${REPOSITORY}/pages`]: (body) => {
             if (body.https_enforced !== undefined) {
                 events.push(`enforce https ${body.https_enforced}`)
                 Object.assign(pages, { https_enforced: body.https_enforced })
-                return jsonResponse(204)
+                return [204]
             }
             events.push(`set domain ${body.cname}`)
             // GitHub reports http until the certificate for the domain is issued.
             Object.assign(pages, { cname: body.cname, html_url: `http://${body.cname}/` })
-            return jsonResponse(204)
-        }
-        if (route === `GET /repos/${REPOSITORY}/actions/secrets/public-key`) {
-            return jsonResponse(200, { key_id: 'fake-key-id', key: Buffer.alloc(32, 9).toString('base64') })
-        }
+            return [204]
+        },
+        [`GET /repos/${REPOSITORY}/actions/secrets/public-key`]: () => [200, {
+            key_id: 'fake-key-id',
+            key: Buffer.alloc(32, 9).toString('base64'),
+        }],
+    }
+
+    // The routes with a pattern, then the Git Data API.
+    const fallback = async (url, init) => {
+        const route = `${init.method} ${url.slice(GITHUB_API.length)}`
         const secret = route.match(/^PUT \/repos\/[^/]+\/[^/]+\/actions\/secrets\/([A-Z_]+)$/)
         if (secret) {
             events.push(`store secret ${secret[1]}`)
@@ -613,18 +625,22 @@ function fakeGitHub({ conclusion = 'success' } = {}) {
             startRun()
             // GitHub's own head_sha filter, so a wrong sha finds nothing.
             const sha = new URL(url).searchParams.get('head_sha')
-            return jsonResponse(200, { workflow_runs: runs.filter((run) => run.head_sha === sha).map((run) => ({ ...run })) })
+            const found = runs.filter((run) => run.head_sha === sha).map((run) => ({ ...run }))
+            return jsonResponse(200, { workflow_runs: found })
         }
         const jobs = route.match(/\/actions\/runs\/(\d+)\/jobs/)
         if (jobs) {
-            return jsonResponse(200, { jobs: [{ id: Number(jobs[1]) * 10, name: 'build', conclusion: 'failure', steps: [{ name: BUILD_STEPS.render, conclusion: 'failure' }] }] })
+            const steps = [{ name: BUILD_STEPS.render, conclusion: 'failure' }]
+            return jsonResponse(200, { jobs: [{ id: Number(jobs[1]) * 10, name: 'build', conclusion: 'failure', steps }] })
         }
         if (/\/actions\/jobs\/\d+\/logs$/.test(route)) {
-            return { ok: true, status: 200, statusText: 'OK', text: async () => '2026-10-26T10:00:01.0000000Z ##[error]Layout "post.pug" not found\n' }
+            const log = '2026-10-26T10:00:01.0000000Z ##[error]Layout "post.pug" not found\n'
+            return { ok: true, status: 200, statusText: 'OK', text: async () => log }
         }
         if (route === `PATCH /repos/${REPOSITORY}/git/refs/heads/main`) events.push('push')
         return git.fetch(url, init)
     }
+    const { fetch } = fakeGitHub(routes, { token: TOKEN, fallback })
     return { fetch, git, events, runs, secrets }
 }
 
@@ -697,7 +713,7 @@ describe('publishSite — end to end over a fake GitHub', () => {
     beforeEach(makeSite)
 
     it('first run: the D5 order, the repository and target recorded, the workflow committed, the live URL printed', async () => {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         const { result, contexts } = publishEndToEnd(['--repo', REPO], github)
         expect(await result).toBe(0)
 
@@ -722,7 +738,7 @@ describe('publishSite — end to end over a fake GitHub', () => {
     })
 
     it('a later run reuses the repository, publishes the change and polls the run for the new commit', async () => {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         expect(await publishEndToEnd(['--repo', REPO], github).result).toBe(0)
         const first = github.git.refs.main
         github.events.length = 0
@@ -743,7 +759,7 @@ describe('publishSite — end to end over a fake GitHub', () => {
     })
 
     it('--json success: one { ok, url, repository, sha, run } object, exit 0', async () => {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         const { result } = publishEndToEnd(['--repo', REPO, '--json'], github)
         expect(await result).toBe(0)
         expect(printedJson()).toEqual({
@@ -757,7 +773,7 @@ describe('publishSite — end to end over a fake GitHub', () => {
     })
 
     it('a failed run: text mode throws the report; no live URL', async () => {
-        const github = fakeGitHub({ conclusion: 'failure' })
+        const github = pipelineGitHub({ conclusion: 'failure' })
         const { result } = publishEndToEnd(['--repo', REPO], github)
         await expect(result).rejects.toThrow(`The deploy failed at the step "Render site" of the job "build": https://github.com/${REPOSITORY}/actions/runs/100`)
         expect(github.events).not.toContain('liveUrl')
@@ -765,7 +781,7 @@ describe('publishSite — end to end over a fake GitHub', () => {
     })
 
     it('--json failure: { ok: false, error, repository, sha, deploy } with the excerpt and hint, exit 1', async () => {
-        const github = fakeGitHub({ conclusion: 'failure' })
+        const github = pipelineGitHub({ conclusion: 'failure' })
         const { result } = publishEndToEnd(['--repo', REPO, '--json'], github)
         expect(await result).toBe(1)
         const object = printedJson()
@@ -783,7 +799,7 @@ describe('publishSite — end to end over a fake GitHub', () => {
     })
 
     it('--json failure before the push: the repository, no sha', async () => {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         const { result } = publishEndToEnd(['--repo', REPO, '--json'], github, {
             setUp: async () => {
                 throw new Error('The host refused the site.')
@@ -806,7 +822,7 @@ describe('publishSite — end to end over a fake GitHub', () => {
 
     it('a move: after the deploy, the old host\'s hint is logged and --json reports movedFrom', async () => {
         await writePublishConfig({ target: 'old-host' }, site)
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         expect(await publishMove(['--repo', REPO, '--json'], github, oldHost())).toBe(0)
         expect(printedJson()).toEqual({
             ok: true,
@@ -824,27 +840,27 @@ describe('publishSite — end to end over a fake GitHub', () => {
 
     it('a move to a host without leftBehind still says the old one was left untouched', async () => {
         await writePublishConfig({ target: 'old-host' }, site)
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         expect(await publishMove(['--repo', REPO], github, oldHost({ leftBehind: undefined }))).toBe(0)
         expect(logged()).toContain('Moved from Old Host to Fake Host. The site on Old Host was left untouched.')
     })
 
     it('a move whose deploy fails prints no hint', async () => {
         await writePublishConfig({ target: 'old-host' }, site)
-        const github = fakeGitHub({ conclusion: 'failure' })
+        const github = pipelineGitHub({ conclusion: 'failure' })
         await expect(publishMove(['--repo', REPO], github, oldHost())).rejects.toThrow('The deploy failed')
         expect(logged()).not.toContain('Moved from')
     })
 
     it('no move: no hint', async () => {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         expect(await publishEndToEnd(['--repo', REPO], github).result).toBe(0)
         expect(logged()).not.toContain('Moved from')
     })
 
     it('target is written after setUp (D6): a failed set-up keeps the old target, so the next run is still a move', async () => {
         await writePublishConfig({ target: 'old-host' }, site)
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         const seen = []
         const { adapter } = recordingAdapter(github.events)
         adapter.setUp = async () => {
@@ -858,7 +874,7 @@ describe('publishSite — end to end over a fake GitHub', () => {
     })
 
     it('--json failure before the repository is known: neither repository nor sha', async () => {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         const fetch = github.fetch
         github.fetch = async (url, init) => (url.endsWith('/user') ? jsonResponse(401, { message: 'Bad credentials' }) : fetch(url, init))
         const { result } = publishEndToEnd(['--repo', REPO, '--json'], github)
@@ -879,7 +895,7 @@ describe('publishSite with the github-pages adapter — end to end over a fake G
     beforeEach(makeSite)
 
     it('enables Pages before the push, commits base_path and the Pages job, prints the Pages address', async () => {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         const { result, lookups } = publishToPages(['--repo', REPO], github)
         expect(await result).toBe(0)
 
@@ -898,7 +914,7 @@ describe('publishSite with the github-pages adapter — end to end over a fake G
     })
 
     it('--domain --json: the domain set before the push, no base_path, the DNS report on stderr only', async () => {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         const { result, lookups } = publishToPages(['--repo', REPO, '--domain', 'WWW.Example.com', '--json'], github, { A: ['203.0.113.7'] })
         expect(await result).toBe(0)
 
@@ -934,7 +950,7 @@ describe('publishSite with the netlify adapter — end to end over a fake GitHub
         stdout: pipe,
         env: {},
         publish: (ctx) => publishSite(ctx, {
-            fetch: (url, init) => (url.startsWith(NETLIFY_API) ? netlifyHost.fetch(url, init) : github.fetch(url, init)),
+            fetch: (url, init) => (url.startsWith(NETLIFY_API) ? netlifyHost : github).fetch(url, init),
             readToken: async () => ({ accessToken: TOKEN, source: 'env' }),
             readNetlifyToken: async () => ({ accessToken: NETLIFY_TOKEN, source: 'env' }),
             saveToken: async () => {
@@ -964,7 +980,7 @@ describe('publishSite with the netlify adapter — end to end over a fake GitHub
     beforeEach(makeSite)
 
     it('first run: the site created and both secrets stored before the push, site_id committed, the Netlify address printed', async () => {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         const netlifyHost = fakeNetlify({ token: NETLIFY_TOKEN })
         linked(github, netlifyHost)
         expect(await publishToNetlify(['--repo', REPO], github, netlifyHost)).toBe(0)
@@ -998,7 +1014,7 @@ describe('publishSite with the netlify adapter — end to end over a fake GitHub
     })
 
     it('a later run reuses site_id, stores the secrets again and checks the credits instead of the budget note', async () => {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         const netlifyHost = fakeNetlify({ token: NETLIFY_TOKEN })
         expect(await publishToNetlify(['--repo', REPO], github, netlifyHost)).toBe(0)
         github.events.length = 0
@@ -1017,7 +1033,7 @@ describe('publishSite with the netlify adapter — end to end over a fake GitHub
     })
 
     it('a switch from github-pages to netlify removes base_path and replaces the Pages job', async () => {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         expect(await runPipeline(['--repo', REPO], github, createRegistry(), fakeResolver())).toBe(0)
         expect(await fs.readFile(path.join(site, 'config/app.yaml'), 'utf-8')).toBe(`name: My Site\nbase_path: /${REPO}\n`)
 
@@ -1042,12 +1058,18 @@ describe('nera publish --json: the sign-in steps as NDJSON events on stderr', ()
     // device flow is authorized at the first poll, and the installation is
     // listed from the second look on.
     function signedOutGitHub() {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         const api = github.fetch
         let looks = 0
         github.fetch = async (url, init) => {
             if (url === 'https://github.com/login/device/code') {
-                return jsonResponse(200, { device_code: DEVICE_CODE, user_code: USER_CODE, verification_uri: DEVICE_PAGE, expires_in: 900, interval: 5 })
+                return jsonResponse(200, {
+                    device_code: DEVICE_CODE,
+                    user_code: USER_CODE,
+                    verification_uri: DEVICE_PAGE,
+                    expires_in: 900,
+                    interval: 5,
+                })
             }
             if (url === 'https://github.com/login/oauth/access_token') {
                 return jsonResponse(200, { access_token: TOKEN, expires_in: 28800, refresh_token: REFRESH, refresh_token_expires_in: 15897600, token_type: 'bearer' })
@@ -1069,7 +1091,9 @@ describe('nera publish --json: the sign-in steps as NDJSON events on stderr', ()
             if (url === `${NETLIFY_API}/oauth/tickets?client_id=${NETLIFY_CLIENT_ID}`) {
                 return jsonResponse(201, { id: TICKET_ID, client_id: NETLIFY_CLIENT_ID, authorized: false })
             }
-            if (url === `${NETLIFY_API}/oauth/tickets/${TICKET_ID}`) return jsonResponse(200, { id: TICKET_ID, authorized: true })
+            if (url === `${NETLIFY_API}/oauth/tickets/${TICKET_ID}`) {
+                return jsonResponse(200, { id: TICKET_ID, authorized: true })
+            }
             if (url === `${NETLIFY_API}/oauth/tickets/${TICKET_ID}/exchange`) {
                 return jsonResponse(201, { access_token: NETLIFY_TOKEN, user_email: 'me@example.com' })
             }
@@ -1087,7 +1111,7 @@ describe('nera publish --json: the sign-in steps as NDJSON events on stderr', ()
         env: {},
         publish: (ctx, wired) => publishSite(ctx, {
             ...wired,
-            fetch: (url, init) => (url.startsWith(NETLIFY_API) ? netlifyHost.fetch(url, init) : github.fetch(url, init)),
+            fetch: (url, init) => (url.startsWith(NETLIFY_API) ? netlifyHost : github).fetch(url, init),
             readToken: async () => null,
             saveToken: async () => ({ store: 'keychain' }),
             readNetlifyToken: async () => null,
@@ -1134,7 +1158,8 @@ describe('nera publish --json: the sign-in steps as NDJSON events on stderr', ()
             { event: 'action_done', kind: GITHUB_APP_INSTALL },
         ])
         const lines = stderrLines()
-        expect(lines[lines.indexOf(`To sign in to GitHub, enter the code ${USER_CODE} at ${DEVICE_PAGE}`) + 1]).toBe(eventLine(signIn))
+        const codeLine = lines.indexOf(`To sign in to GitHub, enter the code ${USER_CODE} at ${DEVICE_PAGE}`)
+        expect(lines[codeLine + 1]).toBe(eventLine(signIn))
         expect(lines[lines.indexOf(`Install it at ${INSTALL_PAGE}`) + 1]).toBe(eventLine(install))
         expect(lines[lines.indexOf(`Signed in as ${OWNER}`) + 1]).toBe(eventLine({ event: 'action_done', kind: GITHUB_SIGN_IN }))
 
@@ -1164,7 +1189,8 @@ describe('nera publish --json: the sign-in steps as NDJSON events on stderr', ()
             `action_done ${NETLIFY_SIGN_IN}`,
         ])
         const lines = stderrLines()
-        expect(lines[lines.indexOf(`To sign in to Netlify, open ${page} and choose "Authorize".`) + 1]).toBe(eventLine(authorize))
+        const pageLine = lines.indexOf(`To sign in to Netlify, open ${page} and choose "Authorize".`)
+        expect(lines[pageLine + 1]).toBe(eventLine(authorize))
         expect(lines[lines.indexOf('Signed in to Netlify as me@example.com') + 1]).toBe(eventLine({ event: 'action_done', kind: NETLIFY_SIGN_IN }))
         expect(printedJson()).toMatchObject({ ok: true, url: `https://${REPO}.netlify.app`, repository: REPOSITORY })
         for (const secret of [TOKEN, REFRESH, DEVICE_CODE, NETLIFY_TOKEN]) expect(stream.join('')).not.toContain(secret)
@@ -1190,7 +1216,7 @@ describe('nera publish --json: the sign-in steps as NDJSON events on stderr', ()
     })
 
     it('a valid stored token and an installed app: --json writes no event', async () => {
-        const github = fakeGitHub()
+        const github = pipelineGitHub()
         const result = runPublish(['--repo', REPO, '--json'], {
             cwd: site,
             stdin: pipe,

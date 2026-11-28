@@ -12,26 +12,16 @@ import {
     PRIVATE_NOTE,
     GITHUB_APP_INSTALL,
 } from '../src/publish/repository.js'
-import { createGitHubClient, GITHUB_API } from '../src/publish/github.js'
 import { readPublishConfig, writePublishConfig, isValidRepoName, parseRepository } from '../src/publish/site-config.js'
+import { FAKE_TOKEN, fakeClock, fakeGitHub, recorder } from './helpers/fake-github.js'
 
 // The installation check and the repository of `nera publish` (ROADMAP-ai.md
 // L6 step 3). GitHub is a stub behind the real github.js client, the clock is
 // fake: no test uses the network or a real token.
 
-const TOKEN = 'ghu_fake_access_token'
-const START = 1_800_000_000_000
-
 // The error for octo/site when Nera Static cannot use it, on both paths: no
 // push permission when reused, and "already exists" after a 404.
 const REACH_ERROR = 'Your repository site exists, but Nera Static cannot reach it. Add it to the app\'s installation at https://github.com/settings/installations, or choose another name with --repo <name>.'
-
-const jsonResponse = (status, body) => ({
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: `status ${status}`,
-    text: async () => (body === undefined ? '' : JSON.stringify(body)),
-})
 
 const installation = (login = 'octo', slug = 'nera-static') => ({
     id: 42,
@@ -49,41 +39,6 @@ const repoObject = (owner, name, extra = {}) => ({
     html_url: `https://github.com/${owner}/${name}`,
     ...extra,
 })
-
-// A stub GitHub. `routes` maps "METHOD /path" to a handler(body) returning
-// [status, json] (or a queue of them); every request is recorded.
-function fakeGitHub(routes) {
-    const requests = []
-    const fetch = async (url, init = {}) => {
-        const route = `${init.method} ${url.slice(GITHUB_API.length)}`
-        const body = init.body === undefined ? undefined : JSON.parse(init.body)
-        requests.push({ route, body, init })
-        let handler = routes[route]
-        if (Array.isArray(handler)) handler = handler.length > 1 ? handler.shift() : handler[0]
-        if (!handler) return jsonResponse(404, { message: 'Not Found' })
-        const [status, json] = handler(body)
-        return jsonResponse(status, json)
-    }
-    return { client: createGitHubClient({ token: TOKEN, fetch }), requests }
-}
-
-function fakeClock() {
-    let time = START
-    const waits = []
-    return {
-        now: () => time,
-        sleep: async (ms) => {
-            waits.push(ms)
-            time += ms
-        },
-        waits,
-    }
-}
-
-function recorder() {
-    const lines = []
-    return { lines, log: (line) => lines.push(line) }
-}
 
 describe('ensureInstallation', () => {
     it('returns the installation at once when Nera Static is installed', async () => {
@@ -114,7 +69,7 @@ describe('ensureInstallation', () => {
 
         expect(result.account.login).toBe('octo')
         expect(requests).toHaveLength(3)
-        expect(clock.waits).toEqual([INSTALL_POLL_MS, INSTALL_POLL_MS])
+        expect(clock.sleeps).toEqual([INSTALL_POLL_MS, INSTALL_POLL_MS])
         expect(opened).toEqual([INSTALL_PAGE])
         expect(INSTALL_PAGE).toBe('https://github.com/apps/nera-static/installations/new')
         expect(lines.slice(0, INSTALL_LINES.length)).toEqual(INSTALL_LINES)
@@ -156,7 +111,7 @@ describe('ensureInstallation', () => {
         const clock = fakeClock()
         await expect(ensureInstallation({ client, login: 'octo', tty: false, log: () => {}, ...clock }))
             .rejects.toThrow(`Install it at ${INSTALL_PAGE}, then run nera publish again.`)
-        expect(clock.waits).toHaveLength(INSTALL_TIMEOUT_MS / INSTALL_POLL_MS)
+        expect(clock.sleeps).toHaveLength(INSTALL_TIMEOUT_MS / INSTALL_POLL_MS)
         expect(requests).toHaveLength(INSTALL_TIMEOUT_MS / INSTALL_POLL_MS + 1)
     })
 })
@@ -199,7 +154,7 @@ describe('ensureInstallation — machine-readable events', () => {
         expect(timeline[timeline.indexOf(`Install it at ${INSTALL_PAGE}`) + 1]).toEqual(required)
         expect(timeline.at(-2)).toBe('Nera Static is installed on octo.')
         expect(timeline.at(-1)).toEqual(done)
-        expect(JSON.stringify(events)).not.toContain(TOKEN)
+        expect(JSON.stringify(events)).not.toContain(FAKE_TOKEN)
     })
 
     it('emits nothing when the app is already installed', async () => {
@@ -265,7 +220,8 @@ describe('ensureRepository', () => {
         const { client, requests } = fakeGitHub({
             'GET /repos/octo/site': () => [200, repoObject('octo', 'site', { default_branch: 'trunk' })],
         })
-        const result = await ensureRepository({ client, cwd: site, config: await readPublishConfig(site), log: () => {} })
+        const config = await readPublishConfig(site)
+        const result = await ensureRepository({ client, cwd: site, config, log: () => {} })
 
         expect(requests.map((r) => r.route)).toEqual(['GET /repos/octo/site'])
         expect(result).toMatchObject({ repository: 'octo/site', defaultBranch: 'trunk', created: false })
@@ -276,7 +232,8 @@ describe('ensureRepository', () => {
         const { client } = fakeGitHub({
             'GET /repos/octo/site': () => [200, repoObject('octo', 'site', { permissions: { admin: false, push: true, pull: true } })],
         })
-        const result = await ensureRepository({ client, cwd: site, config: await readPublishConfig(site), log: () => {} })
+        const config = await readPublishConfig(site)
+        const result = await ensureRepository({ client, cwd: site, config, log: () => {} })
         expect(result).toMatchObject({ repository: 'octo/site', created: false })
     })
 
@@ -286,7 +243,8 @@ describe('ensureRepository', () => {
             'GET /repos/octo/site': () => [200, repoObject('octo', 'site', { permissions: { admin: false, push: false, pull: true } })],
             'POST /user/repos': created,
         })
-        const error = await ensureRepository({ client, cwd: site, config: await readPublishConfig(site), log: () => {} }).catch((err) => err)
+        const config = await readPublishConfig(site)
+        const error = await ensureRepository({ client, cwd: site, config, log: () => {} }).catch((err) => err)
 
         expect(error.message).toBe(REACH_ERROR)
         expect(requests.map((r) => r.route)).toEqual(['GET /repos/octo/site'])
