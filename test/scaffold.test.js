@@ -5,6 +5,7 @@ import fssync from 'node:fs'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import YAML from 'yaml'
+import { listFiles } from '@nera-static/test-utils'
 import {
     createSite,
     scaffoldProject,
@@ -484,13 +485,6 @@ describe('scaffoldProject agent instructions (AGENTS.md, CLAUDE.md)', () => {
 })
 
 describe('scaffoldProject Nera skill (.agents/skills/nera, .claude/skills/nera)', () => {
-    // Every file under dir, relative to it.
-    const listFiles = async (dir) =>
-        (await fs.readdir(dir, { recursive: true, withFileTypes: true }))
-            .filter((e) => e.isFile())
-            .map((e) => path.relative(dir, path.join(e.parentPath, e.name)))
-            .sort()
-
     const modes = {
         'a new folder': () =>
             scaffoldProject('plain', { cwd: workdir, install: false }),
@@ -510,11 +504,11 @@ describe('scaffoldProject Nera skill (.agents/skills/nera, .claude/skills/nera)'
     for (const [mode, scaffold] of Object.entries(modes)) {
         it(`copies the skill into both folders of ${mode}`, async () => {
             const target = await scaffold()
-            const expected = await listFiles(skillSourceDir())
+            const expected = listFiles(skillSourceDir())
             expect(expected).toContain('SKILL.md')
             for (const folder of ['.agents/skills/nera', '.claude/skills/nera']) {
                 const dir = path.join(target, folder)
-                expect(await listFiles(dir)).toEqual(expected)
+                expect(listFiles(dir)).toEqual(expected)
                 for (const file of expected) {
                     expect(await read(dir, file)).toBe(await read(skillSourceDir(), file))
                 }

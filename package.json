@@ -77,11 +77,7 @@
             ".github/dependabot.yml": "chokidar-major"
         },
         "skip": {
-            "@stylistic/max-len": "until step 8 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the long lines in bin/, src/ and test/ are wrapped (steps 2, 6 and 8)",
-            "nera/no-local-helper": "until step 7 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the local helper copies give way to plugin-utils imports (steps 3, 4 and 7)",
-            "nera/test-helpers": "until step 7 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: makeSite, listFiles and page come from @nera-static/test-utils",
-            "nera/test-no-chdir": "until step 7 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the build, json-output and dev-reload tests run without process.chdir",
-            "nera/test-no-cwd-path": "until step 7 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: publish-commit anchors template/_gitignore at the test file"
+            "@stylistic/max-len": "until step 8 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the long lines in bin/, src/ and test/ are wrapped (steps 2, 6 and 8)"
         }
     }
 }

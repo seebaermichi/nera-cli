@@ -46,10 +46,9 @@ const nextMessage = (socket, type, path) =>
     })
 
 describe('nera dev reload over the real Vite server', () => {
-    let site, prevCwd, server, socket
+    let site, server, socket
 
     beforeEach(async () => {
-        prevCwd = process.cwd()
         site = await fs.realpath(
             await fs.mkdtemp(path.join(os.tmpdir(), 'nera-dev-reload-')),
         )
@@ -58,8 +57,6 @@ describe('nera dev reload over the real Vite server', () => {
         // delete races it (ENOTEMPTY).
         await fs.writeFile(path.join(site, 'package.json'), '{}')
         await writePublic(site, 'before')
-        // startServer serves `public/` relative to the working directory.
-        process.chdir(site)
     })
 
     afterEach(async () => {
@@ -67,13 +64,12 @@ describe('nera dev reload over the real Vite server', () => {
         await server?.close()
         socket = undefined
         server = undefined
-        process.chdir(prevCwd)
         await fs.rm(site, { recursive: true, force: true })
     })
 
     it('delivers full-reload to a connected client after public/ is rebuilt', async () => {
         // Port 0: the OS picks a free port, never the 3000 a real `nera dev` may hold.
-        server = await startServer(0, false)
+        server = await startServer(0, false, { root: path.join(site, 'public') })
         const { port } = server.httpServer.address()
 
         socket = new WebSocket(

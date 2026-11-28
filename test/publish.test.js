@@ -4,6 +4,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { writeFiles } from '@nera-static/test-utils'
 import { parsePublishArgs, runPublish, publishSite, REVOKE_URL, NETLIFY_REVOKE_URL } from '../src/commands/publish.js'
 import { assertAdapter, createRegistry, TARGETS } from '../src/publish/targets.js'
 import {
@@ -664,16 +665,14 @@ function recordingAdapter(events) {
     return { adapter, contexts }
 }
 
-async function makeSite() {
-    const files = {
+// The three files a published site needs, written into the test's `site`.
+// A block body: beforeEach would read a returned value as its cleanup.
+function writeSite() {
+    writeFiles(site, {
         'package.json': '{ "name": "my-site", "private": true }\n',
         'config/app.yaml': 'name: My Site\n',
         'pages/index.md': '---\nlayout: pages/default.pug\n---\n# Hello\n',
-    }
-    for (const [file, content] of Object.entries(files)) {
-        await fs.mkdir(path.dirname(path.join(site, file)), { recursive: true })
-        await fs.writeFile(path.join(site, file), content)
-    }
+    })
 }
 
 // runPublish with the real pipeline over `targets`; only GitHub, DNS, the
@@ -710,7 +709,7 @@ describe('publishSite — end to end over a fake GitHub', () => {
         return { result, contexts }
     }
 
-    beforeEach(makeSite)
+    beforeEach(writeSite)
 
     it('first run: the D5 order, the repository and target recorded, the workflow committed, the live URL printed', async () => {
         const github = pipelineGitHub()
@@ -892,7 +891,7 @@ describe('publishSite with the github-pages adapter — end to end over a fake G
     }
     const stderr = () => error.mock.calls.flat().join('\n')
 
-    beforeEach(makeSite)
+    beforeEach(writeSite)
 
     it('enables Pages before the push, commits base_path and the Pages job, prints the Pages address', async () => {
         const github = pipelineGitHub()
@@ -977,7 +976,7 @@ describe('publishSite with the netlify adapter — end to end over a fake GitHub
         }
     }
 
-    beforeEach(makeSite)
+    beforeEach(writeSite)
 
     it('first run: the site created and both secrets stored before the push, site_id committed, the Netlify address printed', async () => {
         const github = pipelineGitHub()
@@ -1129,7 +1128,7 @@ describe('nera publish --json: the sign-in steps as NDJSON events on stderr', ()
     // them) and the raw writes (the events), in the order they happened.
     let stream, stderrWrite
     beforeEach(async () => {
-        await makeSite()
+        writeSite()
         stream = []
         error.mockImplementation((...args) => stream.push(`${args.join(' ')}\n`))
         stderrWrite = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {

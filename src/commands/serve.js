@@ -11,10 +11,12 @@ export const parsePort = (args) => {
     return Number.isInteger(val) ? val : 3000
 }
 
-export async function startServer(port = 3000, open = true) {
+// Start Vite over `root`, `public/` of the working directory by default (as
+// `nera serve` and `nera dev` run it); a test passes the folder it owns.
+export async function startServer(port = 3000, open = true, { root = 'public' } = {}) {
     const { createServer } = await import('vite')
     const server = await createServer({
-        root: 'public',
+        root,
         server: { port, open, watch: { usePolling: true } },
     })
     await server.listen()

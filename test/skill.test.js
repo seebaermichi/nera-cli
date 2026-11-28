@@ -4,6 +4,8 @@ import fs from 'node:fs/promises'
 import fssync from 'node:fs'
 import os from 'node:os'
 import { parse as parseYaml } from 'yaml'
+import { splitFrontmatter } from '@nera-static/plugin-utils/frontmatter'
+import { listFiles } from '@nera-static/test-utils'
 import { installedSkillDir, skillSourceDir, syncSkill } from '../src/skill.js'
 
 const RECIPES = [
@@ -41,26 +43,6 @@ const PLUGINS = [
     'tags',
 ]
 
-// Every file under dir, as paths relative to it with `/`.
-async function listFiles(dir, prefix = '') {
-    const files = []
-    for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
-        const rel = prefix ? `${prefix}/${entry.name}` : entry.name
-        if (entry.isDirectory()) {
-            files.push(...(await listFiles(path.join(dir, entry.name), rel)))
-        } else {
-            files.push(rel)
-        }
-    }
-    return files.sort()
-}
-
-// The YAML between the opening `---` line and the next one, and the body.
-function splitFrontmatter(text) {
-    const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text)
-    return match ? { frontmatter: match[1], body: match[2] } : null
-}
-
 // Markdown link targets that are neither URLs nor in-page anchors. Code
 // blocks and code spans are examples for the site, not links, so they are
 // left out.
@@ -80,7 +62,9 @@ describe('the skill source (skills/nera)', () => {
         const text = await fs.readFile(path.join(skillSourceDir(), 'SKILL.md'), 'utf-8')
         const parts = splitFrontmatter(text)
         expect(parts).not.toBeNull()
-        const meta = parseYaml(parts.frontmatter)
+        // A closed block: core reads an unclosed one as all YAML, no body.
+        expect(parts.body.trim()).not.toBe('')
+        const meta = parseYaml(parts.yamlText)
 
         expect(Object.keys(meta).sort()).toEqual(['description', 'name'])
         expect(meta.name).toBe(path.basename(skillSourceDir()))
@@ -113,7 +97,7 @@ describe('the skill source (skills/nera)', () => {
     })
 
     it('has only relative links that resolve to a file', async () => {
-        const files = (await listFiles(skillSourceDir())).filter((f) => f.endsWith('.md'))
+        const files = listFiles(skillSourceDir()).filter((f) => f.endsWith('.md'))
         const broken = []
         for (const file of files) {
             const text = await fs.readFile(path.join(skillSourceDir(), file), 'utf-8')
@@ -178,7 +162,7 @@ describe('syncSkill', () => {
 
         expect(results).toEqual(TARGETS.map((p) => ({ path: p, action: 'created' })))
         for (const target of TARGETS) {
-            expect(await listFiles(site(target))).toEqual(['SKILL.md', 'recipes/blog.md'])
+            expect(listFiles(site(target))).toEqual(['SKILL.md', 'recipes/blog.md'])
             expect(await fs.readFile(site(target, 'recipes', 'blog.md'), 'utf-8')).toBe('# Blog\n')
         }
     })
@@ -220,7 +204,7 @@ describe('syncSkill', () => {
 
         expect(results.map((r) => r.action)).toEqual(['updated', 'updated'])
         for (const target of TARGETS) {
-            expect(await listFiles(site(target))).toEqual([
+            expect(listFiles(site(target))).toEqual([
                 'SKILL.md',
                 'recipes/blog.md',
                 'recipes/search.md',
@@ -237,7 +221,7 @@ describe('syncSkill', () => {
         const results = await syncSkill({ cwd: site(), sourceDir: source })
 
         expect(results[0]).toEqual({ path: '.agents/skills/nera', action: 'updated' })
-        expect(await listFiles(site('.agents/skills/nera'))).toEqual(['SKILL.md', 'recipes/blog.md'])
+        expect(listFiles(site('.agents/skills/nera'))).toEqual(['SKILL.md', 'recipes/blog.md'])
     })
 
     it('replaces a file where a folder belongs, and the reverse', async () => {
@@ -247,7 +231,7 @@ describe('syncSkill', () => {
 
         await syncSkill({ cwd: site(), sourceDir: source })
 
-        expect(await listFiles(site('.claude/skills/nera'))).toEqual(['SKILL.md', 'recipes/blog.md'])
+        expect(listFiles(site('.claude/skills/nera'))).toEqual(['SKILL.md', 'recipes/blog.md'])
     })
 
     it('never touches other skills or settings', async () => {
@@ -276,9 +260,9 @@ describe('syncSkill', () => {
 
     it('copies the shipped skill exactly', async () => {
         await syncSkill({ cwd: site(), sourceDir: skillSourceDir() })
-        const expected = await listFiles(skillSourceDir())
+        const expected = listFiles(skillSourceDir())
         for (const target of TARGETS) {
-            expect(await listFiles(site(target))).toEqual(expected)
+            expect(listFiles(site(target))).toEqual(expected)
             for (const file of expected) {
                 expect(await fs.readFile(site(target, file), 'utf-8')).toBe(
                     await fs.readFile(path.join(skillSourceDir(), file), 'utf-8'),

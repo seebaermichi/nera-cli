@@ -10,7 +10,7 @@ import { runCheck } from '../src/commands/check.js'
 // a hand-written public/, without a build or a live process.exit.
 
 // A built page that is clean except for its missing `lang` (a11y-html-lang).
-const page = (htmlAttrs) =>
+const builtHtml = (htmlAttrs) =>
     `<!DOCTYPE html>\n<html${htmlAttrs}>\n  <head>\n    <title>T</title>\n  </head>\n  <body>\n    <a href="#main">Skip</a><main id="main"><h1>Hi</h1></main><footer><a href="/imprint.html">Imprint</a> <a href="/privacy.html">Privacy</a></footer>\n  </body>\n</html>\n`
 
 let workdir, target, log
@@ -39,21 +39,21 @@ describe('nera check', () => {
     })
 
     it('returns 0 for a clean output and still ends with the note', async () => {
-        await writePublic(page(' lang="en"'))
+        await writePublic(builtHtml(' lang="en"'))
         expect(runCheck({ cwd: target })).toBe(0)
         expect(printed()).toContain('No problems found.')
         expect(printed()).toContain('not proof of compliance')
     })
 
     it('returns 0 when there are warnings only', async () => {
-        await writePublic(page(''))
+        await writePublic(builtHtml(''))
         expect(runCheck({ cwd: target })).toBe(0)
         expect(printed()).toContain('a11y-html-lang')
         expect(printed()).toContain('0 error(s), 1 warning(s)')
     })
 
     it('returns 1 when a rule promoted to error fires', async () => {
-        await writePublic(page(''))
+        await writePublic(builtHtml(''))
         await fs.writeFile(
             path.join(target, 'config', 'validate.yaml'),
             'rules:\n  a11y-html-lang: error\n',

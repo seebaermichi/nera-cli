@@ -2,30 +2,29 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import os from 'node:os'
-import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { nera } from '@nera-static/test-utils'
 import { validateSite, validateOutput } from '@nera-static/validate'
 import { scaffoldProject } from '../src/scaffold.js'
 import { runValidate } from '../src/commands/validate.js'
 import { runCheck } from '../src/commands/check.js'
-import { runBuild } from '../src/commands/build.js'
+import { cliRoot } from './helpers/cli-root.js'
 
 // `--json` (ROADMAP-ai.md L3): one JSON object on stdout, logs on stderr, the
 // same exit code as text mode. In-process tests prove the shape and the exit
-// codes per command; the child-process tests prove that the whole stdout of
-// the real CLI parses, with the engine's build log on stderr.
+// codes of validate and check; `nera build`, which core runs in the working
+// directory, and the whole-stdout proofs run this repo's CLI as a child in
+// the site, with the engine's build log on stderr.
 
-// Resolved from this file, so the test passes whatever vitest's cwd is.
-const CLI = fileURLToPath(new URL('../bin/nera.js', import.meta.url))
+// `nera ...args` in the scaffolded site, with this repo's bin/nera.js.
+const cli = (args) => nera(target, args, { root: cliRoot() })
 
 // A built page that is clean except for its missing `lang` (a11y-html-lang).
-const page = (htmlAttrs) =>
+const builtHtml = (htmlAttrs) =>
     `<!DOCTYPE html>\n<html${htmlAttrs}>\n  <head>\n    <title>T</title>\n  </head>\n  <body>\n    <a href="#main">Skip</a><main id="main"><h1>Hi</h1></main><footer><a href="/imprint.html">Imprint</a> <a href="/privacy.html">Privacy</a></footer>\n  </body>\n</html>\n`
 
-let workdir, target, prevCwd, stdout, log, error
+let workdir, target, stdout, log, error
 
 beforeEach(async () => {
-    prevCwd = process.cwd()
     workdir = await fs.mkdtemp(path.join(os.tmpdir(), 'nera-cli-json-'))
     target = await scaffoldProject('site', { cwd: workdir, install: false })
     // Silence both modes; stdout is spied on to read the JSON object.
@@ -38,7 +37,6 @@ afterEach(async () => {
     stdout.mockRestore()
     log.mockRestore()
     error.mockRestore()
-    process.chdir(prevCwd)
     await fs.rm(workdir, { recursive: true, force: true })
 })
 
@@ -102,10 +100,10 @@ describe('nera validate --json', () => {
 
 describe('nera check --json', () => {
     const cases = {
-        clean: () => writePublic(page(' lang="en"')),
-        'warnings-only': () => writePublic(page('')),
+        clean: () => writePublic(builtHtml(' lang="en"')),
+        'warnings-only': () => writePublic(builtHtml('')),
         error: async () => {
-            await writePublic(page(''))
+            await writePublic(builtHtml(''))
             await promote('a11y-html-lang')
         },
     }
@@ -142,15 +140,18 @@ describe('nera check --json', () => {
     })
 })
 
+// The child runs below build the site once or twice each: past vitest's
+// 5 s default under load.
 describe('nera build --json', () => {
-    it('without --check: { ok: true, results: [] }, the build log not on stdout', async () => {
-        process.chdir(target)
-        expect(await runBuild(['--json'])).toBe(0)
-        expect(printedJson()).toEqual({ ok: true, results: [] })
-        // The engine's log went through console.log → stderr.
-        expect(log).not.toHaveBeenCalled()
-        expect(error.mock.calls.flat().join('\n')).toContain('Found 3 page(s) to process')
-    })
+    it('without --check: { ok: true, results: [] }, the build log on stderr', async () => {
+        const { code, stdout, stderr } = await cli(['build', '--json'])
+
+        expect(code).toBe(0)
+        // The whole stdout is the one object; the engine's log went to stderr.
+        expect(JSON.parse(stdout)).toEqual({ ok: true, results: [] })
+        expect(stderr).toContain('Found 3 page(s) to process')
+        expect(stderr).toContain('HTML created')
+    }, 30_000)
 
     for (const [name, rule, expectedCode] of [
         ['warnings-only', null, 0],
@@ -159,18 +160,17 @@ describe('nera build --json', () => {
         it(`--check, ${name}: same exit code as text mode, one { ok, results } object`, async () => {
             await addPageWithoutAlt()
             if (rule) await promote(rule)
-            process.chdir(target)
-            const textCode = await runBuild(['--check'])
-            stdout.mockClear()
+            const text = await cli(['build', '--check'])
 
-            const code = await runBuild(['--check', '--json'])
+            const { code, stdout, stderr } = await cli(['build', '--check', '--json'])
 
-            expect(code).toBe(textCode)
+            expect(code).toBe(text.code)
             expect(code).toBe(expectedCode)
             const results = validateOutput({ cwd: target })
             expect(results.map((r) => r.rule)).toContain('a11y-img-alt')
-            expect(printedJson()).toEqual({ ok: code === 0, results })
-        })
+            expect(JSON.parse(stdout)).toEqual({ ok: code === 0, results })
+            expect(stderr).toContain('Found 4 page(s) to process')
+        }, 30_000)
     }
 
     it('--check, clean: exit 0 and ok with no results', async () => {
@@ -179,75 +179,59 @@ describe('nera build --json', () => {
             path.join(target, 'config', 'validate.yaml'),
             'rules:\n  legal-imprint-link: off\n  legal-privacy-link: off\n',
         )
-        process.chdir(target)
-        const textCode = await runBuild(['--check'])
-        stdout.mockClear()
+        const text = await cli(['build', '--check'])
 
-        const code = await runBuild(['--check', '--json'])
+        const { code, stdout } = await cli(['build', '--check', '--json'])
 
-        expect(code).toBe(textCode)
+        expect(code).toBe(text.code)
         expect(code).toBe(0)
-        expect(printedJson()).toEqual({ ok: true, results: validateOutput({ cwd: target }) })
-    })
+        expect(JSON.parse(stdout)).toEqual({ ok: true, results: validateOutput({ cwd: target }) })
+    }, 30_000)
 
     it('a failed build: exit 1 and the failure shape', async () => {
         // A `theme:` that does not resolve makes the engine's run() throw.
         await fs.appendFile(path.join(target, 'config', 'app.yaml'), '\ntheme: ./no-such-theme\n')
-        process.chdir(target)
         // Text mode rethrows; the bin turns that into ❌ and exit 1.
-        await expect(runBuild(['--check'])).rejects.toThrow()
+        const text = await cli(['build', '--check'])
+        expect(text.code).toBe(1)
+        expect(text.stderr).toContain('❌')
 
-        const code = await runBuild(['--check', '--json'])
-        const out = printedJson()
+        const { code, stdout, stderr } = await cli(['build', '--check', '--json'])
 
         expect(code).toBe(1)
-        expect(out).toEqual({ ok: false, error: expect.any(String), results: [] })
-    })
+        expect(JSON.parse(stdout)).toEqual({ ok: false, error: expect.any(String), results: [] })
+        expect(stderr).not.toContain('❌')
+    }, 30_000)
 })
 
 describe('bin/nera.js --json, as a child process', () => {
-    const cli = (args) =>
-        spawnSync(process.execPath, [CLI, ...args], { cwd: target, encoding: 'utf-8' })
-
-    it('build --check --json: the whole stdout is one JSON object, the build log is on stderr', async () => {
-        await addPageWithoutAlt()
-        const child = cli(['build', '--check', '--json'])
-
-        expect(child.status).toBe(0)
-        const out = JSON.parse(child.stdout)
-        expect(out.ok).toBe(true)
-        expect(out.results.map((r) => r.rule)).toContain('a11y-img-alt')
-        expect(child.stderr).toContain('Found 4 page(s) to process')
-        expect(child.stderr).toContain('HTML created')
-    })
-
     it('validate --json and check --json print only JSON; exit codes match text mode', async () => {
         for (const command of ['validate', 'check']) {
-            const json = cli([command, '--json'])
-            const text = cli([command])
-            expect(json.status).toBe(text.status)
+            const json = await cli([command, '--json'])
+            const text = await cli([command])
+            expect(json.code).toBe(text.code)
             expect(() => JSON.parse(json.stdout)).not.toThrow()
         }
         // check without public/ ends 1 in both modes.
-        expect(cli(['check', '--json']).status).toBe(1)
+        expect((await cli(['check', '--json'])).code).toBe(1)
 
         await addPageWithoutAlt()
         await promote('a11y-img-alt')
-        cli(['build'])
-        const json = cli(['check', '--json'])
-        expect(json.status).toBe(1)
-        expect(json.status).toBe(cli(['check']).status)
+        await cli(['build'])
+        const json = await cli(['check', '--json'])
+        expect(json.code).toBe(1)
+        expect(json.code).toBe((await cli(['check'])).code)
         expect(JSON.parse(json.stdout).ok).toBe(false)
         // Eight CLI runs, one of them a build: past the 5 s default under load.
     }, 30_000)
 
-    it('check --json without public/: the failure shape, no ❌ line', () => {
-        const child = cli(['check', '--json'])
+    it('check --json without public/: the failure shape, no ❌ line', async () => {
+        const { code, stdout, stderr } = await cli(['check', '--json'])
 
-        expect(child.status).toBe(1)
-        const out = JSON.parse(child.stdout)
+        expect(code).toBe(1)
+        const out = JSON.parse(stdout)
         expect(out).toEqual({ ok: false, error: expect.any(String), results: [] })
         expect(out.error).toContain('run `nera build` first')
-        expect(child.stderr).not.toContain('❌')
+        expect(stderr).not.toContain('❌')
     })
 })

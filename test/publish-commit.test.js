@@ -4,6 +4,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import { writeFiles } from '@nera-static/test-utils'
 import {
     commitAndPush,
     listPublishFiles,
@@ -27,7 +28,7 @@ const execFileAsync = promisify(execFile)
 const TOKEN = 'ghu_fake_access_token'
 const REPOSITORY = 'octo/site'
 const USER = { login: 'octo', id: 4242 }
-const TEMPLATE_GITIGNORE = path.resolve('template/_gitignore')
+const TEMPLATE_GITIGNORE = path.resolve(import.meta.dirname, '../template/_gitignore')
 // Each git test runs a few dozen git processes.
 const GIT_TIMEOUT = 30_000
 
@@ -50,7 +51,7 @@ beforeEach(async () => {
     // No global or system git config: no identity, no credential helper.
     await fs.writeFile(path.join(tmp, 'gitconfig'), '')
     gitEnv = { ...process.env, HOME: tmp, GIT_CONFIG_GLOBAL: path.join(tmp, 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1' }
-    await makeSite(site)
+    await writeSite(site)
 })
 
 afterEach(async () => {
@@ -62,19 +63,23 @@ async function write(file, content = '') {
     await fs.writeFile(file, content)
 }
 
-// A scaffolded site with its build output, dependencies and secrets beside it.
-async function makeSite(dir) {
-    await write(path.join(dir, '.gitignore'), await fs.readFile(TEMPLATE_GITIGNORE, 'utf-8'))
-    await write(path.join(dir, 'pages/index.md'), '---\nlayout: pages/default.pug\n---\n# Hello\n')
-    await write(path.join(dir, 'config/app.yaml'), 'name: Site\n')
-    await write(path.join(dir, 'assets/css/main.css'), 'body { color: red }\n')
-    await write(path.join(dir, 'bin/deploy.sh'), '#!/bin/sh\necho hi\n')
+// A scaffolded site with its build output, dependencies and secrets beside
+// it, written into `dir` (not test-utils' `makeSite`: the site must sit inside
+// `tmp`, which one test turns into an enclosing git repository).
+async function writeSite(dir) {
+    writeFiles(dir, {
+        '.gitignore': await fs.readFile(TEMPLATE_GITIGNORE, 'utf-8'),
+        'pages/index.md': '---\nlayout: pages/default.pug\n---\n# Hello\n',
+        'config/app.yaml': 'name: Site\n',
+        'assets/css/main.css': 'body { color: red }\n',
+        'bin/deploy.sh': '#!/bin/sh\necho hi\n',
+        'node_modules/pkg/index.js': 'export {}\n',
+        'public/index.html': '<h1>Hello</h1>\n',
+        '.env': `TOKEN=${TOKEN}\n`,
+        '.vite/deps.json': '{}\n',
+        '.nera-cache/images/a.webp': 'x',
+    })
     await fs.chmod(path.join(dir, 'bin/deploy.sh'), 0o755)
-    await write(path.join(dir, 'node_modules/pkg/index.js'), 'export {}\n')
-    await write(path.join(dir, 'public/index.html'), '<h1>Hello</h1>\n')
-    await write(path.join(dir, '.env'), `TOKEN=${TOKEN}\n`)
-    await write(path.join(dir, '.vite/deps.json'), '{}\n')
-    await write(path.join(dir, '.nera-cache/images/a.webp'), 'x')
 }
 
 async function git(cwd, args) {
