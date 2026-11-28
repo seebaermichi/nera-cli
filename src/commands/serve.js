@@ -3,7 +3,9 @@
 // dispatcher and the tests do — does not require Vite to be installed; it is
 // only needed when `serve`/`dev` actually run.
 
-const parsePort = (args) => {
+// The `--port <n>` value of `args`, or 3000 when it is missing or not an
+// integer. Shared with `nera dev`.
+export const parsePort = (args) => {
     const i = args.indexOf('--port')
     const val = i >= 0 ? Number(args[i + 1]) : NaN
     return Number.isInteger(val) ? val : 3000

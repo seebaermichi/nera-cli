@@ -1,5 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { normalizeBasePath } from '@nera-static/plugin-utils/urls'
+import { isPlainObject } from '@nera-static/plugin-utils/values'
 import { parseDocument } from 'yaml'
 import { checkDns, movedDomainNote, reportDns } from './dns.js'
 import { GitHubError } from './github.js'
@@ -60,26 +62,14 @@ function explainRefusal(err, repository) {
     return err
 }
 
-// The `base_path` a site served at `htmlUrl` needs (D2): the URL's path
+// The `base_path` a site served at `htmlUrl` needs: the URL's path
 // without its trailing slash (`https://octo.github.io/site/` → `/site`), or ''
 // when the site is served from the root (`user.github.io`, a custom domain).
 export function basePathOf(htmlUrl) {
     return new URL(htmlUrl).pathname.replace(/\/+$/, '')
 }
 
-// A `base_path` value as core reads it (normalizeBasePath in
-// @nera-static/core): trimmed, without trailing slashes, with one leading
-// slash, '' for none; null for a value that is not text. Lets `site/` count
-// as the same as `/site`.
-function normalizeBasePath(value) {
-    if (value === undefined || value === null) return ''
-    if (typeof value !== 'string') return null
-    const trimmed = value.trim().replace(/\/+$/, '')
-    if (trimmed === '') return ''
-    return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
-}
-
-// Make `base_path` in the site's config/app.yaml say `basePath` (D2): set it
+// Make `base_path` in the site's config/app.yaml say `basePath`: set it
 // when there is one, remove the key when it is ''. The file is left untouched
 // when it already means the same; otherwise comments and the other keys are
 // kept. Resolves true when the file changed. Throws, naming the file, when it
@@ -98,7 +88,7 @@ export async function writeBasePath(cwd, basePath) {
         throw new Error(`${APP_CONFIG} is not valid YAML: ${doc.errors[0].message}`)
     }
     const value = doc.toJS()
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    if (!isPlainObject(value)) {
         throw new Error(`${APP_CONFIG} must be a mapping of keys to values`)
     }
     if (basePath === '') {
@@ -106,6 +96,8 @@ export async function writeBasePath(cwd, basePath) {
         if (!doc.has('base_path')) return false
         doc.delete('base_path')
     } else {
+        // Compared as core reads it, so `site/` counts as `/site`; a value
+        // that is not text reads as '', which never equals a set basePath.
         if (normalizeBasePath(value.base_path) === basePath) return false
         doc.set('base_path', basePath)
     }
@@ -128,12 +120,12 @@ async function followPagesAddress(site, { cwd, log }) {
 }
 
 // Enable Pages with the workflow build type, or reuse the site GitHub already
-// has; one with the `legacy` (branch) build type is switched to `workflow`
-// (D4), since the generated workflow is the only deploy path. `--domain`
-// (`options.domain`) becomes the site's custom domain (D1). Then `base_path`
-// in config/app.yaml follows the site's address (D2), before the first push
-// commits it, and when the site has a custom domain its DNS is checked and
-// reported (D6) and HTTPS enforced once GitHub has its certificate. Resolves
+// has; one with the `legacy` (branch) build type is switched to `workflow`,
+// since the generated workflow is the only deploy path. `--domain`
+// (`options.domain`) becomes the site's custom domain. Then `base_path` in
+// config/app.yaml follows the site's address, before the first push commits
+// it, and when the site has a custom domain its DNS is checked and reported
+// and HTTPS enforced once GitHub has its certificate. Resolves
 // the Pages site as GitHub describes it (`html_url`, `build_type`, `cname`,
 // …). `resolver` stands in for the node:dns/promises Resolver of the DNS
 // check, for tests.
@@ -188,7 +180,7 @@ async function enforceHttps({ client, repository, site, log }) {
     return { ...site, https_enforced: true }
 }
 
-// Make `domain` the Pages site's custom domain (D1: through the API, since
+// Make `domain` the Pages site's custom domain (through the API, since
 // GitHub ignores a CNAME file for a site an Actions workflow deploys).
 // Resolves `site` as served from the domain's root, without the previous
 // domain's certificate and HTTPS setting, since the new domain has neither
@@ -226,8 +218,8 @@ async function enablePages({ client, repository, log }) {
     return existing
 }
 
-// GitHub Pages as the DNS check (dns.js) expects it for the site of `owner`
-// (D6): a subdomain's CNAME names `<owner>.github.io`, an apex domain has
+// GitHub Pages as the DNS check (dns.js) expects it for the site of
+// `owner`: a subdomain's CNAME names `<owner>.github.io`, an apex domain has
 // GitHub's A records and, optionally, its AAAA ones.
 export function pagesDns(owner) {
     return { name: 'GitHub Pages', cname: `${owner.toLowerCase()}.github.io`, a: PAGES_A, aaaa: PAGES_AAAA }
@@ -251,7 +243,7 @@ const uploadStep = {
     with: { path: BUILD_OUTPUT },
 }
 
-// The deploy job of the generated workflow (D5): configure Pages and deploy
+// The deploy job of the generated workflow: configure Pages and deploy
 // the `github-pages` artifact the build job uploaded. `pages: write` and
 // `id-token: write` are what deploy-pages needs; the `github-pages`
 // environment shows the deployment's address on the run. Action majors follow
@@ -273,7 +265,7 @@ function deployJob() {
     }
 }
 
-// What a move away from GitHub Pages leaves behind (D5 of the wizard issue),
+// What a move away from GitHub Pages leaves behind,
 // from the host context alone, with no call to GitHub: the Pages site of the
 // repository stays online until it is unpublished in the repository's
 // settings, and a custom domain follows only its DNS records.

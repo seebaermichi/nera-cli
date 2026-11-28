@@ -166,6 +166,7 @@ describe('target registry', () => {
 
     it('rejects an adapter without the interface, naming what is missing', () => {
         expect(() => assertAdapter(null)).toThrow('must be an object')
+        expect(() => assertAdapter([fakeAdapter('x')])).toThrow('must be an object')
         expect(() => assertAdapter(fakeAdapter('Bad Id'))).toThrow('lowercase letters')
         expect(() => assertAdapter(fakeAdapter('x', { label: '' }))).toThrow('"x" needs a label')
         for (const method of ['setUp', 'deployJob', 'liveUrl']) {

@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { isPlainObject } from '@nera-static/plugin-utils/values'
 import { stringify } from 'yaml'
 
 // The site's deploy workflow, `.github/workflows/deploy.yml`: one shared
@@ -102,7 +103,7 @@ const DEFAULT_UPLOAD = `            - name: ${BUILD_STEPS.upload}
 export function assertUploadStep(adapter) {
     const step = adapter.uploadStep
     if (step === undefined) return
-    if (!step || typeof step !== 'object' || Array.isArray(step) || typeof step.uses !== 'string' || step.uses === '') {
+    if (!isPlainObject(step) || typeof step.uses !== 'string' || step.uses === '') {
         throw new TypeError(`Publish target "${adapter.id}": uploadStep must be a step object with uses when it is set`)
     }
     if ('name' in step) {
@@ -126,7 +127,7 @@ function uploadStepOf(adapter) {
 async function deployJobOf(adapter, ctx) {
     const result = await adapter.deployJob(ctx)
     const where = `Publish target "${adapter.id}": deployJob()`
-    if (!result || typeof result !== 'object' || !result.job || typeof result.job !== 'object' || Array.isArray(result.job)) {
+    if (!isPlainObject(result) || !isPlainObject(result.job)) {
         throw new TypeError(`${where} must return { permissions, job } with a job object`)
     }
     for (const key of ['needs', 'permissions']) {

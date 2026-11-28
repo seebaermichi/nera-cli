@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import fssync from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { isPlainObject } from '@nera-static/plugin-utils/values'
 import { runNpmAsync, spawnChild } from './npm.js'
 
 // What `--starter` accepts, validated before anything is written because the
@@ -166,7 +167,7 @@ export async function readStarterManifest(dir, spec = dir) {
         )
     }
     const starter = pkg?.nera?.starter
-    if (!starter || typeof starter !== 'object') {
+    if (!isPlainObject(starter)) {
         throw new Error(
             `"${spec}" is not a Nera starter: its package.json has no ` +
                 '`nera.starter` field.',

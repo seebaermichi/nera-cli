@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { isPlainObject } from '@nera-static/plugin-utils/values'
 import { parseDocument } from 'yaml'
 
 // The site's publish state, `config/publish.yaml`:
@@ -16,8 +17,6 @@ export const PUBLISH_CONFIG = path.join('config', 'publish.yaml')
 const KEYS = ['target', 'repository']
 // Keys that hold a mapping of text values, and the keys each mapping knows.
 const SECTIONS = { netlify: ['site_id'] }
-
-const isMapping = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 
 // GitHub's rules for an account name and a repository name. A repository
 // name is letters, digits, `.`, `-` and `_`, at most 100 characters, neither
@@ -65,7 +64,7 @@ async function readDocument(file) {
         throw new Error(`${PUBLISH_CONFIG} is not valid YAML: ${doc.errors[0].message}`)
     }
     const value = doc.toJS()
-    if (value !== null && (typeof value !== 'object' || Array.isArray(value))) {
+    if (value !== null && !isPlainObject(value)) {
         throw new Error(`${PUBLISH_CONFIG} must be a mapping of keys to values`)
     }
     return doc
@@ -89,7 +88,7 @@ export async function readPublishConfig(cwd = process.cwd()) {
     }
     for (const [section, keys] of Object.entries(SECTIONS)) {
         if (value[section] === undefined || value[section] === null) continue
-        if (!isMapping(value[section])) throw new Error(`${PUBLISH_CONFIG}: "${section}" must be a mapping`)
+        if (!isPlainObject(value[section])) throw new Error(`${PUBLISH_CONFIG}: "${section}" must be a mapping`)
         const entries = {}
         for (const key of keys) {
             const entry = value[section][key]
@@ -122,7 +121,7 @@ export async function writePublishConfig(updates, cwd = process.cwd()) {
     if (doc.contents === null) doc.contents = doc.createNode({})
     for (const [key, value] of Object.entries(updates)) {
         if (Object.hasOwn(SECTIONS, key)) {
-            if (!isMapping(value)) throw new TypeError(`${PUBLISH_CONFIG}: "${key}" must be a mapping`)
+            if (!isPlainObject(value)) throw new TypeError(`${PUBLISH_CONFIG}: "${key}" must be a mapping`)
             for (const [entry, entryValue] of Object.entries(value)) {
                 if (!SECTIONS[key].includes(entry)) {
                     throw new TypeError(`Unknown ${PUBLISH_CONFIG} key "${key}.${entry}"`)
@@ -132,7 +131,7 @@ export async function writePublishConfig(updates, cwd = process.cwd()) {
             const current = doc.toJS()?.[key]
             if (current === undefined || current === null) {
                 doc.set(key, doc.createNode({}))
-            } else if (!isMapping(current)) {
+            } else if (!isPlainObject(current)) {
                 throw new Error(`${PUBLISH_CONFIG}: "${key}" must be a mapping`)
             }
             for (const [entry, entryValue] of Object.entries(value)) doc.setIn([key, entry], entryValue)

@@ -1,7 +1,9 @@
 import fssync from 'node:fs'
 import path from 'node:path'
 import run, { resolveSiteModel } from '@nera-static/core'
-import { startServer } from './serve.js'
+import { isInside } from '@nera-static/plugin-utils/urls'
+import { textOr } from '@nera-static/plugin-utils/values'
+import { parsePort, startServer } from './serve.js'
 
 // Build once, serve `public/`, then rebuild on any change to the site's
 // sources. `run()` already copies assets as part of a build, so a single
@@ -130,26 +132,7 @@ export function watchTargets(cwd = process.cwd()) {
 // public/, `public/x` lies inside it — since every build rewrites public/
 // and watching it would rebuild forever.
 const dataFolder = (cwd, folders) => {
-    const value = folders.data
-    const name =
-        typeof value === 'string' && value.trim() !== '' ? value.trim() : 'data'
-    const dir = path.resolve(cwd, name)
+    const dir = path.resolve(cwd, textOr(folders.data, 'data'))
     const dist = path.resolve(cwd, folders.dist)
-    return isWithin(dir, dist) || isWithin(dist, dir) ? null : dir
-}
-
-// true when `child` is `parent` itself or lies below it.
-const isWithin = (child, parent) => {
-    const rel = path.relative(parent, child)
-    return (
-        rel !== '..' &&
-        !rel.startsWith(`..${path.sep}`) &&
-        !path.isAbsolute(rel)
-    )
-}
-
-const parsePort = (args) => {
-    const i = args.indexOf('--port')
-    const val = i >= 0 ? Number(args[i + 1]) : NaN
-    return Number.isInteger(val) ? val : 3000
+    return isInside(dist, dir) || isInside(dir, dist) ? null : dir
 }

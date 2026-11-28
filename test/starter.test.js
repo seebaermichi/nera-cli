@@ -343,6 +343,11 @@ describe('readStarterManifest', () => {
         )
     })
 
+    it('refuses a nera.starter that is not a mapping', async () => {
+        await fs.writeFile(path.join(workdir, 'package.json'), '{"name":"x","nera":{"starter":["blog"]}}')
+        await expect(readStarterManifest(workdir, './x')).rejects.toThrow('has no `nera.starter` field')
+    })
+
     it('refuses a folder without package.json', async () => {
         await expect(readStarterManifest(workdir, './x')).rejects.toThrow(
             /"\.\/x" is not a Nera starter: it has no readable package\.json/,

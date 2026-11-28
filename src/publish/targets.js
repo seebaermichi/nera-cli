@@ -1,3 +1,4 @@
+import { isPlainObject } from '@nera-static/plugin-utils/values'
 import { githubPages } from './pages.js'
 import { netlify } from './netlify.js'
 import { assertUploadStep } from './workflow.js'
@@ -21,13 +22,13 @@ const ADAPTER_METHODS = ['setUp', 'deployJob', 'liveUrl']
 const OPTIONAL_METHODS = ['leftBehind']
 const ID_PATTERN = /^[a-z][a-z0-9-]*$/
 
-// The registered adapters. The first is the default when no target is named
-// (D6: GitHub Pages).
+// The registered adapters. The first, GitHub Pages, is the default when no
+// target is named.
 export const TARGETS = [githubPages, netlify]
 
 // Throw when `adapter` does not have the interface above; return it otherwise.
 export function assertAdapter(adapter) {
-    if (!adapter || typeof adapter !== 'object') {
+    if (!isPlainObject(adapter)) {
         throw new TypeError('A publish target must be an object')
     }
     const { id } = adapter
