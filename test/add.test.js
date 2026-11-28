@@ -3,7 +3,6 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
 import { parseAddArgs, runAdd, ADD_USAGE } from '../src/commands/add.js'
 
 // The `nera add` contract: its arguments, the text summary and the --json
@@ -11,7 +10,7 @@ import { parseAddArgs, runAdd, ADD_USAGE } from '../src/commands/add.js'
 // What addPlugin itself does (config, templates, refusals) is plugin.test.js.
 
 // Resolved from this file, so the test passes whatever vitest's cwd is.
-const CLI = fileURLToPath(new URL('../bin/nera.js', import.meta.url))
+const CLI = path.resolve(import.meta.dirname, '../bin/nera.js')
 const PKG = '@nera-static/plugin-x'
 const JSON_STDIO = ['ignore', 2, 2]
 

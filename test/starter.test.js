@@ -3,7 +3,6 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import fssync from 'node:fs'
 import os from 'node:os'
-import { fileURLToPath } from 'node:url'
 import {
     validateStarterSpec,
     starterSource,
@@ -16,7 +15,7 @@ import {
 } from '../src/starter.js'
 import { BUNDLED_STARTERS } from '../src/starters.js'
 
-const FIXTURE = fileURLToPath(new URL('./fixtures/starter-minimal', import.meta.url))
+const FIXTURE = path.resolve(import.meta.dirname, 'fixtures/starter-minimal')
 
 let workdir
 
@@ -246,7 +245,9 @@ describe('packStarter', () => {
             throw err
         }
         await expect(packStarter('@nera-static/starter-nope', { spec: 'nope', exec })).rejects.toThrow(
-            /Could not download the starter "nope" \(npm pack @nera-static\/starter-nope failed: 404 Not Found - GET https:\/\/registry\.npmjs\.org\/@nera-static%2fstarter-nope\)\. Check the starter name for typos and your network/,
+            'Could not download the starter "nope" (npm pack @nera-static/starter-nope failed: ' +
+                '404 Not Found - GET https://registry.npmjs.org/@nera-static%2fstarter-nope). ' +
+                'Check the starter name for typos and your network',
         )
         const after = await fs.readdir(os.tmpdir())
         expect(after.filter((n) => n.startsWith('nera-starter-') && !before.includes(n))).toEqual([])

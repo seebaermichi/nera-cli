@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.0] - 2026-11-28
+
+### Changed
+
+-   The CLI's generic helpers come from `@nera-static/plugin-utils` (now a dependency at `^1.9.0`): plain-object and text checks, path containment, `base_path` normalisation, version floors, plugin and theme package names, the CLI's own version and slugs. Lint runs on `@nera-static/stan` and the tests on `@nera-static/test-utils` (both devDependencies, replacing ESLint). Commands, flags, exit codes and `--json` output are unchanged.
+-   `nera add` and `addPlugin()` refuse a spec that is not a plugin name with a `TypeError` (still an `Error`, same exit code), and the message now also names the `plugin-<name>` form.
+-   `nera new --name` also refuses C1 control characters (U+0080 to U+009F), as it already refused the C0 ones.
+-   A `nera.starter` field that is an array, a publish adapter that is an array, and a YAML timestamp where `config/publish.yaml` or `config/app.yaml` expects a mapping are refused with the same message as a missing or wrongly typed value, instead of being read as a mapping.
+-   `nera new` refuses an npm whose version is a prerelease of the 10.9.0 floor (`10.9.0-pre`), following semver precedence; no released npm is affected.
+-   The hint `nera update --migrate` prints after moving local plugins to `plugins/` no longer refers to `ROADMAP-core.md`, a file the package does not ship.
+-   The scaffold's `layout.pug` and `default.pug` use single quotes and four-space indentation. Only new sites get them; `nera update` does not touch a site's views.
+-   `CHANGELOG.md` ships in the npm package.
+
+### Fixed
+
+-   `nera publish --target netlify` folds accented letters in the Netlify site name it derives from the repository name for a new site: `Über uns` becomes `uber-uns` (was `ber-uns`), `Straße-Café` becomes `strasse-cafe`. A site already linked to Netlify keeps the name stored in `config/publish.yaml`.
+
 ## [1.30.0] - 2026-11-27
 
 ### Added

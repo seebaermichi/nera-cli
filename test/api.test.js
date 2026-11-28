@@ -51,7 +51,7 @@ describe('the @nera-static/nera entry point', () => {
     })
 
     it('keeps @nera-static/nera/package.json resolvable, and the bin and skill by path', async () => {
-        const require = createRequire(import.meta.url)
+        const require = createRequire(import.meta.filename)
         const manifest = require.resolve('@nera-static/nera/package.json')
         expect(manifest).toBe(path.join(PACKAGE_ROOT, 'package.json'))
         const root = path.dirname(manifest)

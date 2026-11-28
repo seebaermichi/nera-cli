@@ -1,6 +1,6 @@
 {
     "name": "@nera-static/nera",
-    "version": "1.30.0",
+    "version": "1.31.0",
     "description": "The Nera CLI — scaffold, build, preview and update a Nera static site with one command over the @nera-static/core engine",
     "type": "module",
     "exports": {
@@ -75,9 +75,6 @@
         ],
         "variants": {
             ".github/dependabot.yml": "chokidar-major"
-        },
-        "skip": {
-            "@stylistic/max-len": "until step 8 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the long lines in bin/, src/ and test/ are wrapped (steps 2, 6 and 8)"
         }
     }
 }

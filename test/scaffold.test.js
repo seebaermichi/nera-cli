@@ -3,7 +3,6 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import fssync from 'node:fs'
 import os from 'node:os'
-import { fileURLToPath } from 'node:url'
 import YAML from 'yaml'
 import { listFiles } from '@nera-static/test-utils'
 import {
@@ -25,7 +24,7 @@ import { fetchStarter, packStarter } from '../src/starter.js'
 import { parseNewArgs } from '../src/commands/new.js'
 
 // The range a new or migrated site gets for this CLI: its own version.
-const OWN_RANGE = `^${JSON.parse(fssync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version}`
+const OWN_RANGE = `^${JSON.parse(fssync.readFileSync(path.resolve(import.meta.dirname, '../package.json'), 'utf-8')).version}`
 
 // The scoped override from @nera-static/core's README that keeps `npm audit`
 // clean until core requires a js-beautify with a fixed glob/minimatch. Scoped
@@ -677,7 +676,7 @@ describe('validateSiteName / validateLang', () => {
     })
 })
 
-const FIXTURE = fileURLToPath(new URL('./fixtures/starter-minimal', import.meta.url))
+const FIXTURE = path.resolve(import.meta.dirname, 'fixtures/starter-minimal')
 
 // Every file under dir, relative to it.
 const filesUnder = async (dir) =>
@@ -1133,9 +1132,8 @@ describe.skipIf(process.platform === 'win32')('createSite with env and signal', 
 
         expect(err).toBe(controller.signal.reason)
         expect(err.name).toBe('AbortError')
-        expect(err.message).toMatch(
-            /^This operation was aborted\. Already written to the current folder: .*package\.json.*Remove them before running `nera new \.` again\.$/,
-        )
+        expect(err.message).toMatch(/^This operation was aborted\. Already written to the current folder: /)
+        expect(err.message).toMatch(/: .*package\.json.*Remove them before running `nera new \.` again\.$/)
         expect(err.message).not.toMatch(/AGENTS\.md/)
         expect(await read(dir, 'AGENTS.md')).toBe('# mine\n')
         expect(fssync.existsSync(path.join(dir, 'package.json'))).toBe(true)

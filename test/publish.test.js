@@ -3,7 +3,6 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
 import { writeFiles } from '@nera-static/test-utils'
 import { parsePublishArgs, runPublish, publishSite, REVOKE_URL, NETLIFY_REVOKE_URL } from '../src/commands/publish.js'
 import { assertAdapter, createRegistry, TARGETS } from '../src/publish/targets.js'
@@ -31,7 +30,7 @@ import { NETLIFY_CLIENT_ID, NETLIFY_SIGN_IN, authorizeUrl } from '../src/publish
 // a fake throughout; no test touches the network, the keychain or a token.
 
 // Resolved from this file, so the test passes whatever vitest's cwd is.
-const CLI = fileURLToPath(new URL('../bin/nera.js', import.meta.url))
+const CLI = path.resolve(import.meta.dirname, '../bin/nera.js')
 
 // A complete adapter with the given id; the methods are never called here.
 const fakeAdapter = (id = 'fake-host', overrides = {}) => ({

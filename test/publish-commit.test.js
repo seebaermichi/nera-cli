@@ -29,8 +29,6 @@ const TOKEN = 'ghu_fake_access_token'
 const REPOSITORY = 'octo/site'
 const USER = { login: 'octo', id: 4242 }
 const TEMPLATE_GITIGNORE = path.resolve(import.meta.dirname, '../template/_gitignore')
-// Each git test runs a few dozen git processes.
-const GIT_TIMEOUT = 30_000
 
 // What every site fixture publishes (the rest is ignored or excluded).
 const PUBLISHED = [
@@ -139,7 +137,8 @@ const gitPublish = (bare, extra = {}) => commitAndPush({
 const remoteFiles = async (bare) => (await git(bare, ['ls-tree', '-r', '--name-only', 'main'])).split('\n').sort()
 const readState = async () => JSON.parse(await fs.readFile(path.join(site, PUBLISH_STATE), 'utf-8'))
 
-describe('commitAndPush with git', { timeout: GIT_TIMEOUT }, () => {
+// Each git test runs a few dozen git processes.
+describe('commitAndPush with git', { timeout: 30_000 }, () => {
     it('first publish: git init, origin, commit with the noreply identity, replaces the auto-init commit', async () => {
         const { bare, initial } = await makeRemote()
         const { log, lines } = recorder()
@@ -452,7 +451,8 @@ describe('commitAndPush through the GitHub API', () => {
     })
 })
 
-describe('listPublishFiles', { timeout: GIT_TIMEOUT }, () => {
+// Each git test runs a few dozen git processes.
+describe('listPublishFiles', { timeout: 30_000 }, () => {
     // What git itself would add from `dir`: untracked, not ignored, with no
     // global excludes, minus what commitAndPush always leaves out.
     async function gitWouldAdd(dir) {

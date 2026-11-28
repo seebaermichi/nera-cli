@@ -14,7 +14,7 @@ import { templateDir as packageTemplateDir } from '../src/scaffold.js'
 import { skillSourceDir } from '../src/skill.js'
 
 // The range a new or migrated site gets for this CLI: its own version.
-const OWN_RANGE = `^${JSON.parse(fssync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version}`
+const OWN_RANGE = `^${JSON.parse(fssync.readFileSync(path.resolve(import.meta.dirname, '../package.json'), 'utf-8')).version}`
 
 let cwd
 

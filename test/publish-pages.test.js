@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { parseDocument } from 'yaml'
 import {
     githubPages,
@@ -146,7 +145,7 @@ describe('githubPages.deployJob, in the rendered workflow', () => {
 // The Pages workflow 1.27.0 generated, rendered from that release's source:
 // its deploy job uploaded github-pages and deployed it in the same job, which
 // deploy-pages could not find (GitHub #18).
-const PAGES_WORKFLOW_1_27_0 = fileURLToPath(new URL('./fixtures/pages-deploy-1.27.0.yml', import.meta.url))
+const PAGES_WORKFLOW_1_27_0 = path.resolve(import.meta.dirname, 'fixtures/pages-deploy-1.27.0.yml')
 
 describe('a site with the 1.27.0 Pages workflow', () => {
     it('gets the new workflow when nera publish writes it again', async () => {

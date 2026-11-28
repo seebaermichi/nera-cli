@@ -20,7 +20,10 @@ const cli = (args) => nera(target, args, { root: cliRoot() })
 
 // A built page that is clean except for its missing `lang` (a11y-html-lang).
 const builtHtml = (htmlAttrs) =>
-    `<!DOCTYPE html>\n<html${htmlAttrs}>\n  <head>\n    <title>T</title>\n  </head>\n  <body>\n    <a href="#main">Skip</a><main id="main"><h1>Hi</h1></main><footer><a href="/imprint.html">Imprint</a> <a href="/privacy.html">Privacy</a></footer>\n  </body>\n</html>\n`
+    `<!DOCTYPE html>\n<html${htmlAttrs}>\n  <head>\n    <title>T</title>\n  </head>\n  <body>\n` +
+    '    <a href="#main">Skip</a><main id="main"><h1>Hi</h1></main>' +
+    '<footer><a href="/imprint.html">Imprint</a> <a href="/privacy.html">Privacy</a></footer>\n' +
+    '  </body>\n</html>\n'
 
 let workdir, target, stdout, log, error
 

@@ -134,7 +134,8 @@ describe('reportDns for Netlify', () => {
         reportDns({ domain: 'example.com', service: 'Netlify', ok: false, expected, found: [{ type: 'A', value: PAGES_A[0] }], failed: [] }, log)
         expect(lines.slice(0, 3)).toEqual([
             'DNS for example.com is set up: it points to Netlify.',
-            `DNS for example.com does not point to Netlify yet: it has A ${PAGES_A[0]}. Set these records at your DNS provider, in place of the ones it has:`,
+            `DNS for example.com does not point to Netlify yet: it has A ${PAGES_A[0]}. ` +
+                'Set these records at your DNS provider, in place of the ones it has:',
             '  A  example.com  75.2.60.5',
         ])
     })

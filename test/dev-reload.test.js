@@ -12,8 +12,6 @@ import { createRebuilder } from '../src/commands/dev.js'
 // the `vite-hmr` subprotocol and, when an Origin is sent, the server's token;
 // a client that never connects fails on the timeout below, it cannot pass.
 
-const TIMEOUT_MS = 5000
-
 const writePublic = async (site, body) => {
     await fs.mkdir(path.join(site, 'public'), { recursive: true })
     await fs.writeFile(
@@ -23,12 +21,12 @@ const writePublic = async (site, body) => {
 }
 
 // Resolves with the first message of `type` (and, when given, `path`) the
-// socket receives, rejects after TIMEOUT_MS or on a socket error.
-const nextMessage = (socket, type, path) =>
+// socket receives, rejects after `ms` or on a socket error.
+const nextMessage = (socket, type, path, ms = 5000) =>
     new Promise((resolve, reject) => {
         const timer = setTimeout(
-            () => reject(new Error(`no "${type}" message within ${TIMEOUT_MS} ms`)),
-            TIMEOUT_MS,
+            () => reject(new Error(`no "${type}" message within ${ms} ms`)),
+            ms,
         )
         const onMessage = (event) => {
             const message = JSON.parse(event.data)
@@ -94,5 +92,5 @@ describe('nera dev reload over the real Vite server', () => {
         expect(await reload).toMatchObject({ type: 'full-reload', path: '*' })
         const page = await fetch(`http://localhost:${port}/`)
         expect(await page.text()).toContain('<p>after</p>')
-    }, 3 * TIMEOUT_MS) // two waits of TIMEOUT_MS: our message, not vitest's, names the failure
+    }, 15_000) // above two 5 s waits of nextMessage: our message, not vitest's, names the failure
 })

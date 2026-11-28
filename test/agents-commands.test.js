@@ -3,13 +3,12 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import { execFileSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
 import { templateDir } from '../src/scaffold.js'
 import { skillSourceDir } from '../src/skill.js'
 import { BUNDLED_STARTERS } from '../src/starters.js'
 
 // Resolved from this file, so the test passes whatever vitest's cwd is.
-const CLI = fileURLToPath(new URL('../bin/nera.js', import.meta.url))
+const CLI = path.resolve(import.meta.dirname, '../bin/nera.js')
 
 // `nera <command>`, plus the rest of its code span: everything up to the
 // closing backtick, the end of the line or the next `nera <command>`, so a

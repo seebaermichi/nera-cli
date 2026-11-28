@@ -3,7 +3,6 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 import {
     netlify,
@@ -371,7 +370,7 @@ describe('checkCredits', () => {
 // The Netlify workflow as it was before the build job's upload step became
 // something an adapter can supply (GitHub #18): a site that publishes to
 // Netlify gets the same file, byte for byte.
-const NETLIFY_WORKFLOW = fileURLToPath(new URL('./fixtures/netlify-deploy.yml', import.meta.url))
+const NETLIFY_WORKFLOW = path.resolve(import.meta.dirname, 'fixtures/netlify-deploy.yml')
 
 describe('the rendered Netlify workflow', () => {
     it('is byte for byte the workflow of 1.27.0', async () => {

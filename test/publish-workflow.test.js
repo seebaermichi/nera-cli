@@ -134,7 +134,8 @@ describe('renderWorkflow', () => {
     })
 
     it('rejects a deploy job that is missing, sets needs, or asks for an unknown permission level', async () => {
-        await expect(renderWorkflow(fakeAdapter(() => undefined))).rejects.toThrow(/deployJob\(\) must return \{ permissions, job \}/)
+        await expect(renderWorkflow(fakeAdapter(() => undefined)))
+            .rejects.toThrow(/deployJob\(\) must return \{ permissions, job \}/)
         await expect(renderWorkflow(fakeAdapter(() => ({ job: [] })))).rejects.toThrow(/with a job object/)
         await expect(renderWorkflow(fakeAdapter(() => ({ job: { needs: 'other' } })))).rejects.toThrow(/must not set job\.needs/)
         await expect(renderWorkflow(fakeAdapter(() => ({ job: { permissions: { pages: 'write' } } })))).rejects.toThrow(/must not set job\.permissions/)
