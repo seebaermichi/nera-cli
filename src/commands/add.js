@@ -27,7 +27,7 @@ export function parseAddArgs(args = []) {
     return { ...options, spec: specs[0] }
 }
 
-// The `--json` object (plan D5): `{ ok: true, plugin, config: { file, status },
+// The `--json` object: `{ ok: true, plugin, config: { file, status },
 // templates }`, or `{ ok: false, error }`.
 export const ADD_ENVELOPE = {
     success: (result) => ({ ok: true, ...result }),

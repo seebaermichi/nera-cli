@@ -63,7 +63,7 @@ async function defaultDeleteToken(options) {
     return deleteToken(options)
 }
 
-// The end-to-end pipeline, in the order of D5: sign in → the app's
+// The end-to-end pipeline, in this order: sign in → the app's
 // installation → the repository → `adapter.setUp` → the deploy workflow →
 // commit and push → the Actions run for the pushed commit. The host is set
 // up before the first push, so the workflow's push trigger finds it ready.
@@ -245,8 +245,8 @@ function writeEvent(event) {
 //   stderr (an NDJSON stream between the logs; stdout keeps its one
 //   object); in text mode it is a no-op, since the log lines say the same.
 // The target is `--target`, else config/publish.yaml's, else — only when
-// interactive and there is a choice — the user's answer (D1), else the
-// registry's default.
+// interactive and there is a choice — the target the user picks when
+// asked, else the registry's default.
 // Text mode rethrows a failure, which the bin prints as ❌ with exit 1;
 // `--json` prints one object instead (PUBLISH_ENVELOPE).
 export async function runPublish(args = [], {

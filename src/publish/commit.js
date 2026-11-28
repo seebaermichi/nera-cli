@@ -230,8 +230,9 @@ async function pushWithGit({ cwd, repo, repository, head, recorded, user, messag
     if (local === head) return { changed: false, sha: head }
 
     // Replacing the remote is allowed only while it is exactly what this
-    // folder last saw: the repository's auto-init commit on the first
-    // publish (D5), or the last publish when local history was rewritten.
+    // folder last saw: the auto-init commit the repository is created with
+    // on the first publish, or the last publish when local history was
+    // rewritten.
     let lease = null
     if (head !== null && !(await succeeds(['merge-base', '--is-ancestor', head, local]))) {
         if (head !== recorded) throw remoteMoved(repository, recorded === null ? GIT_UNRELATED_HINT : GIT_MOVED_HINT)
