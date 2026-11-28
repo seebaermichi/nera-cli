@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import fs from 'fs/promises'
-import os from 'os'
-import path from 'path'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { createRebuilder, watchTargets } from '../src/commands/dev.js'
 
 describe('watchTargets', () => {
@@ -10,17 +10,17 @@ describe('watchTargets', () => {
 
     const mkdirs = (...dirs) =>
         Promise.all(
-            dirs.map((d) => fs.mkdir(path.join(site, d), { recursive: true }))
+            dirs.map((d) => fs.mkdir(path.join(site, d), { recursive: true })),
         )
     const setTheme = (theme) =>
         fs.writeFile(
             path.join(site, 'config', 'app.yaml'),
-            theme ? `theme: ${theme}\n` : 'lang: en\n'
+            theme ? `theme: ${theme}\n` : 'lang: en\n',
         )
 
     beforeEach(async () => {
         site = await fs.realpath(
-            await fs.mkdtemp(path.join(os.tmpdir(), 'nera-dev-'))
+            await fs.mkdtemp(path.join(os.tmpdir(), 'nera-dev-')),
         )
         await mkdirs('pages', 'config', 'theme/views')
         delete process.env.NERA_THEME
@@ -35,7 +35,7 @@ describe('watchTargets', () => {
     it('watches pages, config and theme on a themeless site', async () => {
         await setTheme(null)
         expect(watchTargets(site)).toEqual(
-            ['pages', 'config', 'theme'].map((d) => path.join(site, d))
+            ['pages', 'config', 'theme'].map((d) => path.join(site, d)),
         )
     })
 
@@ -74,16 +74,16 @@ describe('watchTargets', () => {
         await fs.mkdir(path.join(pkg, 'views'), { recursive: true })
         await fs.writeFile(
             path.join(pkg, 'package.json'),
-            JSON.stringify({ name: '@nera-static/theme-x' })
+            JSON.stringify({ name: '@nera-static/theme-x' }),
         )
         await fs.writeFile(
             path.join(site, 'package.json'),
-            JSON.stringify({ name: 'site' })
+            JSON.stringify({ name: 'site' }),
         )
         await setTheme('x')
 
         expect(watchTargets(site).some((d) => d.includes('node_modules'))).toBe(
-            false
+            false,
         )
     })
 
@@ -91,7 +91,7 @@ describe('watchTargets', () => {
         const setDataFolder = (value) =>
             fs.writeFile(
                 path.join(site, 'config', 'app.yaml'),
-                `folders:\n    data: ${value}\n`
+                `folders:\n    data: ${value}\n`,
             )
 
         it('watches data/ by default', async () => {
@@ -99,8 +99,8 @@ describe('watchTargets', () => {
             await mkdirs('data')
             expect(watchTargets(site)).toEqual(
                 ['pages', 'config', 'theme', 'data'].map((d) =>
-                    path.join(site, d)
-                )
+                    path.join(site, d),
+                ),
             )
         })
 
@@ -116,7 +116,7 @@ describe('watchTargets', () => {
         it('adds nothing when the data folder is missing', async () => {
             await setDataFolder('./catalog')
             expect(watchTargets(site)).toEqual(
-                ['pages', 'config', 'theme'].map((d) => path.join(site, d))
+                ['pages', 'config', 'theme'].map((d) => path.join(site, d)),
             )
         })
 
@@ -126,7 +126,7 @@ describe('watchTargets', () => {
                 await mkdirs('data')
                 await setDataFolder(value)
                 expect(watchTargets(site)).toContain(path.join(site, 'data'))
-            }
+            },
         )
 
         it.each([['.'], ['./public'], ['public/data'], ['..']])(
@@ -137,19 +137,19 @@ describe('watchTargets', () => {
 
                 const targets = watchTargets(site)
                 expect(targets).toEqual(
-                    ['pages', 'config', 'theme'].map((d) => path.join(site, d))
+                    ['pages', 'config', 'theme'].map((d) => path.join(site, d)),
                 )
-            }
+            },
         )
 
         it('never watches a data folder inside a custom folders.dist', async () => {
             await mkdirs('out/data')
             await fs.writeFile(
                 path.join(site, 'config', 'app.yaml'),
-                'folders:\n    dist: ./out\n    data: ./out/data\n'
+                'folders:\n    dist: ./out\n    data: ./out/data\n',
             )
             expect(watchTargets(site)).not.toContain(
-                path.join(site, 'out', 'data')
+                path.join(site, 'out', 'data'),
             )
         })
 

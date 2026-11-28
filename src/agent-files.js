@@ -1,5 +1,5 @@
-import fs from 'fs/promises'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 // Start of the ownership line in AGENTS.md. Everything above the first line
 // that starts with it is Nera's and is refreshed by `nera update`; that line
@@ -47,7 +47,7 @@ export async function syncAgentFiles({ cwd = process.cwd(), templateDir }) {
         throw new Error(
             `The template's AGENTS.md (${templateDir}) has no ` +
                 `\`${SITE_NOTES_MARKER}\` line. This is a packaging bug in ` +
-                '@nera-static/nera, not a problem with your site.'
+                '@nera-static/nera, not a problem with your site.',
         )
     }
 

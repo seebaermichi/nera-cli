@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import os from 'os'
-import { spawnSync } from 'child_process'
-import { fileURLToPath } from 'url'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { parsePublishArgs, runPublish, publishSite, REVOKE_URL, NETLIFY_REVOKE_URL } from '../src/commands/publish.js'
 import { assertAdapter, createRegistry, TARGETS } from '../src/publish/targets.js'
 import {
@@ -144,7 +144,7 @@ describe('target registry', () => {
     it('an unknown id names the registered ids', () => {
         const registry = createRegistry([fakeAdapter('a-host'), fakeAdapter('b-host')])
         expect(() => registry.resolve('nope')).toThrow(
-            'Unknown publish target "nope". Available targets: a-host, b-host.'
+            'Unknown publish target "nope". Available targets: a-host, b-host.',
         )
     })
 
@@ -157,10 +157,10 @@ describe('target registry', () => {
 
     it('with nothing registered, says so', () => {
         expect(() => createRegistry([]).resolve('github-pages')).toThrow(
-            'No publish target is available in this version of Nera yet.'
+            'No publish target is available in this version of Nera yet.',
         )
         expect(() => createRegistry([]).resolve(undefined)).toThrow(
-            'Name a target with --target <id>. No publish target is available in this version of Nera yet.'
+            'Name a target with --target <id>. No publish target is available in this version of Nera yet.',
         )
     })
 
@@ -170,7 +170,7 @@ describe('target registry', () => {
         expect(() => assertAdapter(fakeAdapter('x', { label: '' }))).toThrow('"x" needs a label')
         for (const method of ['setUp', 'deployJob', 'liveUrl']) {
             expect(() => assertAdapter(fakeAdapter('x', { [method]: undefined }))).toThrow(
-                `"x" needs a ${method}() function`
+                `"x" needs a ${method}() function`,
             )
         }
     })
@@ -179,7 +179,7 @@ describe('target registry', () => {
         const leftBehind = () => []
         expect(assertAdapter(fakeAdapter('x', { leftBehind })).leftBehind).toBe(leftBehind)
         expect(() => assertAdapter(fakeAdapter('x', { leftBehind: ['a line'] }))).toThrow(
-            'Publish target "x": leftBehind must be a function when it is set'
+            'Publish target "x": leftBehind must be a function when it is set',
         )
     })
 
@@ -187,10 +187,10 @@ describe('target registry', () => {
         const uploadStep = { uses: 'actions/upload-pages-artifact@v5', with: { path: 'public' } }
         expect(assertAdapter(fakeAdapter('x', { uploadStep })).uploadStep).toBe(uploadStep)
         expect(() => assertAdapter(fakeAdapter('x', { uploadStep: 'actions/upload-pages-artifact@v5' }))).toThrow(
-            'Publish target "x": uploadStep must be a step object with uses when it is set'
+            'Publish target "x": uploadStep must be a step object with uses when it is set',
         )
         expect(() => assertAdapter(fakeAdapter('x', { uploadStep: { name: 'Upload', ...uploadStep } }))).toThrow(
-            'Publish target "x" must not set uploadStep.name; the workflow names it'
+            'Publish target "x" must not set uploadStep.name; the workflow names it',
         )
     })
 
@@ -198,7 +198,7 @@ describe('target registry', () => {
         expect(assertAdapter(fakeAdapter('x', { summary: 'for a blog' })).summary).toBe('for a blog')
         for (const summary of ['', 3]) {
             expect(() => assertAdapter(fakeAdapter('x', { summary }))).toThrow(
-                'Publish target "x": summary must be a non-empty string when it is set'
+                'Publish target "x": summary must be a non-empty string when it is set',
             )
         }
     })
@@ -229,7 +229,7 @@ describe('config/publish.yaml', () => {
             repository: 'me/site',
         })
         expect(await fs.readFile(publishConfigFile(site), 'utf-8')).toBe(
-            'target: fake-host\nrepository: me/site\n'
+            'target: fake-host\nrepository: me/site\n',
         )
     })
 
@@ -238,7 +238,7 @@ describe('config/publish.yaml', () => {
         await fs.writeFile(publishConfigFile(site), '# where the site goes\ntarget: a-host\nextra: 1\n')
         await writePublishConfig({ target: 'b-host' }, site)
         expect(await fs.readFile(publishConfigFile(site), 'utf-8')).toBe(
-            '# where the site goes\ntarget: b-host\nextra: 1\n'
+            '# where the site goes\ntarget: b-host\nextra: 1\n',
         )
     })
 
@@ -257,7 +257,7 @@ describe('config/publish.yaml', () => {
             netlify: { site_id: 'abc-123' },
         })
         expect(await fs.readFile(publishConfigFile(site), 'utf-8')).toBe(
-            'target: netlify\nnetlify:\n    note: mine\n    site_id: abc-123\n'
+            'target: netlify\nnetlify:\n    note: mine\n    site_id: abc-123\n',
         )
         await fs.writeFile(publishConfigFile(site), 'netlify:\n')
         expect(await writePublishConfig({ netlify: { site_id: 'def' } }, site)).toEqual({ netlify: { site_id: 'def' } })

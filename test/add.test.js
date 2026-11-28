@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import os from 'os'
-import { spawnSync } from 'child_process'
-import { fileURLToPath } from 'url'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { parseAddArgs, runAdd, ADD_USAGE } from '../src/commands/add.js'
 
 // The `nera add` contract: its arguments, the text summary and the --json

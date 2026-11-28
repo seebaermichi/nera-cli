@@ -1,7 +1,7 @@
-import fs from 'fs/promises'
-import os from 'os'
-import path from 'path'
-import { randomBytes } from 'crypto'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { randomBytes } from 'node:crypto'
 
 // Where `nera publish` keeps its token sets, one per account (`github` or
 // `netlify`): the OS keychain first, a 0600 file when the keychain is missing

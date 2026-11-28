@@ -1,4 +1,4 @@
-import readline from 'readline'
+import readline from 'node:readline'
 import { BLOG_STARTERS, BUNDLED_STARTERS } from './starters.js'
 
 // The interactive parts of `nera new` (ROADMAP-ai.md L5, principle 5) and of
@@ -123,7 +123,7 @@ export async function runPicker({
             say('What are you building?')
             choices.forEach((c, i) => say(`  ${i + 1}) ${c.label}`))
             const picked = await ask(`Choose 1–${choices.length} [1]: `, (answer) =>
-                choose(say, choices, answer, choices[0], (c) => c.name && c.name === answer)
+                choose(say, choices, answer, choices[0], (c) => c.name && c.name === answer),
             )
             check()
             if (picked.name) result.starter = picked.name
@@ -133,7 +133,7 @@ export async function runPicker({
         if (!skip.name) {
             const shown = fromStarter ? 'the starter\'s' : TEMPLATE_NAME
             const name = await ask(`Site name [${shown}]: `, (answer) =>
-                answer === '' ? '' : invalid(validateSiteName, answer) ? undefined : answer
+                answer === '' ? '' : invalid(validateSiteName, answer) ? undefined : answer,
             )
             check()
             if (name !== '') result.name = name
@@ -142,7 +142,7 @@ export async function runPicker({
         if (!skip.lang) {
             const shown = fromStarter ? 'the starter\'s' : TEMPLATE_LANG
             const lang = await ask(`Language [${shown}]: `, (answer) =>
-                answer === '' ? '' : invalid(validateLang, answer) ? undefined : answer
+                answer === '' ? '' : invalid(validateLang, answer) ? undefined : answer,
             )
             check()
             if (lang !== '') result.lang = lang
@@ -161,7 +161,7 @@ export async function runBlogPicker({ input = process.stdin, output = process.st
         say('Which blog?')
         choices.forEach((s, i) => say(`  ${i + 1}) ${s.label} (${s.name})`))
         const picked = await ask(`Choose 1–${choices.length} [1]: `, (answer) =>
-            choose(say, choices, answer, choices[0], (s) => s.name === answer)
+            choose(say, choices, answer, choices[0], (s) => s.name === answer),
         )
         check()
         return picked.name
@@ -197,10 +197,10 @@ export async function runTargetPicker({ input = process.stdin, output = process.
         const fallback = targets.findIndex((t) => t.id === recommended)
         say('Where should it be published?')
         targets.forEach((t, i) =>
-            say(`  ${i + 1}) ${t.label}${i === fallback ? ' (recommended)' : ''}${t.summary ? ` — ${t.summary}` : ''}`)
+            say(`  ${i + 1}) ${t.label}${i === fallback ? ' (recommended)' : ''}${t.summary ? ` — ${t.summary}` : ''}`),
         )
         const picked = await ask(`Choose 1–${targets.length} [${fallback + 1}]: `, (answer) =>
-            choose(say, targets, answer, targets[fallback], (t) => t.id === answer)
+            choose(say, targets, answer, targets[fallback], (t) => t.id === answer),
         )
         check()
         return picked.id

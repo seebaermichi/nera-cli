@@ -1,5 +1,5 @@
-import fssync from 'fs'
-import path from 'path'
+import fssync from 'node:fs'
+import path from 'node:path'
 import run, { resolveSiteModel } from '@nera-static/core'
 import { startServer } from './serve.js'
 
@@ -44,7 +44,7 @@ export async function runDev(args = []) {
 
     watcher.on('all', async (event, filePath) => {
         console.log(
-            `↻ ${event} ${path.relative(process.cwd(), filePath)} — rebuilding`
+            `↻ ${event} ${path.relative(process.cwd(), filePath)} — rebuilding`,
         )
         await rebuild()
     })
@@ -113,7 +113,7 @@ export function watchTargets(cwd = process.cwd()) {
         dirs.push(
             theme.viewsRoot,
             theme.assetsRoot,
-            path.join(theme.root, 'config')
+            path.join(theme.root, 'config'),
         )
     }
 

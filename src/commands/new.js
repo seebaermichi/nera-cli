@@ -74,7 +74,7 @@ export async function runNew(args = [], {
 } = {}) {
     const { projectName, yes, install, ...rest } = parseNewArgs(args)
     const options = Object.fromEntries(
-        Object.entries(rest).filter(([, v]) => v !== undefined)
+        Object.entries(rest).filter(([, v]) => v !== undefined),
     )
 
     const { shouldPrompt, shouldAskBlog } = await import('../prompt.js')

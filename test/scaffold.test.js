@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import fssync from 'fs'
-import os from 'os'
-import { fileURLToPath } from 'url'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import fssync from 'node:fs'
+import os from 'node:os'
+import { fileURLToPath } from 'node:url'
 import YAML from 'yaml'
 import {
     createSite,
@@ -91,7 +91,7 @@ describe('scaffoldProject', () => {
     it('personalizes package.json: one dependency, named after the project', async () => {
         const target = await scaffoldProject('acme', { cwd: workdir, install: false })
         const pkg = JSON.parse(
-            await fs.readFile(path.join(target, 'package.json'), 'utf-8')
+            await fs.readFile(path.join(target, 'package.json'), 'utf-8'),
         )
         expect(pkg.name).toBe('acme')
         expect(pkg.dependencies).toEqual({ '@nera-static/nera': OWN_RANGE })
@@ -108,7 +108,7 @@ describe('scaffoldProject', () => {
     it('ships the scoped js-beautify overrides, and no other override', async () => {
         const target = await scaffoldProject('acme', { cwd: workdir, install: false })
         const pkg = JSON.parse(
-            await fs.readFile(path.join(target, 'package.json'), 'utf-8')
+            await fs.readFile(path.join(target, 'package.json'), 'utf-8'),
         )
         expect(pkg.overrides).toEqual(JS_BEAUTIFY_OVERRIDES)
         expect(Object.keys(pkg.overrides)).toEqual(['js-beautify'])
@@ -117,7 +117,7 @@ describe('scaffoldProject', () => {
     it('refuses to overwrite an existing directory', async () => {
         await scaffoldProject('dup', { cwd: workdir, install: false })
         await expect(
-            scaffoldProject('dup', { cwd: workdir, install: false })
+            scaffoldProject('dup', { cwd: workdir, install: false }),
         ).rejects.toThrow(/already exists/)
     })
 
@@ -219,7 +219,7 @@ describe('scaffoldProject in the current folder (`nera new .`)', () => {
         const dir = path.join(workdir, 'empty')
         await fs.mkdir(dir)
         await expect(
-            scaffoldProject('.', { cwd: dir, install: false, theme: 'a b' })
+            scaffoldProject('.', { cwd: dir, install: false, theme: 'a b' }),
         ).rejects.toThrow(/Invalid theme/)
         expect(await fs.readdir(dir)).toEqual([])
     })
@@ -234,7 +234,7 @@ describe('scaffoldProject in the current folder (`nera new .`)', () => {
     it('still rejects .., absolute paths and other dot spellings', async () => {
         for (const name of ['..', '../', './/', path.join(workdir, 'abs')]) {
             await expect(inPlace(workdir, name)).rejects.toThrow(
-                /Invalid project name/
+                /Invalid project name/,
             )
         }
         expect(await fs.readdir(workdir)).toEqual([])
@@ -281,7 +281,7 @@ describe('scaffoldProject next steps', () => {
 
     it('names cd, npm install and npm run dev for a new folder', async () => {
         expect(await nextSteps('my-site', { install: false })).toBe(
-            '👉 Next steps:\n  cd my-site\n  npm install\n  npm run dev\n'
+            '👉 Next steps:\n  cd my-site\n  npm install\n  npm run dev\n',
         )
     })
 
@@ -289,13 +289,13 @@ describe('scaffoldProject next steps', () => {
         const dir = path.join(workdir, 'here')
         await fs.mkdir(dir)
         expect(await nextSteps('.', { cwd: dir, install: false })).toBe(
-            '👉 Next steps:\n  npm install\n  npm run dev\n'
+            '👉 Next steps:\n  npm install\n  npm run dev\n',
         )
     })
 
     it('never tells the user to run a global nera', async () => {
         expect(await nextSteps('x', { install: false })).not.toMatch(
-            /^\s+nera /m
+            /^\s+nera /m,
         )
     })
 })
@@ -394,7 +394,7 @@ describe('scaffoldProject with a theme', () => {
         const pkg = JSON.parse(await read(target, 'package.json'))
         expect(Object.keys(pkg.dependencies)).toEqual(['@nera-static/nera'])
         expect(await read(target, 'config/app.yaml')).toMatch(
-            /^theme: \.\/my-theme$/m
+            /^theme: \.\/my-theme$/m,
         )
     })
 
@@ -404,7 +404,7 @@ describe('scaffoldProject with a theme', () => {
                 cwd: workdir,
                 install: false,
                 theme: 'foo; rm -rf /',
-            })
+            }),
         ).rejects.toThrow(/Invalid theme/)
         expect(fssync.existsSync(path.join(workdir, 'bad'))).toBe(false)
     })
@@ -435,7 +435,7 @@ describe('scaffoldProject agent instructions (AGENTS.md, CLAUDE.md)', () => {
             const target = await scaffold()
             expect(await read(target, 'CLAUDE.md')).toBe('@AGENTS.md\n')
             expect(await read(target, 'AGENTS.md')).toBe(
-                await read(templateDir(), 'AGENTS.md')
+                await read(templateDir(), 'AGENTS.md'),
             )
         })
     }
@@ -540,7 +540,7 @@ describe('scaffoldProject Nera skill (.agents/skills/nera, .claude/skills/nera)'
         log.mockRestore()
 
         expect(output).toContain(
-            '✓ Added the Nera skill for AI assistants (.agents/skills/nera, .claude/skills/nera)'
+            '✓ Added the Nera skill for AI assistants (.agents/skills/nera, .claude/skills/nera)',
         )
         const ignored = (await read(target, '.gitignore')).split('\n').map((l) => l.trim())
         for (const line of ignored) {
@@ -594,7 +594,7 @@ describe('parseNewArgs', () => {
 
     it('reads --starter, --name and --lang in both forms, and --yes', () => {
         expect(
-            parseNewArgs(['site', '--starter', 'blank', '--name', 'Brot & Zeit', '--lang', 'de', '--yes'])
+            parseNewArgs(['site', '--starter', 'blank', '--name', 'Brot & Zeit', '--lang', 'de', '--yes']),
         ).toEqual({
             projectName: 'site',
             starter: 'blank',
@@ -604,7 +604,7 @@ describe('parseNewArgs', () => {
             install: true,
         })
         expect(
-            parseNewArgs(['--starter=./s', '--name=A=B', '--lang=pt-BR', 'site'])
+            parseNewArgs(['--starter=./s', '--name=A=B', '--lang=pt-BR', 'site']),
         ).toEqual({
             projectName: 'site',
             starter: './s',
@@ -628,7 +628,7 @@ describe('setAppValue', () => {
 
     it('replaces the top-level line and keeps everything else', () => {
         expect(setAppValue(yaml, 'name', '"Brot & Zeit"')).toBe(
-            '# top\nlang: en\nname: "Brot & Zeit"\n\ntranslations:\n  en:\n    name: nested\n'
+            '# top\nlang: en\nname: "Brot & Zeit"\n\ntranslations:\n  en:\n    name: nested\n',
         )
         expect(setAppValue(yaml, 'lang', 'de')).toBe(yaml.replace('lang: en', 'lang: de'))
     })
@@ -650,7 +650,7 @@ describe('addLangTranslations', () => {
     it('copies the old language entry to the end of the block', () => {
         expect(addLangTranslations(yaml, 'en', 'de')).toBe(
             'lang: de\n\ntranslations:\n  en:\n    a: A # note\n\n    b: B\n  fr:\n    a: Ah\n' +
-                '  de:\n    a: A # note\n\n    b: B\n\nrobots: none\n'
+                '  de:\n    a: A # note\n\n    b: B\n\nrobots: none\n',
         )
         expect(YAML.parse(addLangTranslations(yaml, 'fr', 'pt-BR')).translations['pt-BR']).toEqual({
             a: 'Ah',
@@ -729,16 +729,16 @@ describe('scaffoldProject with --name / --lang, no starter', () => {
         const yaml = await read(target, 'config/app.yaml')
         expect(Object.keys(YAML.parse(yaml).translations)).toEqual(['en'])
         expect(yaml.split('\n').length).toBe(
-            (await read(templateDir(), 'config/app.yaml')).split('\n').length
+            (await read(templateDir(), 'config/app.yaml')).split('\n').length,
         )
     })
 
     it('rejects a bad --lang or --name before creating anything', async () => {
         await expect(
-            scaffoldProject('bad', { cwd: workdir, install: false, lang: 'Deutsch' })
+            scaffoldProject('bad', { cwd: workdir, install: false, lang: 'Deutsch' }),
         ).rejects.toThrow(/Invalid language "Deutsch"/)
         await expect(
-            scaffoldProject('bad', { cwd: workdir, install: false, name: '' })
+            scaffoldProject('bad', { cwd: workdir, install: false, name: '' }),
         ).rejects.toThrow(/Invalid site name/)
         expect(await fs.readdir(workdir)).toEqual([])
     })
@@ -762,7 +762,7 @@ describe('scaffoldProject with a starter', () => {
         expect(await read(target, 'pages/about.md')).toBe(await read(FIXTURE, 'pages/about.md'))
         expect(await read(target, 'config/app.yaml')).toBe(await read(FIXTURE, 'config/app.yaml'))
         expect(await read(target, 'theme/views/pages/about.pug')).toBe(
-            await read(FIXTURE, 'theme/views/pages/about.pug')
+            await read(FIXTURE, 'theme/views/pages/about.pug'),
         )
         expect(fssync.existsSync(path.join(target, 'theme/assets/css/starter.css'))).toBe(true)
         // The base template's views stay: the starter sets no theme.
@@ -804,7 +804,7 @@ describe('scaffoldProject with a starter', () => {
         expect(next).toBe(done + 2)
         expect(logs[done + 1]).toBe(
             '\n## First steps\n\nEdit `pages/about.md` to tell visitors who you are.\n\n' +
-                '### Then\n\nRun `npm run dev`.\n'
+                '### Then\n\nRun `npm run dev`.\n',
         )
         expect(logs.join('\n')).not.toMatch(/Minimal starter|img\.shields\.io|## License/)
         expect(logs).toContain('  ✓ Applied the "Minimal" starter (nera-starter-minimal)')
@@ -857,14 +857,14 @@ describe('scaffoldProject with a starter', () => {
 
     it('refuses --starter together with --theme before creating anything', async () => {
         await expect(
-            scaffoldProject('x', { cwd: workdir, install: false, starter: FIXTURE, theme: 'example' })
+            scaffoldProject('x', { cwd: workdir, install: false, starter: FIXTURE, theme: 'example' }),
         ).rejects.toThrow('A starter brings its own theme; use --starter or --theme, not both.')
         expect(await fs.readdir(workdir)).toEqual([])
     })
 
     it('refuses an invalid starter spec before creating anything', async () => {
         await expect(
-            scaffoldProject('x', { cwd: workdir, install: false, starter: 'a b' })
+            scaffoldProject('x', { cwd: workdir, install: false, starter: 'a b' }),
         ).rejects.toThrow(/Invalid starter "a b"/)
         expect(await fs.readdir(workdir)).toEqual([])
     })
@@ -874,7 +874,7 @@ describe('scaffoldProject with a starter', () => {
         await fs.mkdir(path.join(notStarter, 'pages'), { recursive: true })
         await fs.writeFile(path.join(notStarter, 'package.json'), '{"name":"plain"}')
         await expect(
-            scaffoldProject('x', { cwd: workdir, install: false, starter: './not-starter' })
+            scaffoldProject('x', { cwd: workdir, install: false, starter: './not-starter' }),
         ).rejects.toThrow('"./not-starter" is not a Nera starter: its package.json has no `nera.starter` field.')
         expect(fssync.existsSync(path.join(workdir, 'x'))).toBe(false)
     })
@@ -899,7 +899,7 @@ describe('scaffoldProject with a starter', () => {
         const logs = vi.spyOn(console, 'log').mockImplementation(() => {})
         try {
             await expect(
-                scaffoldProject('.', { cwd: here, install: false, starter: '../broken' })
+                scaffoldProject('.', { cwd: here, install: false, starter: '../broken' }),
             ).rejects.toThrow(/Already written to the current folder: .*package\.json.*Remove them/)
         } finally {
             logs.mockRestore()
@@ -936,7 +936,7 @@ describe('scaffoldProject with a starter', () => {
                 install: false,
                 starter: '@nera-static/theme-x',
                 fetchStarter: async () => ({ dir: tmp, cleanup }),
-            })
+            }),
         ).rejects.toThrow(/is not a Nera starter/)
         expect(cleanup).toHaveBeenCalledOnce()
         expect(fssync.existsSync(path.join(workdir, 'pkg'))).toBe(false)
@@ -948,7 +948,7 @@ describe('scaffoldProject without a starter or flags', () => {
         const target = await scaffoldProject('plain', { cwd: workdir, install: false })
         const files = (await filesUnder(target)).filter((f) => !/^\.(agents|claude)\//.test(f))
         const template = (await filesUnder(templateDir())).map((f) =>
-            f === '_gitignore' ? '.gitignore' : f
+            f === '_gitignore' ? '.gitignore' : f,
         ).sort()
         expect(files).toEqual(template)
         for (const rel of template.filter((f) => f !== 'package.json')) {
@@ -1006,7 +1006,7 @@ describe('the npm check before installing', () => {
     it('with npm 10.8.2, names the fix and creates nothing', async () => {
         const execNpm = fakeNpm('10.8.2')
         await expect(
-            scaffoldProject('old-npm', { cwd: workdir, execNpm })
+            scaffoldProject('old-npm', { cwd: workdir, execNpm }),
         ).rejects.toThrow(/Node\.js 22\.12 or later.*npm i -g npm@10\.9/)
         expect(fssync.existsSync(path.join(workdir, 'old-npm'))).toBe(false)
         expect(execNpm.mock.calls.map(([args]) => args)).toEqual([['--version']])
@@ -1124,7 +1124,7 @@ describe.skipIf(process.platform === 'win32')('createSite with env and signal', 
                 stdio: 'ignore',
                 signal: controller.signal,
                 log: abortOnInstall(controller),
-            })
+            }),
         ).rejects.toMatchObject({ name: 'AbortError' })
         expect(Date.now() - started).toBeLessThan(5000)
         expect(fssync.existsSync(path.join(workdir, 'aborted'))).toBe(false)
@@ -1147,7 +1147,7 @@ describe.skipIf(process.platform === 'win32')('createSite with env and signal', 
         expect(err).toBe(controller.signal.reason)
         expect(err.name).toBe('AbortError')
         expect(err.message).toMatch(
-            /^This operation was aborted\. Already written to the current folder: .*package\.json.*Remove them before running `nera new \.` again\.$/
+            /^This operation was aborted\. Already written to the current folder: .*package\.json.*Remove them before running `nera new \.` again\.$/,
         )
         expect(err.message).not.toMatch(/AGENTS\.md/)
         expect(await read(dir, 'AGENTS.md')).toBe('# mine\n')
@@ -1157,7 +1157,7 @@ describe.skipIf(process.platform === 'win32')('createSite with env and signal', 
     it('a failed install, without an abort, keeps the folder', async () => {
         const env = await fakeNpmEnv({ NERA_TEST_FAIL: '1' })
         await expect(
-            createSite('failed', { cwd: workdir, env, stdio: 'ignore', log: () => {} })
+            createSite('failed', { cwd: workdir, env, stdio: 'ignore', log: () => {} }),
         ).rejects.toThrow(/Command failed: npm install \(exit code 1\)/)
         expect(fssync.existsSync(path.join(workdir, 'failed', 'package.json'))).toBe(true)
     })
@@ -1176,7 +1176,7 @@ describe.skipIf(process.platform === 'win32')('createSite with env and signal', 
                 execNpm,
                 fetchStarter,
                 log: () => {},
-            })
+            }),
         ).rejects.toBe(reason)
         expect(execNpm).not.toHaveBeenCalled()
         expect(fetchStarter).not.toHaveBeenCalled()
@@ -1198,7 +1198,7 @@ describe.skipIf(process.platform === 'win32')('createSite with env and signal', 
                 log: (line) => {
                     if (line.startsWith('📦 Creating')) controller.abort()
                 },
-            })
+            }),
         ).rejects.toMatchObject({ name: 'AbortError' })
         expect(fssync.existsSync(path.join(workdir, 'copying'))).toBe(false)
         expect(cleanup).toHaveBeenCalledOnce()
@@ -1255,7 +1255,7 @@ describe('createSite with an injected log', () => {
                 '📦 Installing dependencies...',
                 '✅ Done!',
                 '👉 Next steps:\n  cd themed\n  npm run dev\n',
-            ])
+            ]),
         )
     })
 
@@ -1298,7 +1298,7 @@ describe('createSite with an injected log', () => {
                 '  ✓ Applied the "Minimal" starter (nera-starter-minimal)',
                 `\n${result.firstSteps}\n`,
                 '👉 Next steps:\n  npm install\n  npm run dev\n',
-            ])
+            ]),
         )
     })
 

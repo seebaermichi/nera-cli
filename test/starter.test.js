@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import fssync from 'fs'
-import os from 'os'
-import { fileURLToPath } from 'url'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import fssync from 'node:fs'
+import os from 'node:os'
+import { fileURLToPath } from 'node:url'
 import {
     validateStarterSpec,
     starterSource,
@@ -68,7 +68,7 @@ describe('validateStarterSpec', () => {
             undefined,
         ]) {
             expect(() => validateStarterSpec(spec)).toThrow(
-                /Invalid starter .*starter name \(blank\).*package name.*GitHub URL.*local path/
+                /Invalid starter .*starter name \(blank\).*package name.*GitHub URL.*local path/,
             )
         }
     })
@@ -172,7 +172,7 @@ describe('packStarter', () => {
             throw err
         })
         await expect(
-            packStarter('github:o/r#v1', { exec, signal: controller.signal })
+            packStarter('github:o/r#v1', { exec, signal: controller.signal }),
         ).rejects.toBe(reason)
         expect(exec).toHaveBeenCalledTimes(1)
         const after = await fs.readdir(os.tmpdir())
@@ -246,7 +246,7 @@ describe('packStarter', () => {
             throw err
         }
         await expect(packStarter('@nera-static/starter-nope', { spec: 'nope', exec })).rejects.toThrow(
-            /Could not download the starter "nope" \(npm pack @nera-static\/starter-nope failed: 404 Not Found - GET https:\/\/registry\.npmjs\.org\/@nera-static%2fstarter-nope\)\. Check the starter name for typos and your network/
+            /Could not download the starter "nope" \(npm pack @nera-static\/starter-nope failed: 404 Not Found - GET https:\/\/registry\.npmjs\.org\/@nera-static%2fstarter-nope\)\. Check the starter name for typos and your network/,
         )
         const after = await fs.readdir(os.tmpdir())
         expect(after.filter((n) => n.startsWith('nera-starter-') && !before.includes(n))).toEqual([])
@@ -265,7 +265,7 @@ describe('fetchStarter', () => {
 
     it('says where it looked for a missing local starter', async () => {
         await expect(fetchStarter('./nope', { cwd: workdir })).rejects.toThrow(
-            /Starter folder "\.\/nope" not found \(looked in .*nope\)/
+            /Starter folder "\.\/nope" not found \(looked in .*nope\)/,
         )
     })
 
@@ -339,13 +339,13 @@ describe('readStarterManifest', () => {
     it('refuses a package without nera.starter', async () => {
         await fs.writeFile(path.join(workdir, 'package.json'), '{"name":"x"}')
         await expect(readStarterManifest(workdir, './x')).rejects.toThrow(
-            '"./x" is not a Nera starter: its package.json has no `nera.starter` field.'
+            '"./x" is not a Nera starter: its package.json has no `nera.starter` field.',
         )
     })
 
     it('refuses a folder without package.json', async () => {
         await expect(readStarterManifest(workdir, './x')).rejects.toThrow(
-            /"\.\/x" is not a Nera starter: it has no readable package\.json/
+            /"\.\/x" is not a Nera starter: it has no readable package\.json/,
         )
     })
 })
@@ -372,13 +372,13 @@ describe('firstStepsSection', () => {
     it('returns the section without badges or other sections', () => {
         expect(firstStepsSection(README)).toBe(
             '## First steps\n\n1. Edit `config/app.yaml`.\n\n' +
-                '### Writing posts\n\nAdd a file to `pages/posts/`.'
+                '### Writing posts\n\nAdd a file to `pages/posts/`.',
         )
     })
 
     it('runs the last section to the end of the file', () => {
         expect(firstStepsSection('# X\n\n## First steps\n\nRun it.\n\n')).toBe(
-            '## First steps\n\nRun it.'
+            '## First steps\n\nRun it.',
         )
     })
 
@@ -414,7 +414,7 @@ describe('firstStepsSection', () => {
             '## License',
         ].join('\n')
         expect(firstStepsSection(readme)).toBe(
-            '## First steps\n\n~~~~\n## Not an end\n~~~\nstill in the fence\n~~~~\n\nDone.'
+            '## First steps\n\n~~~~\n## Not an end\n~~~\nstill in the fence\n~~~~\n\nDone.',
         )
     })
 

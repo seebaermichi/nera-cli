@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { spawnSync } from 'child_process'
-import fs from 'fs/promises'
-import os from 'os'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 import {
     netlify,

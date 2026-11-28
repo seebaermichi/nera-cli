@@ -26,7 +26,7 @@ export function runJson(body, envelope = VALIDATOR_ENVELOPE) {
     if (typeof pending?.then === 'function') {
         return pending.then(
             (result) => finish(envelope.success(result)),
-            (error) => finish(envelope.failure(error))
+            (error) => finish(envelope.failure(error)),
         )
     }
     return finish(envelope.success(pending))

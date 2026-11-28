@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import fssync from 'fs'
-import os from 'os'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import fssync from 'node:fs'
+import os from 'node:os'
 import { scaffoldProject } from '../src/scaffold.js'
 import { runBuild } from '../src/commands/build.js'
 import { runValidate } from '../src/commands/validate.js'
-import { fileURLToPath } from 'url'
+import { fileURLToPath } from 'node:url'
 
 const STARTER_FIXTURE = fileURLToPath(new URL('./fixtures/starter-minimal', import.meta.url))
 
@@ -102,7 +102,7 @@ describe('new → build', () => {
         // a scaffold defect: a page with an image without `alt` (a11y-img-alt).
         const addPageWithoutAlt = (target) => fs.writeFile(
             path.join(target, 'pages', 'photo.md'),
-            '---\nlayout: pages/default.pug\ntitle: Photo\n---\n# Photo\n\n<img src="/photo.jpg">\n'
+            '---\nlayout: pages/default.pug\ntitle: Photo\n---\n# Photo\n\n<img src="/photo.jpg">\n',
         )
 
         it('builds, then checks the output; warnings alone return 0', async () => {
@@ -116,7 +116,7 @@ describe('new → build', () => {
             expect(await runBuild(['--check'])).toBe(0)
             expect(fssync.existsSync(path.join(target, 'public', 'index.html')))
                 .toBe(true)
-            expect(printed()).toMatch(/public\/photo\.html\n(  .*\n)*.*a11y-img-alt/)
+            expect(printed()).toMatch(/public\/photo\.html\n( {2}.*\n)*.*a11y-img-alt/)
             expect(printed()).toContain('not proof of compliance')
         })
 
@@ -156,7 +156,7 @@ describe('new → build', () => {
             await addPageWithoutAlt(target)
             await fs.writeFile(
                 path.join(target, 'config', 'validate.yaml'),
-                'rules:\n  a11y-img-alt: error\n'
+                'rules:\n  a11y-img-alt: error\n',
             )
             process.chdir(target)
 

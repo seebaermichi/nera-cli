@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import fssync from 'fs'
-import os from 'os'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import fssync from 'node:fs'
+import os from 'node:os'
 import { parse as parseYaml } from 'yaml'
 import { installedSkillDir, skillSourceDir, syncSkill } from '../src/skill.js'
 
@@ -136,7 +136,7 @@ describe('the skill source (skills/nera)', () => {
 
     it('is in the published files', async () => {
         const pkg = JSON.parse(
-            await fs.readFile(path.join(skillSourceDir(), '..', '..', 'package.json'), 'utf-8')
+            await fs.readFile(path.join(skillSourceDir(), '..', '..', 'package.json'), 'utf-8'),
         )
         expect(pkg.files).toContain('skills')
     })
@@ -281,7 +281,7 @@ describe('syncSkill', () => {
             expect(await listFiles(site(target))).toEqual(expected)
             for (const file of expected) {
                 expect(await fs.readFile(site(target, file), 'utf-8')).toBe(
-                    await fs.readFile(path.join(skillSourceDir(), file), 'utf-8')
+                    await fs.readFile(path.join(skillSourceDir(), file), 'utf-8'),
                 )
             }
         }

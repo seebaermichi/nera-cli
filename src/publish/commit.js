@@ -1,8 +1,8 @@
-import { execFile } from 'child_process'
-import { createHash } from 'crypto'
-import fs from 'fs/promises'
-import path from 'path'
-import { promisify } from 'util'
+import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { promisify } from 'node:util'
 import { GitHubError, GITHUB_WEB, redact } from './github.js'
 import { parseRepository } from './site-config.js'
 

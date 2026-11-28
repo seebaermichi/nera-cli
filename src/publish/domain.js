@@ -1,4 +1,4 @@
-import { isIP } from 'net'
+import { isIP } from 'node:net'
 
 // `--domain <host>` (ROADMAP-ai.md L6): the custom domain a host serves the
 // site under. Checked when the arguments are parsed, before any sign-in or

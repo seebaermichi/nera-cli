@@ -1,4 +1,4 @@
-import { Resolver } from 'dns/promises'
+import { Resolver } from 'node:dns/promises'
 
 // The DNS check of `nera publish --domain` (ROADMAP-ai.md L6), shared by the
 // targets: each one describes the records its host serves a custom domain

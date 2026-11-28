@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import os from 'os'
-import { execFileSync } from 'child_process'
-import { fileURLToPath } from 'url'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { templateDir } from '../src/scaffold.js'
 import { skillSourceDir } from '../src/skill.js'
 import { BUNDLED_STARTERS } from '../src/starters.js'
@@ -96,7 +96,7 @@ beforeAll(async () => {
             .map(async (e) => {
                 const file = path.join(e.parentPath, e.name)
                 return [path.relative(skillSourceDir(), file), await fs.readFile(file, 'utf-8')]
-            })
+            }),
     )
 })
 
@@ -220,7 +220,7 @@ describe('the Nera skill (skills/nera)', () => {
 
     it('names only commands and flags the CLI usage lists', () => {
         const missing = skillFiles.flatMap(([file, text]) =>
-            findMissing(extractCommands(text), usage).map((m) => `${file}: ${m}`)
+            findMissing(extractCommands(text), usage).map((m) => `${file}: ${m}`),
         )
         expect(missing).toEqual([])
     })
@@ -256,7 +256,7 @@ describe('the Nera skill (skills/nera)', () => {
 
     it('names only npm scripts the template package.json defines', () => {
         const missing = skillFiles.flatMap(([file, text]) =>
-            findMissingScripts(extractScripts(text), templateScripts).map((m) => `${file}: ${m}`)
+            findMissingScripts(extractScripts(text), templateScripts).map((m) => `${file}: ${m}`),
         )
         expect(missing).toEqual([])
     })

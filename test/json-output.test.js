@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import os from 'os'
-import { spawnSync } from 'child_process'
-import { fileURLToPath } from 'url'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { validateSite, validateOutput } from '@nera-static/validate'
 import { scaffoldProject } from '../src/scaffold.js'
 import { runValidate } from '../src/commands/validate.js'
@@ -58,7 +58,7 @@ const promote = (rule) =>
 const addPageWithoutAlt = () =>
     fs.writeFile(
         path.join(target, 'pages', 'photo.md'),
-        '---\nlayout: pages/default.pug\ntitle: Photo\n---\n# Photo\n\n<img src="/photo.jpg">\n'
+        '---\nlayout: pages/default.pug\ntitle: Photo\n---\n# Photo\n\n<img src="/photo.jpg">\n',
     )
 
 describe('nera validate --json', () => {
@@ -69,7 +69,7 @@ describe('nera validate --json', () => {
         error: () =>
             fs.writeFile(
                 path.join(target, 'pages', 'index.md'),
-                '---\nlayout: pages/nope.pug\n---\n# x\n'
+                '---\nlayout: pages/nope.pug\n---\n# x\n',
             ),
     }
 
@@ -177,7 +177,7 @@ describe('nera build --json', () => {
         // The scaffold's two legal check warnings, switched off.
         await fs.writeFile(
             path.join(target, 'config', 'validate.yaml'),
-            'rules:\n  legal-imprint-link: off\n  legal-privacy-link: off\n'
+            'rules:\n  legal-imprint-link: off\n  legal-privacy-link: off\n',
         )
         process.chdir(target)
         const textCode = await runBuild(['--check'])

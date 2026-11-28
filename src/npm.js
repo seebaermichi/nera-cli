@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from 'child_process'
+import { execFileSync, spawn } from 'node:child_process'
 
 // Characters cmd.exe cannot carry inside a double-quoted argument: a quote
 // ends it, `%` expands a variable even inside quotes, and a line break or NUL
@@ -20,7 +20,7 @@ function quoteForCmd(arg) {
     if (CMD_UNSAFE.test(arg)) {
         throw new Error(
             `Nera cannot pass ${JSON.stringify(arg)} to npm on Windows: ` +
-                'it contains a double quote, a percent sign, a line break or a NUL.'
+                'it contains a double quote, a percent sign, a line break or a NUL.',
         )
     }
     return `"${arg.replace(/(\\+)$/, '$1$1')}"`
@@ -42,13 +42,13 @@ export function npmCommand(args, platform = process.platform) {
 export function runNpm(
     args,
     options = {},
-    { platform = process.platform, exec = execFileSync } = {}
+    { platform = process.platform, exec = execFileSync } = {},
 ) {
     const command = npmCommand(args, platform)
     return exec(
         command.file,
         command.args,
-        command.shell ? { ...options, shell: true } : options
+        command.shell ? { ...options, shell: true } : options,
     )
 }
 
@@ -62,7 +62,7 @@ export function runNpm(
 export function spawnChild(
     file,
     args,
-    { cwd, env = process.env, stdio = 'pipe', signal, shell = false } = {}
+    { cwd, env = process.env, stdio = 'pipe', signal, shell = false } = {},
 ) {
     return new Promise((resolve, reject) => {
         if (signal?.aborted) {
@@ -100,7 +100,7 @@ export function spawnChild(
             const err = new Error(
                 `Command failed: ${[file, ...args].join(' ')}` +
                     `${killedBy ? ` (killed by ${killedBy})` : ` (exit code ${code})`}` +
-                    `${stderr ? `\n${stderr}` : ''}`
+                    `${stderr ? `\n${stderr}` : ''}`,
             )
             Object.assign(err, { code, signal: killedBy, stdout, stderr })
             settle(reject, err)
@@ -114,12 +114,12 @@ export function spawnChild(
 export function runNpmAsync(
     args,
     options = {},
-    { platform = process.platform, spawn: run = spawnChild } = {}
+    { platform = process.platform, spawn: run = spawnChild } = {},
 ) {
     const command = npmCommand(args, platform)
     return run(
         command.file,
         command.args,
-        command.shell ? { ...options, shell: true } : options
+        command.shell ? { ...options, shell: true } : options,
     )
 }

@@ -1,5 +1,5 @@
-import fs from 'fs/promises'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { resolveSiteModel } from '@nera-static/core'
 import { classifyProject } from './commands/update.js'
 import { runNpmAsync, spawnChild } from './npm.js'
@@ -26,7 +26,7 @@ export function pluginPackage(spec) {
         throw new Error(
             `"${spec}" is not a Nera plugin. Give an official plugin as ` +
                 '`<name>` or `@nera-static/plugin-<name>` (e.g. `sitemap`); ' +
-                `the catalog is at ${CATALOG_URL}.`
+                `the catalog is at ${CATALOG_URL}.`,
         )
     }
     return { name, pkg: `${fullPrefix}${name}` }
@@ -49,13 +49,13 @@ async function assertThinSite(cwd) {
     if (kind === 'legacy') {
         throw new Error(
             `${cwd} is a legacy Nera site (a clone that vendors the engine). ` +
-                'Run `nera update --migrate` first, then add the plugin.'
+                'Run `nera update --migrate` first, then add the plugin.',
         )
     }
     if (kind !== 'thin') {
         throw new Error(
             `${cwd} is not a Nera site: no package.json there depends on ` +
-                '@nera-static/nera. Run this in a site\'s folder, or create one with `nera new`.'
+                '@nera-static/nera. Run this in a site\'s folder, or create one with `nera new`.',
         )
     }
 }
@@ -113,7 +113,7 @@ async function templateScript(packageDir, pkg) {
     if (script.outside) {
         throw new Error(
             `${pkg} is installed, but its template script "${bin}" lies outside the package; ` +
-                'it was not run.'
+                'it was not run.',
         )
     }
     return script.real

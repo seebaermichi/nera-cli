@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { GitHubError } from './github.js'
 import { openInBrowser } from './auth.js'
 import { isValidRepoName, parseRepository, writePublishConfig, PUBLISH_CONFIG } from './site-config.js'

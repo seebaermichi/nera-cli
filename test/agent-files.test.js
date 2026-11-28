@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import fssync from 'fs'
-import os from 'os'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import fssync from 'node:fs'
+import os from 'node:os'
 import { syncAgentFiles, SITE_NOTES_MARKER } from '../src/agent-files.js'
 import { templateDir } from '../src/scaffold.js'
 
@@ -59,7 +59,7 @@ describe('syncAgentFiles', () => {
         await sync()
 
         expect(await read('AGENTS.md')).toBe(
-            TEMPLATE_HEAD.replace(/\n/g, '\r\n') + notes
+            TEMPLATE_HEAD.replace(/\n/g, '\r\n') + notes,
         )
     })
 
@@ -72,7 +72,7 @@ describe('syncAgentFiles', () => {
             '```\n'
         await fs.writeFile(
             site('AGENTS.md'),
-            `# Old\n\nSee the ${SITE_NOTES_MARKER} line below.\n\n${notes}`
+            `# Old\n\nSee the ${SITE_NOTES_MARKER} line below.\n\n${notes}`,
         )
 
         await sync()
@@ -129,7 +129,7 @@ describe('syncAgentFiles', () => {
 
         const shipped = await fs.readFile(
             path.join(templateDir(), 'AGENTS.md'),
-            'utf-8'
+            'utf-8',
         )
         const head = shipped.slice(0, shipped.indexOf(`\n${SITE_NOTES_MARKER}`) + 1)
         expect(await read('AGENTS.md')).toBe(head + notes)

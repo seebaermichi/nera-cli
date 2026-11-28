@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import fssync from 'fs'
-import os from 'os'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import fssync from 'node:fs'
+import os from 'node:os'
 import {
     agentTemplateDir,
     classifyProject,
@@ -105,7 +105,7 @@ describe('runUpdate', () => {
                     lodash: '^4.0.0',
                 },
                 devDependencies: { '@nera-static/validate': '^1.2.0' },
-            }, null, 2)}\n`
+            }, null, 2)}\n`,
         )
         await writeInstalled('@nera-static/nera', '1.15.0')
         await writeInstalled('@nera-static/plugin-tags', '3.4.0')
@@ -197,14 +197,14 @@ describe('runUpdate', () => {
         })
         await fs.writeFile(
             path.join(cwd, 'src', 'plugins', 'my-plugin', 'index.js'),
-            'export function getAppData () {}'
+            'export function getAppData () {}',
         )
 
         const calls = []
         await runUpdate(['--migrate'], { cwd, runNpm: (args) => calls.push(args) })
 
         const pkg = JSON.parse(
-            await fs.readFile(path.join(cwd, 'package.json'), 'utf-8')
+            await fs.readFile(path.join(cwd, 'package.json'), 'utf-8'),
         )
         // Thin now.
         expect(pkg.dependencies['@nera-static/nera']).toBe(OWN_RANGE)
@@ -215,7 +215,7 @@ describe('runUpdate', () => {
         expect(fssync.existsSync(path.join(cwd, 'src'))).toBe(false)
         expect(fssync.existsSync(path.join(cwd, 'index.js'))).toBe(false)
         expect(
-            fssync.existsSync(path.join(cwd, 'plugins', 'my-plugin', 'index.js'))
+            fssync.existsSync(path.join(cwd, 'plugins', 'my-plugin', 'index.js')),
         ).toBe(true)
         // Installed.
         expect(calls).toContainEqual(['install'])
@@ -224,7 +224,7 @@ describe('runUpdate', () => {
     it('throws on a directory that is not a Nera site', async () => {
         await writePkg({ dependencies: {} })
         await expect(
-            runUpdate([], { cwd, runNpm: () => {} })
+            runUpdate([], { cwd, runNpm: () => {} }),
         ).rejects.toThrow(/does not look like a Nera site/)
     })
 })
@@ -236,7 +236,7 @@ const writeTemplate = async (dir, nera) => {
     await fs.mkdir(dir, { recursive: true })
     await fs.writeFile(
         path.join(dir, 'AGENTS.md'),
-        `${nera}\n${MARKER}\n## Notes for this site\n`
+        `${nera}\n${MARKER}\n## Notes for this site\n`,
     )
     await fs.writeFile(path.join(dir, 'CLAUDE.md'), '@AGENTS.md\n')
 }
@@ -289,7 +289,7 @@ describe('runUpdate agent files', () => {
         await runUpdate([], { cwd, runNpm: () => {}, templateDir: fallback })
 
         expect(await read('AGENTS.md')).toBe(
-            `# Fallback\n${MARKER}\n## Notes for this site\n`
+            `# Fallback\n${MARKER}\n## Notes for this site\n`,
         )
         expect(await read('CLAUDE.md')).toBe('@AGENTS.md\n')
         expect(output()).toContain('✓ Created AGENTS.md')
@@ -309,7 +309,7 @@ describe('runUpdate agent files', () => {
             fssync.mkdirSync(installedTemplate(), { recursive: true })
             fssync.writeFileSync(
                 path.join(installedTemplate(), 'AGENTS.md'),
-                `# Installed\n${MARKER}\n`
+                `# Installed\n${MARKER}\n`,
             )
         }
         await runUpdate([], { cwd, runNpm, templateDir: fallback })
@@ -328,7 +328,7 @@ describe('runUpdate agent files', () => {
         expect(await read('AGENTS.md')).toBe('All mine.\n')
         expect(output()).toContain('Left AGENTS.md alone')
         expect(output()).toContain(
-            `line from ${path.join('fallback-template', 'AGENTS.md')} directly above your own notes`
+            `line from ${path.join('fallback-template', 'AGENTS.md')} directly above your own notes`,
         )
     })
 
@@ -367,7 +367,7 @@ describe('runUpdate agent files', () => {
             throw new Error('npm failed')
         }
         await expect(
-            runUpdate([], { cwd, runNpm, templateDir: fallback })
+            runUpdate([], { cwd, runNpm, templateDir: fallback }),
         ).rejects.toThrow('npm failed')
 
         expect(exists('AGENTS.md')).toBe(false)
@@ -379,7 +379,7 @@ describe('runUpdate agent files', () => {
         await runUpdate([], { cwd, runNpm: () => {} })
 
         expect(await read('AGENTS.md')).toBe(
-            await fs.readFile(path.join(packageTemplateDir(), 'AGENTS.md'), 'utf-8')
+            await fs.readFile(path.join(packageTemplateDir(), 'AGENTS.md'), 'utf-8'),
         )
     })
 })
@@ -510,7 +510,7 @@ describe('runUpdate Nera skill', () => {
         await runUpdate([], { cwd, runNpm: () => {}, templateDir: fallbackTemplate })
 
         expect(await read('.agents/skills/nera/SKILL.md')).toBe(
-            await fs.readFile(path.join(skillSourceDir(), 'SKILL.md'), 'utf-8')
+            await fs.readFile(path.join(skillSourceDir(), 'SKILL.md'), 'utf-8'),
         )
     })
 })

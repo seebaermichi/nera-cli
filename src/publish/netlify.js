@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto'
+import { randomBytes } from 'node:crypto'
 import { checkDns, movedDomainNote, reportDns } from './dns.js'
 import { createNetlifyClient, NetlifyError, NETLIFY_API } from './netlify-api.js'
 import { ensureNetlifyToken } from './netlify-auth.js'

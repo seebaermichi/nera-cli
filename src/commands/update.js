@@ -1,6 +1,6 @@
-import fs from 'fs/promises'
-import fssync from 'fs'
-import path from 'path'
+import fs from 'node:fs/promises'
+import fssync from 'node:fs'
+import path from 'node:path'
 import { syncAgentFiles, SITE_NOTES_MARKER } from '../agent-files.js'
 import { ownRange, templateDir as packageTemplateDir } from '../scaffold.js'
 import { installedSkillDir, skillSourceDir, syncSkill } from '../skill.js'
@@ -15,7 +15,7 @@ const defaultRunNpm = (npmArgs, cwd) =>
 export function neraDeps(pkg) {
     const deps = { ...pkg.dependencies, ...pkg.devDependencies }
     return Object.keys(deps).filter(
-        (name) => name === '@nera-static/nera' || name.startsWith('@nera-static/')
+        (name) => name === '@nera-static/nera' || name.startsWith('@nera-static/'),
     )
 }
 
@@ -108,10 +108,10 @@ export function classifyProject(pkg, cwd = process.cwd()) {
 
 function printLegacyGuidance() {
     console.log(
-        '🔧 This is a legacy Nera site — a clone that vendors the engine under `src/`.'
+        '🔧 This is a legacy Nera site — a clone that vendors the engine under `src/`.',
     )
     console.log(
-        '   `nera update` can convert it to the thin @nera-static/nera model:'
+        '   `nera update` can convert it to the thin @nera-static/nera model:',
     )
     console.log('     • add @nera-static/nera as a dependency')
     console.log('     • rewrite scripts to `nera build`/`dev`/`serve`')
@@ -155,7 +155,7 @@ async function syncAndReportAgentFiles(cwd, fallbackDir) {
         console.log(
             `   To let \`nera update\` keep Nera's instructions current, copy the \`${SITE_NOTES_MARKER}\`` +
                 ` line from ${source} directly above your own notes. Everything above that` +
-                ' line is then Nera\'s and is replaced on update; the line and everything below it stay yours.'
+                ' line is then Nera\'s and is replaced on update; the line and everything below it stay yours.',
         )
     }
 }
@@ -199,7 +199,7 @@ async function migrateLegacy(cwd, pkg, runNpm, templateDir, skillDir) {
 
     await fs.writeFile(
         path.join(cwd, 'package.json'),
-        `${JSON.stringify(pkg, null, 4)}\n`
+        `${JSON.stringify(pkg, null, 4)}\n`,
     )
     console.log('  ✓ Rewrote package.json (dependency + scripts)')
 
@@ -226,7 +226,7 @@ async function migrateLegacy(cwd, pkg, runNpm, templateDir, skillDir) {
     if (movedPlugins) {
         console.log(
             '⚠️  Local plugins moved to plugins/. Add `folders:\\n  plugins: ./plugins`' +
-                ' to config/app.yaml so the engine discovers them (see ROADMAP-core.md).'
+                ' to config/app.yaml so the engine discovers them (see ROADMAP-core.md).',
         )
     }
 }
@@ -243,7 +243,7 @@ export async function runUpdate(args = [], options = {}) {
     } = options
 
     const pkg = JSON.parse(
-        await fs.readFile(path.join(cwd, 'package.json'), 'utf-8')
+        await fs.readFile(path.join(cwd, 'package.json'), 'utf-8'),
     )
     const kind = classifyProject(pkg, cwd)
 
@@ -259,7 +259,7 @@ export async function runUpdate(args = [], options = {}) {
     if (kind === 'unknown') {
         throw new Error(
             'This does not look like a Nera site — no @nera-static/nera ' +
-                'dependency and no vendored engine under src/.'
+                'dependency and no vendored engine under src/.',
         )
     }
 

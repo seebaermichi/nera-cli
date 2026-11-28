@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { execFileSync } from 'child_process'
-import { createRequire } from 'module'
-import path from 'path'
-import fs from 'fs/promises'
-import os from 'os'
+import { execFileSync } from 'node:child_process'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import os from 'node:os'
 import * as api from '@nera-static/nera'
 import { BUNDLED_STARTERS as bundledStarters } from '../src/starters.js'
 import { githubPages } from '../src/publish/pages.js'
@@ -72,7 +72,7 @@ describe('the @nera-static/nera entry point', () => {
             execFileSync(process.execPath, ['--input-type=module', '-e', script], {
                 cwd: PACKAGE_ROOT,
                 encoding: 'utf8',
-            })
+            }),
         )
         expect(urls.some((url) => url.endsWith('/src/index.js'))).toBe(true)
         expect(urls.filter((url) => /\/node_modules\/(vite|chokidar)\//.test(url))).toEqual([])
@@ -141,7 +141,7 @@ describe('createSite', () => {
         controller.abort(reason)
         const execNpm = vi.fn()
         await expect(
-            api.createSite('site', { cwd: workdir, signal: controller.signal, execNpm, log: () => {} })
+            api.createSite('site', { cwd: workdir, signal: controller.signal, execNpm, log: () => {} }),
         ).rejects.toBe(reason)
         expect(execNpm).not.toHaveBeenCalled()
         await expect(fs.access(path.join(workdir, 'site'))).rejects.toThrow()
@@ -156,7 +156,7 @@ describe('createSite', () => {
             signal.throwIfAborted()
         }
         await expect(
-            api.createSite('site', { cwd: workdir, signal: controller.signal, execNpm, log: () => {} })
+            api.createSite('site', { cwd: workdir, signal: controller.signal, execNpm, log: () => {} }),
         ).rejects.toMatchObject({ name: 'AbortError' })
         await expect(fs.access(path.join(workdir, 'site'))).rejects.toThrow()
         expect(stdout).not.toHaveBeenCalled()
@@ -171,7 +171,7 @@ describe('addPlugin', () => {
         await fs.mkdir(site)
         await fs.writeFile(
             path.join(site, 'package.json'),
-            JSON.stringify({ name: 'site', dependencies: { '@nera-static/nera': '^1.25.0' } })
+            JSON.stringify({ name: 'site', dependencies: { '@nera-static/nera': '^1.25.0' } }),
         )
     })
 
@@ -183,7 +183,7 @@ describe('addPlugin', () => {
         await fs.mkdir(path.join(dir, 'bin'))
         await fs.writeFile(
             path.join(dir, 'package.json'),
-            JSON.stringify({ name: '@nera-static/plugin-x', bin: { 'nera-x': 'bin/publish-template.js' } })
+            JSON.stringify({ name: '@nera-static/plugin-x', bin: { 'nera-x': 'bin/publish-template.js' } }),
         )
         await fs.writeFile(path.join(dir, 'config', 'x.yaml'), 'enabled: true\n')
         await fs.writeFile(path.join(dir, 'bin', 'publish-template.js'), '')
@@ -228,7 +228,7 @@ describe('validate and check', () => {
         await fs.writeFile(path.join(site, 'pages', 'index.md'), '---\nlayout: pages/nope.pug\n---\n# x\n')
         const results = api.validate({ cwd: site })
         expect(results).toContainEqual(
-            expect.objectContaining({ file: 'pages/index.md', severity: 'error', rule: 'layout-unresolved' })
+            expect.objectContaining({ file: 'pages/index.md', severity: 'error', rule: 'layout-unresolved' }),
         )
         expect(api.hasErrors(results)).toBe(true)
         expect(stdout).not.toHaveBeenCalled()
@@ -279,7 +279,7 @@ describe('renderDeployWorkflow', () => {
 
     it('rejects an unknown target, naming the available ones', async () => {
         await expect(api.renderDeployWorkflow({ target: 'pages' })).rejects.toThrow(
-            'Unknown publish target "pages". Available targets: github-pages, netlify.'
+            'Unknown publish target "pages". Available targets: github-pages, netlify.',
         )
         expect(stdout).not.toHaveBeenCalled()
     })

@@ -29,37 +29,37 @@ Usage:
 
 try {
     switch (command) {
-    case 'new':
-        await runNew(rest)
-        break
-    case 'build':
-        process.exitCode = await runBuild(rest)
-        break
-    case 'dev':
-        await runDev(rest)
-        break
-    case 'serve':
-        await runServe(rest)
-        break
-    case 'add':
-        process.exitCode = await runAdd(rest)
-        break
-    case 'update':
-        await runUpdate(rest)
-        break
-    case 'validate':
-        process.exitCode = runValidate({ json })
-        break
-    case 'check':
-        process.exitCode = runCheck({ json })
-        break
-    case 'publish':
-        process.exitCode = await runPublish(rest)
-        break
-    default:
-        console.log(usage)
-        // No command → help (exit 0); an unknown command → error (exit 1).
-        process.exit(command ? 1 : 0)
+        case 'new':
+            await runNew(rest)
+            break
+        case 'build':
+            process.exitCode = await runBuild(rest)
+            break
+        case 'dev':
+            await runDev(rest)
+            break
+        case 'serve':
+            await runServe(rest)
+            break
+        case 'add':
+            process.exitCode = await runAdd(rest)
+            break
+        case 'update':
+            await runUpdate(rest)
+            break
+        case 'validate':
+            process.exitCode = runValidate({ json })
+            break
+        case 'check':
+            process.exitCode = runCheck({ json })
+            break
+        case 'publish':
+            process.exitCode = await runPublish(rest)
+            break
+        default:
+            console.log(usage)
+            // No command → help (exit 0); an unknown command → error (exit 1).
+            process.exit(command ? 1 : 0)
     }
 } catch (error) {
     console.error('❌', error.message)

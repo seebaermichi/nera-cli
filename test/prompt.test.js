@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { PassThrough } from 'stream'
+import { PassThrough } from 'node:stream'
 import { runPicker, runBlogPicker, runTargetPicker, recommendTarget, shouldPrompt, shouldAskBlog, EMPTY_CHOICE, BUSINESS_TARGET } from '../src/prompt.js'
 import { runNew } from '../src/commands/new.js'
 import { validateSiteName, validateLang } from '../src/scaffold.js'

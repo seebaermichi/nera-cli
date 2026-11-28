@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { GitHubError, GITHUB_WEB } from './github.js'
 import { parseRepository } from './site-config.js'
 import { BUILD_JOB_ID, BUILD_STEPS, WORKFLOW_FILE } from './workflow.js'

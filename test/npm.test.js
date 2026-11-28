@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import fssync from 'fs'
-import os from 'os'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import fssync from 'node:fs'
+import os from 'node:os'
 import { npmCommand, runNpm, runNpmAsync, spawnChild } from '../src/npm.js'
 
 describe('npmCommand', () => {
@@ -15,7 +15,7 @@ describe('npmCommand', () => {
 
     it('runs npm.cmd through cmd.exe on win32, every argument quoted once', () => {
         expect(
-            npmCommand(['install', 'a&b', 'C:\\Temp dir\\x.tgz', ''], 'win32')
+            npmCommand(['install', 'a&b', 'C:\\Temp dir\\x.tgz', ''], 'win32'),
         ).toEqual({
             file: 'npm.cmd',
             args: ['"install"', '"a&b"', '"C:\\Temp dir\\x.tgz"', '""'],
@@ -35,7 +35,7 @@ describe('npmCommand', () => {
         ['a NUL', 'a\0b'],
     ])('refuses an argument with %s on win32', (_, arg) => {
         expect(() => npmCommand(['install', arg], 'win32')).toThrow(
-            /cannot pass .* to npm on Windows/
+            /cannot pass .* to npm on Windows/,
         )
     })
 
@@ -103,7 +103,7 @@ describe('spawnChild', () => {
 
     it('rejects a non-zero exit with its code, stdout and stderr', async () => {
         const err = await spawnChild(
-            ...node('process.stdout.write("out"); process.stderr.write("npm error boom"); process.exit(3)')
+            ...node('process.stdout.write("out"); process.stderr.write("npm error boom"); process.exit(3)'),
         ).catch((e) => e)
         expect(err).toBeInstanceOf(Error)
         expect(err).toMatchObject({ code: 3, stdout: 'out', stderr: 'npm error boom' })
@@ -121,7 +121,7 @@ describe('spawnChild', () => {
         try {
             const out = await spawnChild(
                 ...node('process.stdout.write(process.env.NERA_SPAWN_TEST + " " + process.cwd())'),
-                { cwd: dir, env: { ...process.env, NERA_SPAWN_TEST: 'seen' } }
+                { cwd: dir, env: { ...process.env, NERA_SPAWN_TEST: 'seen' } },
             )
             expect(out).toBe(`seen ${dir}`)
         } finally {
@@ -141,9 +141,9 @@ describe('spawnChild', () => {
             const running = spawnChild(
                 ...node(
                     `require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); ` +
-                        'setInterval(() => {}, 1000)'
+                        'setInterval(() => {}, 1000)',
                 ),
-                { signal: controller.signal }
+                { signal: controller.signal },
             )
             await waitFor(() => fssync.existsSync(pidFile) && fssync.readFileSync(pidFile, 'utf-8'))
             const pid = Number(fssync.readFileSync(pidFile, 'utf-8'))
@@ -163,7 +163,7 @@ describe('spawnChild', () => {
             const signal = AbortSignal.abort()
             const err = await spawnChild(
                 ...node(`require("fs").writeFileSync(${JSON.stringify(marker)}, "")`),
-                { signal }
+                { signal },
             ).catch((e) => e)
             expect(err).toBe(signal.reason)
             expect(err.name).toBe('AbortError')

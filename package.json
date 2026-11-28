@@ -3,21 +3,26 @@
     "version": "1.30.0",
     "description": "The Nera CLI — scaffold, build, preview and update a Nera static site with one command over the @nera-static/core engine",
     "type": "module",
+    "exports": {
+        ".": "./src/index.js",
+        "./package.json": "./package.json"
+    },
     "bin": {
         "nera": "bin/nera.js"
+    },
+    "scripts": {
+        "lint": "nera-stan",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "prepare": "husky"
     },
     "files": [
         "bin",
         "skills",
         "src",
-        "template"
+        "template",
+        "CHANGELOG.md"
     ],
-    "scripts": {
-        "lint": "eslint .",
-        "lint:fix": "eslint . --fix",
-        "test": "vitest",
-        "prepare": "husky"
-    },
     "keywords": [
         "nera",
         "static-site-generator",
@@ -36,14 +41,15 @@
         "url": "https://github.com/seebaermichi/nera-cli/issues"
     },
     "homepage": "https://github.com/seebaermichi/nera-cli#readme",
-    "engines": {
-        "node": ">=22.12.0"
-    },
     "publishConfig": {
         "access": "public"
     },
+    "engines": {
+        "node": ">=22.12.0"
+    },
     "dependencies": {
         "@nera-static/core": "^4.12.0",
+        "@nera-static/plugin-utils": "^1.9.0",
         "@nera-static/validate": "^1.9.0",
         "@noble/ciphers": "^2.4.0",
         "@noble/curves": "^2.4.0",
@@ -54,16 +60,33 @@
         "vite": "^8.1.5",
         "yaml": "^2.9.1"
     },
-    "devDependencies": {
-        "eslint": "^10.8.0",
-        "husky": "^9.1.7",
-        "vitest": "^5.0.3"
-    },
     "optionalDependencies": {
         "@napi-rs/keyring": "^2.1.2"
     },
-    "exports": {
-        ".": "./src/index.js",
-        "./package.json": "./package.json"
+    "devDependencies": {
+        "@nera-static/stan": "^1.1.0",
+        "@nera-static/test-utils": "^1.0.2",
+        "husky": "^9.1.7",
+        "vitest": "^5.0.3"
+    },
+    "nera-stan": {
+        "ignores": [
+            "test/cold-agent/2026-10-10-baseline/"
+        ],
+        "variants": {
+            ".github/dependabot.yml": "chokidar-major"
+        },
+        "skip": {
+            "@stylistic/max-len": "until step 8 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the long lines in bin/, src/ and test/ are wrapped (steps 2, 6 and 8)",
+            "nera/no-copied-from": "until step 2 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the ROADMAP references in published comments state the decision in place or go",
+            "nera/no-local-helper": "until step 7 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the local helper copies give way to plugin-utils imports (steps 3, 4 and 7)",
+            "nera/test-helpers": "until step 7 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: makeSite, listFiles and page come from @nera-static/test-utils",
+            "nera/test-no-chdir": "until step 7 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the build, json-output and dev-reload tests run without process.chdir",
+            "nera/test-no-cwd-path": "until step 7 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: publish-commit anchors template/_gitignore at the test file",
+            "no-control-regex": "until step 2 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the \\x1f in src/scaffold.js gets its reason or goes",
+            "no-useless-assignment": "until step 2 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the unused assignment in src/publish/commit.js goes",
+            "preserve-caught-error": "until step 2 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the rethrown errors in src/publish/ carry their cause",
+            "pug/quotes": "until step 2 of issue 01a21e37-be04-7039-9fe6-50fc5bd7d327: the scaffold template and the starter fixture use single-quoted attributes"
+        }
     }
 }

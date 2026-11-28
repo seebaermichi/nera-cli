@@ -1,5 +1,5 @@
-import fs from 'fs/promises'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { stringify } from 'yaml'
 
 // The site's deploy workflow, `.github/workflows/deploy.yml` (ROADMAP-ai.md

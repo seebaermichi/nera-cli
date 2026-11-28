@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import os from 'os'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import os from 'node:os'
 import {
     readToken,
     saveToken,
@@ -139,7 +139,7 @@ describe('the file fallback', () => {
     })
 
     it('writes nothing to the console on the way', async () => {
-        const spies = ['log', 'info', 'warn', 'error', 'debug'].map(method => vi.spyOn(console, method))
+        const spies = ['log', 'info', 'warn', 'error', 'debug'].map((method) => vi.spyOn(console, method))
         try {
             await saveToken(TOKENS, options({ loadKeyring: noKeyring }))
             await readToken(options({ loadKeyring: fakeKeyring({ fail: ['getPassword'] }).loadKeyring }))

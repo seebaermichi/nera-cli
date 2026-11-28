@@ -1,4 +1,4 @@
-import { createHash } from 'crypto'
+import { createHash } from 'node:crypto'
 import { blobSha } from '../../src/publish/commit.js'
 import { createGitHubClient, GITHUB_API } from '../../src/publish/github.js'
 

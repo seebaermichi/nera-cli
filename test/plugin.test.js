@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import os from 'os'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import os from 'node:os'
 import { addPlugin, pluginPackage } from '../src/plugin.js'
 
 const PKG = '@nera-static/plugin-x'
@@ -163,7 +163,7 @@ describe('addPlugin', () => {
         const runNode = vi.fn()
         await fs.writeFile(path.join(workdir, 'publish-template.js'), '')
         await expect(
-            addPlugin('x', { cwd: site, log, runNpm: fakeNpm({ bin: '../../../../publish-template.js', script: null }), runNode })
+            addPlugin('x', { cwd: site, log, runNpm: fakeNpm({ bin: '../../../../publish-template.js', script: null }), runNode }),
         ).rejects.toThrow(/@nera-static\/plugin-x is installed, but its template script .* outside the package/)
         expect(runNode).not.toHaveBeenCalled()
     })
@@ -238,7 +238,7 @@ describe('addPlugin', () => {
         })
         const runNode = vi.fn()
         await expect(addPlugin('x', { cwd: site, log, runNpm, runNode })).rejects.toThrow(
-            /^Installing @nera-static\/plugin-x failed: Command failed[\s\S]*E404/
+            /^Installing @nera-static\/plugin-x failed: Command failed[\s\S]*E404/,
         )
         expect(runNode).not.toHaveBeenCalled()
         await expect(fs.access(path.join(site, 'config', 'x.yaml'))).rejects.toThrow()
@@ -249,7 +249,7 @@ describe('addPlugin', () => {
             throw new Error('Command failed: node publish-template.js (exit code 2)')
         })
         await expect(addPlugin('x', { cwd: site, log, runNpm: fakeNpm(), runNode })).rejects.toThrow(
-            /^@nera-static\/plugin-x is installed, but publishing its templates failed: Command failed/
+            /^@nera-static\/plugin-x is installed, but publishing its templates failed: Command failed/,
         )
     })
 

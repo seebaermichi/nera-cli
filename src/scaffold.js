@@ -1,7 +1,7 @@
-import fs from 'fs/promises'
-import fssync from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import fs from 'node:fs/promises'
+import fssync from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { runNpmAsync } from './npm.js'
 import { skillSourceDir, syncSkill } from './skill.js'
 import {
@@ -21,14 +21,14 @@ export function validateProjectName(projectName) {
     if (typeof projectName !== 'string' || projectName.trim() === '') {
         throw new Error(
             'Project name is required. Usage: nera new <project-name> ' +
-                '(or `nera new .` for the current folder)'
+                '(or `nera new .` for the current folder)',
         )
     }
 
     if (!VALID_PROJECT_NAME.test(projectName)) {
         throw new Error(
             `Invalid project name "${projectName}". Use letters, digits, dots, ` +
-                'dashes and underscores only, starting with a letter or digit.'
+                'dashes and underscores only, starting with a letter or digit.',
         )
     }
 
@@ -80,13 +80,13 @@ const AGENT_FILES = new Set(['AGENTS.md', 'CLAUDE.md'])
 // to start a project. Neither do AGENT_FILES.
 async function assertEmptyDir(dir) {
     const entries = (await fs.readdir(dir)).filter(
-        (n) => !n.startsWith('.') && !AGENT_FILES.has(n)
+        (n) => !n.startsWith('.') && !AGENT_FILES.has(n),
     )
     if (entries.length > 0) {
         throw new Error(
             `The current folder is not empty (${entries.slice(0, 3).join(', ')}` +
                 `${entries.length > 3 ? ', …' : ''}). Run \`nera new .\` in an ` +
-                'empty folder, or `nera new <name>` to create a new one.'
+                'empty folder, or `nera new <name>` to create a new one.',
         )
     }
 }
@@ -111,7 +111,7 @@ export function validateThemeSpec(theme) {
     }
     throw new Error(
         `Invalid theme "${theme}". Use a theme name (example), a package ` +
-            'name (@scope/theme) or a local path (./my-theme).'
+            'name (@scope/theme) or a local path (./my-theme).',
     )
 }
 
@@ -186,7 +186,7 @@ async function applyTheme(targetDir, theme, log) {
     const yaml = await fs.readFile(appYaml, 'utf-8')
     await fs.writeFile(
         appYaml,
-        `${yaml.replace(/\n*$/, '\n')}\ntheme: ${theme}\n`
+        `${yaml.replace(/\n*$/, '\n')}\ntheme: ${theme}\n`,
     )
 
     const pkgName = themePackageName(theme)
@@ -203,7 +203,7 @@ async function applyTheme(targetDir, theme, log) {
         '  • pages/imprint.md and pages/privacy.md are placeholders: link them ' +
             'from the theme\'s layout (theme-blog and theme-business take ' +
             '`footer_links` in config/theme.yaml), or `nera build --check` ' +
-            'keeps warning legal-imprint-link and legal-privacy-link.'
+            'keeps warning legal-imprint-link and legal-privacy-link.',
     )
 }
 
@@ -215,7 +215,7 @@ export function validateSiteName(name) {
     }
     throw new Error(
         `Invalid site name ${JSON.stringify(name)}. Give a name on one line, ` +
-            'e.g. --name "Brot & Zeit".'
+            'e.g. --name "Brot & Zeit".',
     )
 }
 
@@ -225,7 +225,7 @@ const LANG = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/
 export function validateLang(lang) {
     if (typeof lang === 'string' && LANG.test(lang)) return lang
     throw new Error(
-        `Invalid language "${lang}". Use a language code such as en, de or pt-BR.`
+        `Invalid language "${lang}". Use a language code such as en, de or pt-BR.`,
     )
 }
 
@@ -295,7 +295,7 @@ async function applyNameAndLang(targetDir, { name, lang }, log) {
     log(`  ✓ Set the site's ${set.join(' and ')} in config/app.yaml`)
     if (copied) {
         log(
-            `  ✓ Copied the "${oldLang}" translations to "${lang}" in config/app.yaml — translate them there`
+            `  ✓ Copied the "${oldLang}" translations to "${lang}" in config/app.yaml — translate them there`,
         )
     }
 }
@@ -306,7 +306,7 @@ async function applyNameAndLang(targetDir, { name, lang }, log) {
 async function addSkill(targetDir, log) {
     const results = await syncSkill({ cwd: targetDir, sourceDir: skillSourceDir() })
     log(
-        `  ✓ Added the Nera skill for AI assistants (${results.map((r) => r.path).join(', ')})`
+        `  ✓ Added the Nera skill for AI assistants (${results.map((r) => r.path).join(', ')})`,
     )
 }
 
@@ -350,7 +350,7 @@ export function assertNpmCanInstall(version) {
         `npm ${version} cannot install a Nera site: it crashes on vite's ` +
             'dependencies. Use Node.js 22.12 or later, which bundles npm 10.9, ' +
             'or update npm with `npm i -g npm@10.9`, then run `nera new` ' +
-            'again. Nothing was written.'
+            'again. Nothing was written.',
     )
 }
 
@@ -412,7 +412,7 @@ export async function createSite(projectName, options = {}) {
     if (starter !== undefined) validateStarterSpec(starter)
     if (starter !== undefined && theme !== undefined) {
         throw new Error(
-            'A starter brings its own theme; use --starter or --theme, not both.'
+            'A starter brings its own theme; use --starter or --theme, not both.',
         )
     }
     if (name !== undefined) validateSiteName(name)
@@ -442,7 +442,7 @@ export async function createSite(projectName, options = {}) {
             appendToMessage(
                 err,
                 ` Already written to the current folder: ${written.join(', ')}. ` +
-                    'Remove them before running `nera new .` again.'
+                    'Remove them before running `nera new .` again.',
             )
         }
         return err

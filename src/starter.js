@@ -1,7 +1,7 @@
-import fs from 'fs/promises'
-import fssync from 'fs'
-import os from 'os'
-import path from 'path'
+import fs from 'node:fs/promises'
+import fssync from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { runNpmAsync, spawnChild } from './npm.js'
 
 // What `--starter` accepts (ROADMAP-ai.md L5), validated before anything is
@@ -18,10 +18,10 @@ const GH_OWNER = '[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?'
 const GH_REPO = '[A-Za-z0-9._-]+?'
 const GH_REF = '[A-Za-z0-9._][A-Za-z0-9._/-]*'
 const GITHUB_URL = new RegExp(
-    `^https://github\\.com/(${GH_OWNER})/(${GH_REPO})(?:\\.git)?(?:#(${GH_REF}))?$`
+    `^https://github\\.com/(${GH_OWNER})/(${GH_REPO})(?:\\.git)?(?:#(${GH_REF}))?$`,
 )
 const GITHUB_SHORT = new RegExp(
-    `^github:(${GH_OWNER})/(${GH_REPO})(?:\\.git)?(?:#(${GH_REF}))?$`
+    `^github:(${GH_OWNER})/(${GH_REPO})(?:\\.git)?(?:#(${GH_REF}))?$`,
 )
 // LOCAL_THEME in scaffold.js, plus absolute paths.
 const LOCAL_STARTER = /^(?:\.{1,2}(?:\/[A-Za-z0-9._-]+)*|(?:\/[A-Za-z0-9._-]+)+)\/?$/
@@ -44,7 +44,7 @@ export function validateStarterSpec(spec) {
         `Invalid starter "${spec}". Use a starter name (blank), a package ` +
             'name (@scope/starter-x or nera-starter-x), a GitHub URL ' +
             '(https://github.com/owner/repo#ref or github:owner/repo) or a ' +
-            'local path (./my-starter).'
+            'local path (./my-starter).',
     )
 }
 
@@ -72,7 +72,7 @@ const downloadError = (spec, npmSpec, err) => {
         `Could not download the starter "${spec}" (npm pack ${npmSpec} failed` +
             `${said ? `: ${said.replace(/^npm (error|ERR!)\s*/, '')}` : ''}). ` +
             'Check the starter name for typos and your network connection, ' +
-            'then run `nera new` again.'
+            'then run `nera new` again.',
     )
 }
 
@@ -92,7 +92,7 @@ const defaultExec = (cmd, args, options) =>
 // `log`; `exec` is injectable for tests.
 export async function packStarter(
     npmSpec,
-    { spec = npmSpec, log = console.log, exec = defaultExec, env = process.env, signal } = {}
+    { spec = npmSpec, log = console.log, exec = defaultExec, env = process.env, signal } = {},
 ) {
     signal?.throwIfAborted()
     log(`📦 Downloading the starter "${spec}"...`)
@@ -108,7 +108,7 @@ export async function packStarter(
             await exec(
                 'npm',
                 ['pack', npmSpec, '--ignore-scripts', '--pack-destination', packDir],
-                { stdio: 'pipe', env, signal }
+                { stdio: 'pipe', env, signal },
             )
         } catch (err) {
             signal?.throwIfAborted()
@@ -136,7 +136,7 @@ export async function packStarter(
 // message; `env` and `signal` reach `npm pack` and `tar` (packStarter).
 export async function fetchStarter(
     spec,
-    { cwd = process.cwd(), log = console.log, pack = packStarter, env, signal } = {}
+    { cwd = process.cwd(), log = console.log, pack = packStarter, env, signal } = {},
 ) {
     signal?.throwIfAborted()
     const source = starterSource(spec)
@@ -145,7 +145,7 @@ export async function fetchStarter(
         if (!fssync.existsSync(dir)) {
             throw new Error(
                 `Starter folder "${spec}" not found (looked in ${dir}). ` +
-                    'Check the path; a local starter is a folder with a package.json.'
+                    'Check the path; a local starter is a folder with a package.json.',
             )
         }
         return { dir, cleanup: async () => {} }
@@ -162,14 +162,14 @@ export async function readStarterManifest(dir, spec = dir) {
     } catch {
         throw new Error(
             `"${spec}" is not a Nera starter: it has no readable package.json. ` +
-                'A starter is a folder whose package.json has a `nera.starter` field.'
+                'A starter is a folder whose package.json has a `nera.starter` field.',
         )
     }
     const starter = pkg?.nera?.starter
     if (!starter || typeof starter !== 'object') {
         throw new Error(
             `"${spec}" is not a Nera starter: its package.json has no ` +
-                '`nera.starter` field.'
+                '`nera.starter` field.',
         )
     }
     return pkg
@@ -212,8 +212,8 @@ export async function applyStarter(targetDir, starterDir, { log = console.log } 
 
     const deps = Object.fromEntries(
         Object.entries(pkg.dependencies ?? {}).filter(
-            ([name, range]) => name !== OWN_PACKAGE && typeof range === 'string'
-        )
+            ([name, range]) => name !== OWN_PACKAGE && typeof range === 'string',
+        ),
     )
     if (Object.keys(deps).length > 0) {
         const pkgPath = path.join(targetDir, 'package.json')

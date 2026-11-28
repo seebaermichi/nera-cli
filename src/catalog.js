@@ -72,13 +72,13 @@ async function search(fetch, text, timeout) {
             `The npm registry could not be reached (${error.message}), so the ` +
                 'catalog is not available. Check the network connection and try ' +
                 'again, or use a name you already know (official ones are listed ' +
-                'on https://nera.js.org).'
+                'on https://nera.js.org).',
         )
     }
     if (!Array.isArray(body?.objects)) {
         throw new CatalogError(
             'The npm registry answered with an unexpected search result, so the ' +
-                'catalog is not available. Try again later.'
+                'catalog is not available. Try again later.',
         )
     }
     return body.objects
@@ -113,7 +113,7 @@ async function fromRegistry(kind, fetch, timeout) {
         search(fetch, `keywords:${kind.keyword}`, timeout),
     ])
     const official = [...officialHits, ...keywordHits].filter(
-        (pkg) => pkg.name.startsWith(kind.prefix) && !kind.exclude.has(pkg.name)
+        (pkg) => pkg.name.startsWith(kind.prefix) && !kind.exclude.has(pkg.name),
     )
     const thirdParty = keywordHits.filter((pkg) => !pkg.name.startsWith(OFFICIAL_SCOPE))
     const byName = new Map()
@@ -148,11 +148,11 @@ async function fromRegistry(kind, fetch, timeout) {
  */
 export async function listCatalog(
     kind,
-    { fetch = globalThis.fetch, timeout = DEFAULT_TIMEOUT_MS } = {}
+    { fetch = globalThis.fetch, timeout = DEFAULT_TIMEOUT_MS } = {},
 ) {
     if (!Object.hasOwn(KINDS, kind)) {
         throw new TypeError(
-            `Unknown catalog "${kind}". Use one of: ${CATALOG_KINDS.join(', ')}.`
+            `Unknown catalog "${kind}". Use one of: ${CATALOG_KINDS.join(', ')}.`,
         )
     }
     try {

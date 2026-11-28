@@ -1,4 +1,4 @@
-import { spawn } from 'child_process'
+import { spawn } from 'node:child_process'
 import { createGitHubClient, postOAuth, GitHubError } from './github.js'
 import { readToken as defaultReadToken, saveToken as defaultSaveToken } from './credentials.js'
 
@@ -63,12 +63,12 @@ function tokenSetFrom(data, now) {
 // The error for an OAuth error answer that ends the poll.
 function signInError(data) {
     switch (data.error) {
-    case 'expired_token':
-        return new GitHubError('The sign-in code expired before it was entered. Run nera publish again for a new code.', { code: data.error })
-    case 'access_denied':
-        return new GitHubError('Sign-in was cancelled on GitHub. Run nera publish again and choose "Authorize".', { code: data.error })
-    default:
-        return new GitHubError(`GitHub sign-in failed: ${data.error_description ?? data.error}`, { code: data.error })
+        case 'expired_token':
+            return new GitHubError('The sign-in code expired before it was entered. Run nera publish again for a new code.', { code: data.error })
+        case 'access_denied':
+            return new GitHubError('Sign-in was cancelled on GitHub. Run nera publish again and choose "Authorize".', { code: data.error })
+        default:
+            return new GitHubError(`GitHub sign-in failed: ${data.error_description ?? data.error}`, { code: data.error })
     }
 }
 

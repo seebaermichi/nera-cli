@@ -1,7 +1,7 @@
-import fs from 'fs/promises'
-import fssync from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import fs from 'node:fs/promises'
+import fssync from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 // The folders of a site the Nera skill is copied into: `.agents/skills/` is
 // read by Codex, Cursor, Copilot and Gemini CLI, `.claude/skills/` by Claude
@@ -90,7 +90,7 @@ export async function syncSkill({ cwd = process.cwd(), sourceDir }) {
     if (!fssync.existsSync(path.join(sourceDir, 'SKILL.md'))) {
         throw new Error(
             `The Nera skill (${sourceDir}) has no SKILL.md. This is a packaging ` +
-                'bug in @nera-static/nera, not a problem with your site.'
+                'bug in @nera-static/nera, not a problem with your site.',
         )
     }
 

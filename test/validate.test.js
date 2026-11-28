@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import os from 'os'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import os from 'node:os'
 import { scaffoldProject } from '../src/scaffold.js'
 import { runValidate } from '../src/commands/validate.js'
 
@@ -28,7 +28,7 @@ describe('nera validate', () => {
         const target = await scaffoldProject('bad', { cwd: workdir, install: false })
         await fs.writeFile(
             path.join(target, 'pages', 'index.md'),
-            '---\nlayout: pages/nope.pug\n---\n# x\n'
+            '---\nlayout: pages/nope.pug\n---\n# x\n',
         )
         expect(runValidate({ cwd: target })).toBe(1)
     })

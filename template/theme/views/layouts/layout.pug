@@ -1,22 +1,22 @@
 //- nera:scaffold-default — `nera new` starter file. While this line is here, `nera validate` warns if it hides a theme's file of the same name; delete the line once the file is your own.
 <!DOCTYPE html>
 html(lang=app.lang)
-  head
-    meta(charset="UTF-8")
-    meta(name="viewport", content="width=device-width, initial-scale=1.0")
-    title #{ meta.title } | #{ app.name }
-    meta(name="description", content=`${ meta.description || t('app_description') }`)
-    meta(name="keywords", content=`${ meta.keywords || t('app_keywords') }`)
-    meta(name="generator" content="nera")
-    meta(name="robots" content=`${ meta.robots || app.robots }`)
-    style.
-      .skip-link { position: absolute; left: -9999px; }
-      .skip-link:focus { position: static; }
+    head
+        meta(charset="UTF-8")
+        meta(name="viewport", content="width=device-width, initial-scale=1.0")
+        title #{ meta.title } | #{ app.name }
+        meta(name="description", content=`${ meta.description || t('app_description') }`)
+        meta(name="keywords", content=`${ meta.keywords || t('app_keywords') }`)
+        meta(name="generator" content="nera")
+        meta(name="robots" content=`${ meta.robots || app.robots }`)
+        style.
+            .skip-link { position: absolute; left: -9999px; }
+            .skip-link:focus { position: static; }
 
-  body
-    a.skip-link(href="#main") #{ t('skip_to_content') }
-    block content
-    footer
-      a(href="/imprint.html") #{ t('imprint') }
-      = ' · '
-      a(href="/privacy.html") #{ t('privacy') }
+    body
+        a.skip-link(href="#main") #{ t('skip_to_content') }
+        block content
+        footer
+            a(href="/imprint.html") #{ t('imprint') }
+            = ' · '
+            a(href="/privacy.html") #{ t('privacy') }

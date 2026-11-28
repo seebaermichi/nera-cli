@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import fs from 'fs/promises'
-import os from 'os'
-import path from 'path'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { startServer } from '../src/commands/serve.js'
 import { createRebuilder } from '../src/commands/dev.js'
 
@@ -18,7 +18,7 @@ const writePublic = async (site, body) => {
     await fs.mkdir(path.join(site, 'public'), { recursive: true })
     await fs.writeFile(
         path.join(site, 'public', 'index.html'),
-        `<!doctype html><title>t</title><p>${body}</p>`
+        `<!doctype html><title>t</title><p>${body}</p>`,
     )
 }
 
@@ -28,7 +28,7 @@ const nextMessage = (socket, type, path) =>
     new Promise((resolve, reject) => {
         const timer = setTimeout(
             () => reject(new Error(`no "${type}" message within ${TIMEOUT_MS} ms`)),
-            TIMEOUT_MS
+            TIMEOUT_MS,
         )
         const onMessage = (event) => {
             const message = JSON.parse(event.data)
@@ -51,7 +51,7 @@ describe('nera dev reload over the real Vite server', () => {
     beforeEach(async () => {
         prevCwd = process.cwd()
         site = await fs.realpath(
-            await fs.mkdtemp(path.join(os.tmpdir(), 'nera-dev-reload-'))
+            await fs.mkdtemp(path.join(os.tmpdir(), 'nera-dev-reload-')),
         )
         // A real site has a package.json; without one Vite puts its cache
         // (`.vite/deps_temp_*`) inside its root, public/, and the rebuild's
@@ -78,7 +78,7 @@ describe('nera dev reload over the real Vite server', () => {
 
         socket = new WebSocket(
             `ws://localhost:${port}/?token=${server.config.webSocketToken}`,
-            'vite-hmr'
+            'vite-hmr',
         )
         await nextMessage(socket, 'connected')
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import path from 'path'
-import fs from 'fs/promises'
-import os from 'os'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import os from 'node:os'
 import { scaffoldProject } from '../src/scaffold.js'
 import { runCheck } from '../src/commands/check.js'
 
@@ -56,7 +56,7 @@ describe('nera check', () => {
         await writePublic(page(''))
         await fs.writeFile(
             path.join(target, 'config', 'validate.yaml'),
-            'rules:\n  a11y-html-lang: error\n'
+            'rules:\n  a11y-html-lang: error\n',
         )
         expect(runCheck({ cwd: target })).toBe(1)
         expect(printed()).toContain('1 error(s), 0 warning(s)')
