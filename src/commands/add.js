@@ -36,10 +36,10 @@ export const ADD_ENVELOPE = {
 
 const logToStderr = (line) => process.stderr.write(`${line}\n`)
 
-// Add an official plugin to the site in `cwd` (ROADMAP-ai.md, S8): the work is
-// addPlugin's (plugin.js), shared with the public API. Returns the exit code:
-// 0 once the plugin is added, 1 for a failure in --json mode (text mode throws
-// and bin/nera.js prints it). `runNpm` and `runNode` reach addPlugin, for tests.
+// Add an official plugin to the site in `cwd`: the work is addPlugin's
+// (plugin.js), shared with the public API. Returns the exit code: 0 once the
+// plugin is added, 1 for a failure in --json mode (text mode throws and
+// bin/nera.js prints it). `runNpm` and `runNode` reach addPlugin, for tests.
 export async function runAdd(args = [], { cwd = process.cwd(), runNpm, runNode } = {}) {
     // An undefined runNpm/runNode leaves addPlugin's default in place.
     const deps = { cwd, runNpm, runNode }

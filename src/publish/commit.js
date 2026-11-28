@@ -6,13 +6,12 @@ import { promisify } from 'node:util'
 import { GitHubError, GITHUB_WEB, redact } from './github.js'
 import { parseRepository } from './site-config.js'
 
-// Committing the site and pushing it to its GitHub repository (ROADMAP-ai.md
-// L6 step 5, D4): with git when it is installed, else through GitHub's Git
-// Data API, so git is not a prerequisite. Both paths publish the branch
-// PUBLISH_BRANCH and refuse to overwrite commits made somewhere else since
-// the last publish. With git, the token reaches `git push` through
-// GIT_CONFIG_* environment variables only: never argv, `.git/config` or a
-// remote URL.
+// Committing the site and pushing it to its GitHub repository: with git when
+// it is installed, else through GitHub's Git Data API, so git is not a
+// prerequisite. Both paths publish the branch PUBLISH_BRANCH and refuse to
+// overwrite commits made somewhere else since the last publish. With git, the
+// token reaches `git push` through GIT_CONFIG_* environment variables only:
+// never argv, `.git/config` or a remote URL.
 
 export const PUBLISH_BRANCH = 'main'
 export const DEFAULT_MESSAGE = 'Publish the site with nera publish'
@@ -40,8 +39,12 @@ function remoteMoved(repository, hint) {
     return err
 }
 
-const GIT_MOVED_HINT = `It changed somewhere else since the last publish. Bring them in first (git pull origin ${PUBLISH_BRANCH}), then run nera publish again.`
-const GIT_UNRELATED_HINT = `Nothing was published from this folder to it before; bring its commits in first (git pull origin ${PUBLISH_BRANCH} --allow-unrelated-histories), then run nera publish again.`
+const GIT_MOVED_HINT =
+    'It changed somewhere else since the last publish. ' +
+    `Bring them in first (git pull origin ${PUBLISH_BRANCH}), then run nera publish again.`
+const GIT_UNRELATED_HINT =
+    'Nothing was published from this folder to it before; bring its commits in first ' +
+    `(git pull origin ${PUBLISH_BRANCH} --allow-unrelated-histories), then run nera publish again.`
 const API_MOVED_HINT = 'It changed somewhere else since the last publish. Copy those changes into this folder (or install git and pull them), then run nera publish again.'
 
 // The environment that lets git authenticate to github.com with `token`: an
@@ -149,14 +152,25 @@ function isIgnored(matchers, relPath, isDirectory) {
 // `url` with any user:password@ part removed, for messages.
 const withoutCredentials = (url) => url.replace(/\/\/[^@/]+@/, '//')
 
+// A GitHub remote in https, ssh or scp-like form; its groups are the owner
+// and the repository name.
+const GITHUB_REMOTE = new RegExp(
+    String.raw`^(?:https?:\/\/(?:[^@/]+@)?github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)` +
+        String.raw`([^/]+)\/([^/]+?)(?:\.git)?\/?$`,
+    'i',
+)
+
 // Whether the git remote `url` (https, ssh or scp-like form) is the GitHub
 // repository `owner/name`.
 function isSameRepository(url, { owner, name }) {
-    const match = url.match(/^(?:https?:\/\/(?:[^@/]+@)?github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([^/]+)\/([^/]+?)(?:\.git)?\/?$/i)
-    return Boolean(match) && match[1].toLowerCase() === owner.toLowerCase() && match[2].toLowerCase() === name.toLowerCase()
+    const match = url.match(GITHUB_REMOTE)
+    return Boolean(match) &&
+        match[1].toLowerCase() === owner.toLowerCase() &&
+        match[2].toLowerCase() === name.toLowerCase()
 }
 
-const noreplyEmail = ({ login, id }) => (id === undefined ? `${login}@users.noreply.github.com` : `${id}+${login}@users.noreply.github.com`)
+const noreplyEmail = ({ login, id }) =>
+    (id === undefined ? `${login}@users.noreply.github.com` : `${id}+${login}@users.noreply.github.com`)
 
 // The git path. Resolves `{ changed, sha }`.
 async function pushWithGit({ cwd, repo, repository, head, recorded, user, message, token, exec, env, remoteUrl, log }) {
@@ -174,7 +188,10 @@ async function pushWithGit({ cwd, repo, repository, head, recorded, user, messag
         await git(['init', '-q', '-b', PUBLISH_BRANCH])
         log('Created a git repository in this folder.')
     } else if (await fs.realpath(top) !== await fs.realpath(cwd)) {
-        throw new Error(`This site is inside another git repository (${top}). Publish it from a folder that is its own repository: move the site out of ${top}, then run nera publish again.`)
+        throw new Error(
+            `This site is inside another git repository (${top}). Publish it from a folder that is its own ` +
+                `repository: move the site out of ${top}, then run nera publish again.`,
+        )
     }
 
     // A user's existing origin is never rewritten.
@@ -182,7 +199,11 @@ async function pushWithGit({ cwd, repo, repository, head, recorded, user, messag
     if (origin === null) {
         await git(['remote', 'add', 'origin', remoteUrl])
     } else if (origin !== remoteUrl && !isSameRepository(origin, repo)) {
-        throw new Error(`This folder's git remote "origin" points to ${withoutCredentials(origin)}, not ${repository}. nera publish does not change your remotes: point origin at ${remoteUrl} yourself (git remote set-url origin ${remoteUrl}), then run nera publish again.`)
+        throw new Error(
+            `This folder's git remote "origin" points to ${withoutCredentials(origin)}, not ${repository}. ` +
+                `nera publish does not change your remotes: point origin at ${remoteUrl} yourself ` +
+                `(git remote set-url origin ${remoteUrl}), then run nera publish again.`,
+        )
     }
 
     const branch = await optional(['symbolic-ref', '--short', '-q', 'HEAD'])
@@ -219,12 +240,20 @@ async function pushWithGit({ cwd, repo, repository, head, recorded, user, messag
 
     const auth = gitAuthEnv(token)
     const leaseArgs = lease ? [`--force-with-lease=refs/heads/${PUBLISH_BRANCH}:${lease}`] : []
+    // A failed push is rethrown from its redacted stderr alone: the git
+    // error itself (its stderr, message and command) may quote the
+    // credentials, so it is deliberately not attached as the cause.
+    let pushFailure = null
     try {
         await git(['push', '-q', ...leaseArgs, remoteUrl, `HEAD:refs/heads/${PUBLISH_BRANCH}`], auth)
     } catch (err) {
-        const stderr = String(err.stderr ?? err.message)
-        if (/\[rejected\]|non-fast-forward|stale info|fetch first/.test(stderr)) throw remoteMoved(repository, GIT_MOVED_HINT)
-        throw new Error(redact(`git push failed: ${stderr.trim()}`, [token, auth.GIT_CONFIG_VALUE_0]))
+        pushFailure = String(err.stderr ?? err.message)
+    }
+    if (pushFailure !== null) {
+        if (/\[rejected\]|non-fast-forward|stale info|fetch first/.test(pushFailure)) {
+            throw remoteMoved(repository, GIT_MOVED_HINT)
+        }
+        throw new Error(redact(`git push failed: ${pushFailure.trim()}`, [token, auth.GIT_CONFIG_VALUE_0]))
     }
     // Keep `git status` honest about origin.
     await git(['update-ref', `refs/remotes/origin/${PUBLISH_BRANCH}`, local])
@@ -257,11 +286,14 @@ async function pushWithApi({ client, cwd, repo, repository, head, recorded, mess
             content: Buffer.from(BOOTSTRAP_TEXT).toString('base64'),
         })
         head = started.commit.sha
-        recorded = head
         // Recorded now, so a retry after a later failure may still publish.
         await writeState(cwd, repository, head)
     } else if (recorded === null) {
-        throw new Error(`The repository ${repository} already has commits, and this folder has no record of publishing them (${PUBLISH_STATE}), so publishing would replace them. Install git so nera publish can compare the history, or publish to a new repository with --repo <name>.`)
+        throw new Error(
+            `The repository ${repository} already has commits, and this folder has no record of publishing ` +
+                `them (${PUBLISH_STATE}), so publishing would replace them. Install git so nera publish can ` +
+                'compare the history, or publish to a new repository with --repo <name>.',
+        )
     } else if (head !== recorded) {
         throw remoteMoved(repository, API_MOVED_HINT)
     }

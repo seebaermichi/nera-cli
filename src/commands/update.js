@@ -226,7 +226,7 @@ async function migrateLegacy(cwd, pkg, runNpm, templateDir, skillDir) {
     if (movedPlugins) {
         console.log(
             '⚠️  Local plugins moved to plugins/. Add `folders:\\n  plugins: ./plugins`' +
-                ' to config/app.yaml so the engine discovers them (see ROADMAP-core.md).',
+                ' to config/app.yaml so the engine discovers them.',
         )
     }
 }

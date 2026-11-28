@@ -1,8 +1,8 @@
 import { isIP } from 'node:net'
 
-// `--domain <host>` (ROADMAP-ai.md L6): the custom domain a host serves the
-// site under. Checked when the arguments are parsed, before any sign-in or
-// network call, so a pasted URL fails at once with what to pass instead.
+// `--domain <host>`: the custom domain a host serves the site under. Checked
+// when the arguments are parsed, before any sign-in or network call, so a
+// pasted URL fails at once with what to pass instead.
 
 const EXAMPLE = 'e.g. --domain example.com or --domain www.example.com'
 // A DNS label: letters, digits and `-`, 1–63 characters, no `-` at either end.
@@ -37,9 +37,17 @@ export function normalizeDomain(value) {
         || labels.length < 2
         || !labels.every((label) => LABEL_PATTERN.test(label))
         || /^\d+$/.test(labels.at(-1))) {
-        fail(`not a host name: use letters, digits, "-" and dots, the punycode form (xn--…) for a non-ASCII name, ${EXAMPLE}`)
+        fail(
+            'not a host name: use letters, digits, "-" and dots, ' +
+                `the punycode form (xn--…) for a non-ASCII name, ${EXAMPLE}`,
+        )
     }
     const own = HOST_DOMAINS.find(({ suffix }) => host === suffix || host.endsWith(`.${suffix}`))
-    if (own) fail(`a ${own.suffix} address is the address ${own.host} gives a site, not a custom domain; publish without --domain to use it`)
+    if (own) {
+        fail(
+            `a ${own.suffix} address is the address ${own.host} gives a site, not a custom domain; ` +
+                'publish without --domain to use it',
+        )
+    }
     return host
 }

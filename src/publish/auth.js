@@ -2,10 +2,10 @@ import { spawn } from 'node:child_process'
 import { createGitHubClient, postOAuth, GitHubError } from './github.js'
 import { readToken as defaultReadToken, saveToken as defaultSaveToken } from './credentials.js'
 
-// Signing in to GitHub for `nera publish` (ROADMAP-ai.md L6 steps 1–2): the
-// "Nera Static" GitHub App's device flow, its expiring user tokens and their
-// refresh. Needs only the app's public client id, no secret. Nothing here
-// prints a token; the user code is printed because the user has to type it.
+// Signing in to GitHub for `nera publish`: the "Nera Static" GitHub App's
+// device flow, its expiring user tokens and their refresh. Needs only the
+// app's public client id, no secret. Nothing here prints a token; the user
+// code is printed because the user has to type it.
 
 export const CLIENT_ID = 'Iv23liGnDuiH8YihBctY'
 export const DEVICE_PAGE = 'https://github.com/login/device'
@@ -68,7 +68,9 @@ function signInError(data) {
         case 'access_denied':
             return new GitHubError('Sign-in was cancelled on GitHub. Run nera publish again and choose "Authorize".', { code: data.error })
         default:
-            return new GitHubError(`GitHub sign-in failed: ${data.error_description ?? data.error}`, { code: data.error })
+            return new GitHubError(`GitHub sign-in failed: ${data.error_description ?? data.error}`, {
+                code: data.error,
+            })
     }
 }
 
@@ -105,7 +107,10 @@ async function fetchLogin(accessToken, fetch) {
 async function store(tokens, { saveToken, log }) {
     const where = await saveToken(tokens)
     if (where?.store === 'file') {
-        log(`No keychain is available on this computer; the GitHub sign-in is stored in ${where.file} (readable only by you).`)
+        log(
+            'No keychain is available on this computer; ' +
+                `the GitHub sign-in is stored in ${where.file} (readable only by you).`,
+        )
     }
 }
 

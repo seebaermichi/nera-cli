@@ -132,7 +132,7 @@ const defaultRunNode = (args, options) => spawnChild(process.execPath, args, opt
 // its default `config/<name>.yaml` when the site has none, and run its
 // `publish-template.js` bin (which copies its Pug templates to
 // `views/vendor/plugin-<name>/`) when it ships one. The one code path for
-// `nera add` and the public API (ROADMAP-ai.md principle 4).
+// `nera add` and the public API, so neither can do more than the other.
 //
 // The spec and the folder are checked before npm runs. Every message goes
 // through `log(line)` (default console.log), npm's and the bin's output to

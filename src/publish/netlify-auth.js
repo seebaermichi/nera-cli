@@ -2,13 +2,13 @@ import { openInBrowser } from './auth.js'
 import { createNetlifyClient, NetlifyError, NETLIFY_WEB } from './netlify-api.js'
 import { readToken as defaultReadToken, saveToken as defaultSaveToken } from './credentials.js'
 
-// Signing in to Netlify for `nera publish --target netlify` (ROADMAP-ai.md
-// L6 step 4, plan D1): the ticket flow of the "Nera CLI" Netlify OAuth app.
-// Create a ticket, let the user authorize it on app.netlify.com, poll until
-// it is authorized, exchange it for a token. Needs only the app's public
-// client id, no secret. The token never expires and has no refresh token.
-// Nothing here prints a token; the ticket id appears only in the authorize
-// address the user has to open, never in an error message.
+// Signing in to Netlify for `nera publish --target netlify`: the ticket flow
+// of the "Nera CLI" Netlify OAuth app. Create a ticket, let the user
+// authorize it on app.netlify.com, poll until it is authorized, exchange it
+// for a token. Needs only the app's public client id, no secret. The token
+// never expires and has no refresh token. Nothing here prints a token; the
+// ticket id appears only in the authorize address the user has to open, never
+// in an error message.
 
 export const NETLIFY_CLIENT_ID = 'C9Mlx3pnO6OPdAE_MA0ZnG37ukvja99SxIiyQlHreKE'
 export const AUTHORIZE_PAGE = `${NETLIFY_WEB}/authorize`
@@ -27,7 +27,9 @@ export const NETLIFY_IDENTITY_LINES = [
     'Nera deploys to Netlify through "Nera CLI", a Netlify OAuth app run by Michael Becker (https://michael-becker-berlin.de).',
     'About Nera: https://nera.js.org',
 ]
-export const NETLIFY_SIGN_UP_LINE = `No Netlify account yet? Create one at ${SIGN_UP_PAGE} (the free plan is enough), then authorize Nera CLI — I'll wait.`
+export const NETLIFY_SIGN_UP_LINE =
+    `No Netlify account yet? Create one at ${SIGN_UP_PAGE} (the free plan is enough), ` +
+    'then authorize Nera CLI — I\'ll wait.'
 
 // Ticket polls answered with one of these statuses mean the ticket is gone:
 // refused on the authorize page, expired or already used.
@@ -73,7 +75,10 @@ async function waitForAuthorization(client, ticketId, { sleep, now }) {
 async function store(tokens, { saveToken, log }) {
     const where = await saveToken(tokens)
     if (where?.store === 'file') {
-        log(`No keychain is available on this computer; the Netlify sign-in is stored in ${where.file} (readable only by you).`)
+        log(
+            'No keychain is available on this computer; ' +
+                `the Netlify sign-in is stored in ${where.file} (readable only by you).`,
+        )
     }
 }
 

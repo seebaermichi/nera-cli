@@ -1,7 +1,7 @@
-// The one GitHub client of `nera publish` (ROADMAP-ai.md L6, D2): a few
-// helpers over `fetch`, no Octokit. `fetch` is injectable, so tests stub it
-// and never reach the network. The token travels in the Authorization header
-// only; no error message built here contains a token or a device code.
+// The one GitHub client of `nera publish`: a few helpers over `fetch`, no
+// Octokit. `fetch` is injectable, so tests stub it and never reach the
+// network. The token travels in the Authorization header only; no error
+// message built here contains a token or a device code.
 
 export const GITHUB_API = 'https://api.github.com'
 export const GITHUB_WEB = 'https://github.com'
@@ -112,9 +112,8 @@ export function createGitHubClient({ token, fetch: fetchImpl = globalThis.fetch 
                 ? data.errors.map((e) => (typeof e === 'string' ? e : e?.message)).filter(Boolean)
                 : []
             const detail = [data?.message ?? response.statusText, ...reasons.map((r) => `(${r})`)].join(' ')
-            throw new GitHubError(redact(`GitHub answered ${response.status} to ${method} ${path}: ${detail}`, secrets), {
-                status: response.status,
-            })
+            const message = `GitHub answered ${response.status} to ${method} ${path}: ${detail}`
+            throw new GitHubError(redact(message, secrets), { status: response.status })
         }
         return response
     }

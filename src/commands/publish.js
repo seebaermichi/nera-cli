@@ -3,10 +3,10 @@ import { createRegistry } from '../publish/targets.js'
 import { readPublishConfig } from '../publish/site-config.js'
 import { normalizeDomain } from '../publish/domain.js'
 
-// `nera publish` (ROADMAP-ai.md L6): from a site folder to a live URL. This
-// module is the command's contract: its flags, the TTY rule, the target
-// lookup and the `--json` object. The work itself is the `publish`
-// collaborator, so the CLI, the wizard and the MCP tools share one pipeline.
+// `nera publish`: from a site folder to a live URL. This module is the
+// command's contract: its flags, the TTY rule, the target lookup and the
+// `--json` object. The work itself is the `publish` collaborator, so the CLI,
+// the wizard and the MCP tools share one pipeline.
 
 // Options that take a value, as `--opt <value>` or `--opt=<value>`.
 const VALUE_OPTIONS = { '--target': 'target', '--repo': 'repo', '--domain': 'domain' }
@@ -123,7 +123,14 @@ export async function publishSite({ cwd, adapter, previous, options, config, int
         const tokens = await auth.ensureToken({ readToken, saveToken, fetch, open, tty: interactive, emit, ...clock })
         const client = github.createGitHubClient({ token: tokens.accessToken, fetch })
         const user = await client.get('/user')
-        const installation = await repository.ensureInstallation({ client, login: user.login, open, tty: interactive, emit, ...clock })
+        const installation = await repository.ensureInstallation({
+            client,
+            login: user.login,
+            open,
+            tty: interactive,
+            emit,
+            ...clock,
+        })
         const repo = await repository.ensureRepository({ client, cwd, options, config, log })
         published.repository = repo.repository
 
@@ -163,8 +170,19 @@ export async function publishSite({ cwd, adapter, previous, options, config, int
             log,
         })
         published.sha = pushed.sha
-        const run = await status.watchDeploy({ client, repository: repo.repository, sha: pushed.sha, adapter, ...clock })
-        const result = { url: await adapter.liveUrl(host), repository: repo.repository, sha: pushed.sha, run: run.html_url }
+        const run = await status.watchDeploy({
+            client,
+            repository: repo.repository,
+            sha: pushed.sha,
+            adapter,
+            ...clock,
+        })
+        const result = {
+            url: await adapter.liveUrl(host),
+            repository: repo.repository,
+            sha: pushed.sha,
+            run: run.html_url,
+        }
         if (previous) {
             log(`Moved from ${previous.label} to ${adapter.label}. The site on ${previous.label} was left untouched.`)
             for (const line of (await previous.leftBehind?.(host)) ?? []) log(`  ${line}`)

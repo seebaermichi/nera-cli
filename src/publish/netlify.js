@@ -7,21 +7,20 @@ import { setRepositorySecrets } from './secrets.js'
 import { PUBLISH_CONFIG, writePublishConfig } from './site-config.js'
 import { BUILD_ARTIFACT, BUILD_OUTPUT } from './workflow.js'
 
-// The Netlify target of `nera publish` (ROADMAP-ai.md L6 step 4, plan D4–D6
-// of the Netlify issue). GitHub Actions builds the site as for every target;
-// the deploy job uploads `public/` to Netlify's zip deploy API with the
-// repository secrets below, so Netlify's own build never runs. The site is
-// created through the API with no repository link. Every Netlify call goes
-// through netlify-api.js and every GitHub call through the host context's
-// client, so tests stub `fetch` and use no network.
+// The Netlify target of `nera publish`. GitHub Actions builds the site as for
+// every target; the deploy job uploads `public/` to Netlify's zip deploy API
+// with the repository secrets below, so Netlify's own build never runs. The
+// site is created through the API with no repository link. Every Netlify call
+// goes through netlify-api.js and every GitHub call through the host
+// context's client, so tests stub `fetch` and use no network.
 
 // The repository secrets the deploy job reads.
 export const TOKEN_SECRET = 'NETLIFY_AUTH_TOKEN'
 export const SITE_SECRET = 'NETLIFY_SITE_ID'
 
-// Netlify's free-plan budget (verified 2026-11-17, ROADMAP-ai.md L6): credits
-// a month, what one successful production deploy costs, and the share of the
-// budget at which nera publish warns (D6).
+// Netlify's free-plan budget (verified 2026-11-17): credits a month, what
+// one successful production deploy costs, and the share of the budget at
+// which nera publish warns that this month's credits may run out.
 export const FREE_CREDITS = 300
 export const DEPLOY_CREDITS = 15
 export const WARN_SHARE = 0.8
@@ -103,7 +102,10 @@ export async function ensureSite({ client, siteId, name, log, random = randomSuf
             log(`The Netlify site name ${candidate} is taken; trying another.`)
         }
     }
-    throw new NetlifyError(`Netlify refused ${NAME_TRIES} names for the site, starting with ${base}. Run nera publish again, or rename the repository with --repo <name>.`)
+    throw new NetlifyError(
+        `Netlify refused ${NAME_TRIES} names for the site, starting with ${base}. ` +
+            'Run nera publish again, or rename the repository with --repo <name>.',
+    )
 }
 
 // The first instant of `now`'s calendar month in UTC, as milliseconds.
@@ -113,7 +115,12 @@ export function monthStart(now) {
 }
 
 // What a first set-up says once about the free-plan budget (D6).
-export const BUDGET_NOTE = `Netlify's free plan has ${FREE_CREDITS} credits a month. Each production deploy costs ${DEPLOY_CREDITS}, so about ${FREE_CREDITS / DEPLOY_CREDITS} deploys use it all, and bandwidth comes on top. When the credits run out, Netlify pauses your sites until the next month. Every nera publish and every push to main is one deploy, so publish when a batch of changes is ready. nera publish warns at ${WARN_SHARE * 100} % of the budget.`
+export const BUDGET_NOTE =
+    `Netlify's free plan has ${FREE_CREDITS} credits a month. Each production deploy costs ${DEPLOY_CREDITS}, ` +
+    `so about ${FREE_CREDITS / DEPLOY_CREDITS} deploys use it all, and bandwidth comes on top. ` +
+    'When the credits run out, Netlify pauses your sites until the next month. ' +
+    'Every nera publish and every push to main is one deploy, so publish when a batch of changes is ready. ' +
+    `nera publish warns at ${WARN_SHARE * 100} % of the budget.`
 
 // Estimate this month's credits from the site's successful production
 // deploys since the start of the UTC month (D6): deploy previews, branch
@@ -127,7 +134,10 @@ export async function checkCredits({ client, siteId, now = Date.now, log }) {
         deploys = await client.get(`/sites/${encodeURIComponent(siteId)}/deploys?production=true&per_page=100`)
     } catch (err) {
         if (!(err instanceof NetlifyError)) throw err
-        log(`Could not count this month's Netlify deploys (${err.message}); the credit estimate is skipped and the publish goes on.`)
+        log(
+            `Could not count this month's Netlify deploys (${err.message}); ` +
+                'the credit estimate is skipped and the publish goes on.',
+        )
         return null
     }
     if (!Array.isArray(deploys)) {
@@ -141,7 +151,14 @@ export async function checkCredits({ client, siteId, now = Date.now, log }) {
         && Date.parse(deploy.created_at) >= since).length
     const credits = count * DEPLOY_CREDITS
     if (credits >= FREE_CREDITS * WARN_SHARE) {
-        log(`Netlify credits: this site had ${count} production deploys this month (UTC), about ${credits} of the free plan's ${FREE_CREDITS} credits, and this publish adds ${DEPLOY_CREDITS}. Bandwidth and your other Netlify sites are not counted and come on top. When the credits run out, Netlify pauses your sites until the next month. On a paid plan, ignore this.`)
+        log(
+            `Netlify credits: this site had ${count} production deploys this month (UTC), ` +
+                `about ${credits} of the free plan's ${FREE_CREDITS} credits, ` +
+                `and this publish adds ${DEPLOY_CREDITS}. ` +
+                'Bandwidth and your other Netlify sites are not counted and come on top. ' +
+                'When the credits run out, Netlify pauses your sites until the next month. ' +
+                'On a paid plan, ignore this.',
+        )
     }
     return { deploys: count, credits }
 }
@@ -169,13 +186,20 @@ export async function applyDomain({ client, site, domain, resolver, log }) {
             next = checkedSite(await client.patch(`/sites/${encodeURIComponent(site.id)}`, { custom_domain: domain }), 'for the custom domain')
         } catch (err) {
             if (!(err instanceof NetlifyError && err.status === DOMAIN_REFUSED)) throw err
-            throw new NetlifyError(`Netlify refused the custom domain ${domain} (${err.message}). It may be set on another Netlify site: remove it there under Domain management, or pass another --domain.`, { status: err.status })
+            throw new NetlifyError(
+                `Netlify refused the custom domain ${domain} (${err.message}). ` +
+                    'It may be set on another Netlify site: remove it there under Domain management, ' +
+                    'or pass another --domain.',
+                { status: err.status },
+            )
         }
     }
     if (next.custom_domain) {
         const dns = await checkDns({ domain: next.custom_domain.toLowerCase(), service: netlifyDns(next), resolver })
         reportDns(dns, log)
-        if (!dns.ok) log(`Netlify issues the HTTPS certificate for ${dns.domain} by itself once the DNS records point to it.`)
+        if (!dns.ok) {
+            log(`Netlify issues the HTTPS certificate for ${dns.domain} by itself once the DNS records point to it.`)
+        }
     }
     return next
 }
@@ -252,6 +276,11 @@ async function liveUrl(host) {
     return url
 }
 
+// The jq calls of the deploy script's error lines: Netlify's message of the
+// last answer, and the reason a deploy ended in `error`.
+const JQ_ERROR = "jq -r '.message // .error // empty' deploy.json 2>/dev/null || true"
+const JQ_DEPLOY_ERROR = 'jq -r \'.error_message // "no reason given"\' deploy.json'
+
 // The deploy step's shell (D4): zip `public/`, upload it to Netlify's zip
 // deploy API, poll the deploy until it is `ready`, fail on `error`, on any
 // answer outside 2xx and after DEPLOY_POLL_TRIES polls. The token and the
@@ -263,7 +292,7 @@ auth="Authorization: Bearer $${TOKEN_SECRET}"
 # Fail with Netlify's message when the last answer (in deploy.json) is not 2xx.
 check() {
     if [ "$1" -lt 200 ] || [ "$1" -ge 300 ]; then
-        echo "::error::Netlify answered $1 to $2: $(jq -r '.message // .error // empty' deploy.json 2>/dev/null || true)"
+        echo "::error::Netlify answered $1 to $2: $(${JQ_ERROR})"
         exit 1
     fi
 }
@@ -288,7 +317,7 @@ for _ in $(seq 1 ${DEPLOY_POLL_TRIES}); do
             exit 0
             ;;
         error)
-            echo "::error::Netlify could not deploy the site: $(jq -r '.error_message // "no reason given"' deploy.json)"
+            echo "::error::Netlify could not deploy the site: $(${JQ_DEPLOY_ERROR})"
             exit 1
             ;;
     esac

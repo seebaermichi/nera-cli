@@ -1,11 +1,11 @@
 import { redact } from './github.js'
 
-// The one Netlify client of `nera publish` (ROADMAP-ai.md L6 step 4): a few
-// helpers over `fetch`, no `netlify` js-client. `fetch` is injectable, so
-// tests stub it and never reach the network. The token travels in the
-// Authorization header only, and every error message built here is redacted
-// against the token and the caller's other secrets (a sign-in ticket id is
-// one: whoever holds an authorized ticket can exchange it for a token).
+// The one Netlify client of `nera publish`: a few helpers over `fetch`, no
+// `netlify` js-client. `fetch` is injectable, so tests stub it and never
+// reach the network. The token travels in the Authorization header only, and
+// every error message built here is redacted against the token and the
+// caller's other secrets (a sign-in ticket id is one: whoever holds an
+// authorized ticket can exchange it for a token).
 
 export { redact }
 
@@ -65,9 +65,8 @@ export function createNetlifyClient({ token, secrets = [], fetch: fetchImpl = gl
         if (!response.ok) {
             // Netlify sends { code, message } or { errors: { field: [..] } }.
             const detail = data?.message ?? data?.error ?? response.statusText
-            throw new NetlifyError(redact(`Netlify answered ${response.status} to ${method} ${path}: ${detail}`, hidden), {
-                status: response.status,
-            })
+            const message = `Netlify answered ${response.status} to ${method} ${path}: ${detail}`
+            throw new NetlifyError(redact(message, hidden), { status: response.status })
         }
         return data
     }

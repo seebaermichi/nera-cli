@@ -1,10 +1,10 @@
-// Encrypted GitHub Actions repository secrets for `nera publish`
-// (ROADMAP-ai.md L6, decision D3 of the Netlify issue). GitHub accepts a
-// secret only sealed to the repository's public key with libsodium's
-// `crypto_box_seal`; `sealSecret` builds that sealed box from the `@noble/*`
-// primitives, which load lazily, so only a publish that stores secrets pays
-// for them. A secret's value never appears in a request other than sealed,
-// nor in any message built here.
+// Encrypted GitHub Actions repository secrets for `nera publish`, which carry
+// what a target's deploy job needs. GitHub accepts a secret only sealed to
+// the repository's public key with libsodium's `crypto_box_seal`;
+// `sealSecret` builds that sealed box from the `@noble/*` primitives, which
+// load lazily, so only a publish that stores secrets pays for them. A
+// secret's value never appears in a request other than sealed, nor in any
+// message built here.
 
 // The repository's sealing key and the secrets of a repository.
 const publicKeyPath = (repository) => `/repos/${repository.owner}/${repository.name}/actions/secrets/public-key`

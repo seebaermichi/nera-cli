@@ -2,15 +2,14 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { stringify } from 'yaml'
 
-// The site's deploy workflow, `.github/workflows/deploy.yml` (ROADMAP-ai.md
-// L6 step 5): one shared build job (`npm ci`, `npm run build`, the `public/`
-// folder as an artifact) plus the deploy job of the target adapter. An
-// adapter whose deploy needs the artifact in another form brings the build
-// job's upload step itself (`uploadStep`, GitHub Pages: `github-pages`, which
-// deploy-pages cannot find when it is uploaded in the deploy job itself). Only
-// `nera publish` writes it, and it overwrites the file only while the file
-// still starts with GENERATED_HEADER, so a workflow the user took over stays
-// theirs.
+// The site's deploy workflow, `.github/workflows/deploy.yml`: one shared
+// build job (`npm ci`, `npm run build`, the `public/` folder as an artifact)
+// plus the deploy job of the target adapter. An adapter whose deploy needs
+// the artifact in another form brings the build job's upload step itself
+// (`uploadStep`, GitHub Pages: `github-pages`, which deploy-pages cannot find
+// when it is uploaded in the deploy job itself). Only `nera publish` writes
+// it, and it overwrites the file only while the file still starts with
+// GENERATED_HEADER, so a workflow the user took over stays theirs.
 //
 // The fixed part is hand-written text, so its comments and layout stay
 // stable; the adapter's part is data, rendered with `yaml`. Action versions
@@ -46,6 +45,9 @@ const HEADER = `${GENERATED_HEADER}
 # rewrites this file while its first line is unchanged; remove that line to
 # keep your own edits.`
 
+// What the build cache key hashes (see the build job's cache step).
+const CACHE_INPUTS = "'assets/**', 'theme/assets/**', 'pages/**', 'config/images.yaml', 'package-lock.json'"
+
 // What every workflow token needs: reading the repository. An adapter adds
 // the scopes its deploy needs.
 const BASE_PERMISSIONS = { contents: 'read' }
@@ -77,7 +79,7 @@ const BUILD_JOB = `    ${BUILD_JOB_ID}:
               uses: actions/cache@v6
               with:
                   path: ${BUILD_CACHE}
-                  key: nera-cache-\${{ hashFiles('assets/**', 'theme/assets/**', 'pages/**', 'config/images.yaml', 'package-lock.json') }}
+                  key: nera-cache-\${{ hashFiles(${CACHE_INPUTS}) }}
                   restore-keys: nera-cache-
 
             - name: ${BUILD_STEPS.render}
@@ -217,7 +219,9 @@ export async function writeWorkflow(adapter, ctx = {}, cwd = process.cwd()) {
         return {
             file,
             status: 'kept',
-            message: `Kept your ${WORKFLOW_FILE}: it no longer starts with the line \`nera publish\` writes. Make sure it builds the site and deploys it to ${adapter.label}.`,
+            message:
+                `Kept your ${WORKFLOW_FILE}: it no longer starts with the line \`nera publish\` writes. ` +
+                `Make sure it builds the site and deploys it to ${adapter.label}.`,
         }
     }
 

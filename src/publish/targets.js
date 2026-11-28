@@ -2,8 +2,7 @@ import { githubPages } from './pages.js'
 import { netlify } from './netlify.js'
 import { assertUploadStep } from './workflow.js'
 
-// The hosts `nera publish` can deploy to (ROADMAP-ai.md L6, D6). A target
-// adapter is a plain object:
+// The hosts `nera publish` can deploy to. A target adapter is a plain object:
 //
 //   { id, label, summary?, setUp(ctx), uploadStep?, deployJob(ctx), liveUrl(ctx), leftBehind?(ctx) }
 //
@@ -33,7 +32,9 @@ export function assertAdapter(adapter) {
     }
     const { id } = adapter
     if (typeof id !== 'string' || !ID_PATTERN.test(id)) {
-        throw new TypeError(`A publish target needs an id of lowercase letters, digits and dashes, got ${JSON.stringify(id)}`)
+        throw new TypeError(
+            `A publish target needs an id of lowercase letters, digits and dashes, got ${JSON.stringify(id)}`,
+        )
     }
     if (typeof adapter.label !== 'string' || adapter.label === '') {
         throw new TypeError(`Publish target "${id}" needs a label`)

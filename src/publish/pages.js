@@ -6,10 +6,10 @@ import { GitHubError } from './github.js'
 import { PRIVATE_NOTE } from './repository.js'
 import { BUILD_OUTPUT } from './workflow.js'
 
-// The GitHub Pages target of `nera publish` (ROADMAP-ai.md L6 step 4): the
-// site is built and deployed by the generated Actions workflow, so Pages runs
-// with the `workflow` build type. Every call goes through the host context's
-// github.js client, so tests stub its fetch and use no network.
+// The GitHub Pages target of `nera publish`: the site is built and deployed
+// by the generated Actions workflow, so Pages runs with the `workflow` build
+// type. Every call goes through the host context's github.js client, so tests
+// stub its fetch and use no network.
 
 export const BUILD_TYPE = 'workflow'
 export const APP_CONFIG = path.join('config', 'app.yaml')
@@ -53,7 +53,9 @@ function explainRefusal(err, repository) {
         && repository.private
         && PLAN_STATUSES.includes(err.status)
         && PLAN_REFUSAL.test(err.message)) {
-        return new Error(`GitHub Pages cannot be switched on for the private repository ${repository.repository}. ${PRIVATE_NOTE}`)
+        return new Error(
+            `GitHub Pages cannot be switched on for the private repository ${repository.repository}. ${PRIVATE_NOTE}`,
+        )
     }
     return err
 }
@@ -88,7 +90,7 @@ export async function writeBasePath(cwd, basePath) {
     try {
         text = await fs.readFile(file, 'utf-8')
     } catch (err) {
-        if (err.code === 'ENOENT') throw new Error(`${APP_CONFIG} is missing; nera publish needs the site's config to set base_path.`)
+        if (err.code === 'ENOENT') throw new Error(`${APP_CONFIG} is missing; nera publish needs the site's config to set base_path.`, { cause: err })
         throw err
     }
     const doc = parseDocument(text)
@@ -164,7 +166,9 @@ async function setUp({
 async function enforceHttps({ client, repository, site, log }) {
     if (site.https_enforced) return site
     const domain = site.cname.toLowerCase()
-    const later = `HTTPS is not enforced for ${domain} yet: GitHub issues its certificate once the DNS records point to GitHub Pages, and running nera publish again then switches HTTPS on.`
+    const later =
+        `HTTPS is not enforced for ${domain} yet: GitHub issues its certificate once the DNS records point ` +
+        'to GitHub Pages, and running nera publish again then switches HTTPS on.'
     // A site whose domain was just set is GitHub's to certify: it has no
     // certificate yet (setDomain reports none).
     if (site.https_certificate?.state !== CERTIFICATE_READY) {
@@ -211,7 +215,10 @@ async function enablePages({ client, repository, log }) {
         }
     }
     if (existing.build_type !== BUILD_TYPE) {
-        log(`GitHub Pages of ${repository.repository} deployed from a branch; switching it to GitHub Actions, which the Nera workflow deploys with.`)
+        log(
+            `GitHub Pages of ${repository.repository} deployed from a branch; ` +
+                'switching it to GitHub Actions, which the Nera workflow deploys with.',
+        )
         await client.put(pagesPath(repository), { build_type: BUILD_TYPE })
         return { ...existing, build_type: BUILD_TYPE }
     }

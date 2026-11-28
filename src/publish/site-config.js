@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { parseDocument } from 'yaml'
 
-// The site's publish state, `config/publish.yaml` (ROADMAP-ai.md L6, D3):
+// The site's publish state, `config/publish.yaml`:
 //
 //   target: github-pages
 //   repository: owner/name
@@ -124,7 +124,9 @@ export async function writePublishConfig(updates, cwd = process.cwd()) {
         if (Object.hasOwn(SECTIONS, key)) {
             if (!isMapping(value)) throw new TypeError(`${PUBLISH_CONFIG}: "${key}" must be a mapping`)
             for (const [entry, entryValue] of Object.entries(value)) {
-                if (!SECTIONS[key].includes(entry)) throw new TypeError(`Unknown ${PUBLISH_CONFIG} key "${key}.${entry}"`)
+                if (!SECTIONS[key].includes(entry)) {
+                    throw new TypeError(`Unknown ${PUBLISH_CONFIG} key "${key}.${entry}"`)
+                }
                 assertText(`${key}.${entry}`, entryValue)
             }
             const current = doc.toJS()?.[key]

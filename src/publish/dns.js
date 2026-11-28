@@ -1,12 +1,12 @@
 import { Resolver } from 'node:dns/promises'
 
-// The DNS check of `nera publish --domain` (ROADMAP-ai.md L6), shared by the
-// targets: each one describes the records its host serves a custom domain
-// from as a `service` — `{ name, cname, a, aaaa }`, where `name` is the host
-// as the log names it, `cname` what a subdomain's CNAME points to, `a` the
-// addresses an apex domain's A records point to and `aaaa` its AAAA ones
-// (optional; `[]` when the host has none). The check only reports: DNS
-// changes take hours to spread, so a missing record never fails a publish.
+// The DNS check of `nera publish --domain`, shared by the targets: each one
+// describes the records its host serves a custom domain from as a `service` —
+// `{ name, cname, a, aaaa }`, where `name` is the host as the log names it,
+// `cname` what a subdomain's CNAME points to, `a` the addresses an apex
+// domain's A records point to and `aaaa` its AAAA ones (optional; `[]` when
+// the host has none). The check only reports: DNS changes take hours to
+// spread, so a missing record never fails a publish.
 
 // A lookup that finds no records is an answer, not a failure.
 const NO_RECORDS = ['ENOTFOUND', 'ENODATA']
@@ -119,5 +119,6 @@ export function reportDns({ domain, service, ok, expected, found, failed }, log)
 export function movedDomainNote(label, domain) {
     return domain
         ? `${domain} is now set on the new host; the DNS check above says whether its records still point to ${label}.`
-        : `If the site has a custom domain, it still points to ${label} until its DNS records change: run nera publish --domain <your domain> to set it on the new host and list the records.`
+        : `If the site has a custom domain, it still points to ${label} until its DNS records change: ` +
+            'run nera publish --domain <your domain> to set it on the new host and list the records.'
 }

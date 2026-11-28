@@ -2,21 +2,21 @@
 <!DOCTYPE html>
 html(lang=app.lang)
     head
-        meta(charset="UTF-8")
-        meta(name="viewport", content="width=device-width, initial-scale=1.0")
+        meta(charset='UTF-8')
+        meta(name='viewport', content='width=device-width, initial-scale=1.0')
         title #{ meta.title } | #{ app.name }
-        meta(name="description", content=`${ meta.description || t('app_description') }`)
-        meta(name="keywords", content=`${ meta.keywords || t('app_keywords') }`)
-        meta(name="generator" content="nera")
-        meta(name="robots" content=`${ meta.robots || app.robots }`)
+        meta(name='description', content=`${ meta.description || t('app_description') }`)
+        meta(name='keywords', content=`${ meta.keywords || t('app_keywords') }`)
+        meta(name='generator' content='nera')
+        meta(name='robots' content=`${ meta.robots || app.robots }`)
         style.
             .skip-link { position: absolute; left: -9999px; }
             .skip-link:focus { position: static; }
 
     body
-        a.skip-link(href="#main") #{ t('skip_to_content') }
+        a.skip-link(href='#main') #{ t('skip_to_content') }
         block content
         footer
-            a(href="/imprint.html") #{ t('imprint') }
+            a(href='/imprint.html') #{ t('imprint') }
             = ' · '
-            a(href="/privacy.html") #{ t('privacy') }
+            a(href='/privacy.html') #{ t('privacy') }

@@ -3,11 +3,11 @@ import { GitHubError, GITHUB_WEB } from './github.js'
 import { parseRepository } from './site-config.js'
 import { BUILD_JOB_ID, BUILD_STEPS, WORKFLOW_FILE } from './workflow.js'
 
-// Following the deploy after the push (ROADMAP-ai.md L6 step 5): the Actions
-// run of the generated workflow for the pushed commit is polled until it
-// completes; a failed run is reported with its failing job and step, an
-// excerpt of that job's log and a hint at the fix. `client` is a github.js
-// client acting with the user's token, so tests stub its fetch.
+// Following the deploy after the push: the Actions run of the generated
+// workflow for the pushed commit is polled until it completes; a failed run
+// is reported with its failing job and step, an excerpt of that job's log and
+// a hint at the fix. `client` is a github.js client acting with the user's
+// token, so tests stub its fetch.
 
 // How often and how long to wait for the run. A first deploy installs the
 // site's dependencies and builds it, which takes a minute or two.
@@ -95,7 +95,10 @@ export async function waitForRun({
         } catch (error) {
             if (!isTransient(error)) throw error
             if (++failures > TRANSIENT_RETRIES) {
-                throw new DeployError(`Following the deploy failed: ${error.message}. Follow it at ${addressOf(run)}, then run nera publish again once it is done.`, {
+                const message =
+                    `Following the deploy failed: ${error.message}. ` +
+                    `Follow it at ${addressOf(run)}, then run nera publish again once it is done.`
+                throw new DeployError(message, {
                     run: addressOf(run),
                     hint,
                 })
@@ -110,7 +113,10 @@ export async function waitForRun({
         if (run?.status === 'completed') return run
         if (now() >= deadline) {
             const what = run ? 'The deploy run did not finish' : 'No deploy run started'
-            throw new DeployError(`${what} within ${RUN_TIMEOUT_MS / 60_000} minutes. Follow it at ${addressOf(run)}, then run nera publish again once it is done.`, {
+            const message =
+                `${what} within ${RUN_TIMEOUT_MS / 60_000} minutes. ` +
+                `Follow it at ${addressOf(run)}, then run nera publish again once it is done.`
+            throw new DeployError(message, {
                 run: addressOf(run),
                 hint,
             })
@@ -139,7 +145,8 @@ export function logExcerpt(text) {
 function hintFor({ job, step, adapter, runUrl }) {
     if (job === BUILD_JOB_ID && BUILD_HINTS[step]) return BUILD_HINTS[step]
     if (job !== undefined && job !== BUILD_JOB_ID) {
-        return `The deploy to ${adapter.label} failed. The full log is at ${runUrl}; run nera publish again once the cause is fixed.`
+        return `The deploy to ${adapter.label} failed. ` +
+            `The full log is at ${runUrl}; run nera publish again once the cause is fixed.`
     }
     return `The full log is at ${runUrl}. If nera publish fails the same way again, the cause is in that log.`
 }

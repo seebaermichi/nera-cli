@@ -680,8 +680,8 @@ describe('validateSiteName / validateLang', () => {
         }
     })
 
-    it('refuses empty names, line breaks and bad codes', () => {
-        for (const name of ['', '  ', 'a\nb', undefined]) {
+    it('refuses empty names, control characters and bad codes', () => {
+        for (const name of ['', '  ', 'a\nb', 'a\tb', 'a\x00b', 'a\x7fb', 'a\u0085b', undefined]) {
             expect(() => validateSiteName(name)).toThrow(/Invalid site name/)
         }
         for (const lang of ['', 'DE', 'deutsch', 'de_DE', 'e', 'de-', undefined]) {

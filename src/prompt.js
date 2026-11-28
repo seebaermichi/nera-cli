@@ -1,8 +1,9 @@
 import readline from 'node:readline'
 import { BLOG_STARTERS, BUNDLED_STARTERS } from './starters.js'
 
-// The interactive parts of `nera new` (ROADMAP-ai.md L5, principle 5) and of
-// `nera publish` (L6, "Choosing the target"). They only collect options;
+// The interactive parts of `nera new` and of `nera publish` (choosing the
+// target). They only collect options, and only on a terminal: without a TTY
+// or with `--yes` nothing is asked, so every question has a flag.
 // scaffoldProject and the publish pipeline do the work, the same as with flags.
 
 // Questions are asked only on a terminal and never with --yes.
@@ -168,8 +169,8 @@ export async function runBlogPicker({ input = process.stdin, output = process.st
     })
 }
 
-// The target a business site is recommended (ROADMAP-ai.md L6: Netlify's
-// terms allow commercial sites on the free plan, GitHub's do not).
+// The target a business site is recommended (Netlify's terms allow
+// commercial sites on the free plan, GitHub's do not).
 export const BUSINESS_TARGET = 'netlify'
 
 // The recommended target id among `ids` (registration order, the first is

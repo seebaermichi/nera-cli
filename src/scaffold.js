@@ -207,10 +207,11 @@ async function applyTheme(targetDir, theme, log) {
     )
 }
 
-// `--name`: any non-empty text without line breaks. It is written as a JSON
-// string, which is also valid YAML, so `:`, `#` and quotes are safe.
+// `--name`: any non-empty text without control characters (line breaks,
+// tabs). It is written as a JSON string, which is also valid YAML, so `:`,
+// `#` and quotes are safe.
 export function validateSiteName(name) {
-    if (typeof name === 'string' && name.trim() !== '' && !/[\0-\x1f\x7f]/.test(name)) {
+    if (typeof name === 'string' && name.trim() !== '' && !/\p{Cc}/u.test(name)) {
         return name
     }
     throw new Error(
@@ -311,8 +312,8 @@ async function addSkill(targetDir, log) {
 }
 
 // npm before 10.9 (bundled with Node < 22.12) crashes in arborist on the
-// optional peer chain of vite 8, which every site installs (ROADMAP-ai.md,
-// slice 5, "the Node floor"). Checked before anything is written or asked.
+// optional peer chain of vite 8, which every site installs; that is why
+// Nera's Node floor is 22.12. Checked before anything is written or asked.
 const MIN_NPM = [10, 9, 0]
 
 // Through src/npm.js, so it works on Windows too (npm.cmd), and without
@@ -369,8 +370,8 @@ function appendToMessage(err, text) {
 
 // Scaffold a thin Nera site: copy the template, lay a starter kit over it if
 // one is given, name it, and (by default) install its dependencies. The one
-// code path for flags, the interactive picker and the MCP server
-// (ROADMAP-ai.md principle 4): everything comes in as plain options.
+// code path for flags, the interactive picker and the MCP server, so none
+// of them can do more than the others: everything comes in as plain options.
 // Returns `{ dir, firstSteps }`: the site's folder and the `## First steps`
 // section of the starter's README, or null.
 //

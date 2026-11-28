@@ -4,8 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { runNpmAsync, spawnChild } from './npm.js'
 
-// What `--starter` accepts (ROADMAP-ai.md L5), validated before anything is
-// written because the package forms end up on the npm command line:
+// What `--starter` accepts, validated before anything is written because the
+// package forms end up on the npm command line:
 //   blank                                  → @nera-static/starter-blank
 //   @acme/starter-x, nera-starter-x        → verbatim
 //   https://github.com/o/r[.git][#ref]     → github:o/r[#ref]

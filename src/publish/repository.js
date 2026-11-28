@@ -3,10 +3,10 @@ import { GitHubError } from './github.js'
 import { openInBrowser } from './auth.js'
 import { isValidRepoName, parseRepository, writePublishConfig, PUBLISH_CONFIG } from './site-config.js'
 
-// The GitHub side of `nera publish` before the first push (ROADMAP-ai.md L6
-// step 3): the "Nera Static" app must be installed on the account, and the
-// site needs a repository. `client` is a github.js client acting with the
-// user's token, so tests stub its fetch and use no network.
+// The GitHub side of `nera publish` before the first push: the "Nera Static"
+// app must be installed on the account, and the site needs a repository.
+// `client` is a github.js client acting with the user's token, so tests stub
+// its fetch and use no network.
 
 export const APP_SLUG = 'nera-static'
 export const INSTALL_PAGE = `https://github.com/apps/${APP_SLUG}/installations/new`
@@ -84,7 +84,10 @@ export async function ensureInstallation({
             return installation
         }
         if (now() >= deadline) {
-            throw new Error(`Nera Static was not installed within ${INSTALL_TIMEOUT_MS / 60_000} minutes. Install it at ${INSTALL_PAGE}, then run nera publish again.`)
+            throw new Error(
+                `Nera Static was not installed within ${INSTALL_TIMEOUT_MS / 60_000} minutes. ` +
+                    `Install it at ${INSTALL_PAGE}, then run nera publish again.`,
+            )
         }
     }
 }
@@ -114,14 +117,20 @@ const suggestName = (name) => {
 function nameToCreate({ cwd, options, configured }) {
     if (options.repo !== undefined) {
         if (!isValidRepoName(options.repo)) {
-            throw new Error(`"${options.repo}" is not a valid GitHub repository name: use letters, digits, ".", "-" and "_" (at most 100), e.g. --repo ${suggestName(options.repo)}`)
+            throw new Error(
+                `"${options.repo}" is not a valid GitHub repository name: ` +
+                    `use letters, digits, ".", "-" and "_" (at most 100), e.g. --repo ${suggestName(options.repo)}`,
+            )
         }
         return options.repo
     }
     if (configured) return configured.name
     const folder = path.basename(path.resolve(cwd))
     if (!isValidRepoName(folder)) {
-        throw new Error(`The folder name "${folder}" is not a valid GitHub repository name. Name the repository with --repo, e.g. --repo ${suggestName(folder)}`)
+        throw new Error(
+            `The folder name "${folder}" is not a valid GitHub repository name. ` +
+                `Name the repository with --repo, e.g. --repo ${suggestName(folder)}`,
+        )
     }
     return folder
 }
@@ -189,7 +198,10 @@ export async function ensureRepository({
             // GitHub answers 404 for a repository the installation does not
             // include, so the "deleted" one above may still be there.
             if (configuredMissing) throw unreachable(name)
-            throw new Error(`You already have a repository named ${name} on GitHub. Choose another name with --repo <name>.`)
+            throw new Error(
+                `You already have a repository named ${name} on GitHub. Choose another name with --repo <name>.`,
+                { cause: err },
+            )
         }
         throw err
     }
