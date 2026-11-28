@@ -1,3 +1,4 @@
+import { setTimeout } from 'node:timers/promises'
 import { openInBrowser } from './auth.js'
 import { createNetlifyClient, NetlifyError, NETLIFY_WEB } from './netlify-api.js'
 import { readToken as defaultReadToken, saveToken as defaultSaveToken } from './credentials.js'
@@ -21,8 +22,9 @@ export const TICKET_TIMEOUT_MS = 15 * 60_000
 // The `kind` of the sign-in's action_required / action_done events.
 export const NETLIFY_SIGN_IN = 'netlify_sign_in'
 
-// Who runs the OAuth app and where to read about it (D11), shown before
-// sign-in, and the guided sign-up for a user without an account.
+// Who runs the OAuth app (the maintainer, in his own name) and where to read
+// about it, shown before sign-in, and the guided sign-up for a user without
+// an account.
 export const NETLIFY_IDENTITY_LINES = [
     'Nera deploys to Netlify through "Nera CLI", a Netlify OAuth app run by Michael Becker (https://michael-becker-berlin.de).',
     'About Nera: https://nera.js.org',
@@ -34,8 +36,6 @@ export const NETLIFY_SIGN_UP_LINE =
 // Ticket polls answered with one of these statuses mean the ticket is gone:
 // refused on the authorize page, expired or already used.
 const TICKET_GONE = new Set([401, 403, 404, 410])
-
-const sleepFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const readNetlifyToken = () => defaultReadToken({ account: 'netlify' })
 const saveNetlifyToken = (tokens) => defaultSaveToken(tokens, { account: 'netlify' })
@@ -98,7 +98,7 @@ async function store(tokens, { saveToken, log }) {
 //   failure, and never the token. A no-op by default
 export async function signInToNetlify({
     fetch = globalThis.fetch,
-    sleep = sleepFor,
+    sleep = setTimeout,
     now = Date.now,
     open = openInBrowser,
     tty = Boolean(process.stdin.isTTY && process.stdout.isTTY),

@@ -1,4 +1,5 @@
 import { redact } from './github.js'
+import { readJson } from './http.js'
 
 // The one Netlify client of `nera publish`: a few helpers over `fetch`, no
 // `netlify` js-client. `fetch` is injectable, so tests stub it and never
@@ -20,17 +21,6 @@ export class NetlifyError extends Error {
         super(message)
         this.name = 'NetlifyError'
         this.status = status
-    }
-}
-
-// The response body as JSON, or null when it is empty or not JSON.
-async function readJson(response) {
-    const text = await response.text()
-    if (text === '') return null
-    try {
-        return JSON.parse(text)
-    } catch {
-        return null
     }
 }
 

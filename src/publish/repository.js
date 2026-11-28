@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { setTimeout } from 'node:timers/promises'
 import { GitHubError } from './github.js'
 import { openInBrowser } from './auth.js'
 import { isValidRepoName, parseRepository, writePublishConfig, PUBLISH_CONFIG } from './site-config.js'
@@ -33,8 +34,6 @@ export const INSTALL_LINES = [
 
 export const PRIVATE_NOTE = 'A private repository can be published with GitHub Pages only on a paid GitHub plan (Pro, Team or Enterprise); Netlify publishes it on the free plan.'
 
-const sleepFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
 // Nera Static's installation among those the token can see, or null. With
 // `login`, only the installation on that account counts: the repository is
 // created there, and an organization's installation does not reach it.
@@ -60,7 +59,7 @@ export async function ensureInstallation({
     login,
     tty = Boolean(process.stdin.isTTY && process.stdout.isTTY),
     open = openInBrowser,
-    sleep = sleepFor,
+    sleep = setTimeout,
     now = Date.now,
     log = (line) => console.log(line),
     emit = () => {},
@@ -153,8 +152,9 @@ async function fetchRepository(client, { owner, name }) {
 
 // The site's GitHub repository. The one in config/publish.yaml is reused
 // while GitHub still has it (unless `--repo` names another); otherwise a new
-// one is created with `auto_init` (D5), public unless `options.private`, and
-// recorded in config/publish.yaml. A reused one GitHub reports with
+// one is created with `auto_init` (so the first push can lease the auto-init
+// commit's sha), public unless `options.private`, and recorded in
+// config/publish.yaml. A reused one GitHub reports with
 // `permissions.push: false` is an error, nothing is created (a missing
 // `permissions` field counts as pushable). A name already taken on the
 // account is an error with a --repo hint. Resolves `{ repository, owner, name, private,

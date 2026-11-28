@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { setTimeout } from 'node:timers/promises'
 import { createGitHubClient, postOAuth, GitHubError } from './github.js'
 import { readToken as defaultReadToken, saveToken as defaultSaveToken } from './credentials.js'
 
@@ -23,15 +24,14 @@ const SLOW_DOWN_STEP = 5
 // cannot run out halfway through a publish.
 export const EXPIRY_MARGIN_MS = 60_000
 
-// Who runs the app and where to read about it (D11), shown before sign-in:
-// GitHub labels a new app "Created less than a day ago".
+// Who runs the app and where to read about it, shown before sign-in: the
+// maintainer operates it in his own name, and GitHub labels a new app
+// "Created less than a day ago".
 export const IDENTITY_LINES = [
     'Nera publishes through "Nera Static", a GitHub App run by Michael Becker (https://michael-becker-berlin.de).',
     'About Nera: https://nera.js.org',
 ]
 export const SIGN_UP_LINE = 'No GitHub account yet? The page offers to create one: create an account there, then come back — I\'ll wait.'
-
-const sleepFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // Open `url` in the default browser, never failing: the code and the address
 // are printed anyway. The url is one of ours, never user input.
@@ -130,7 +130,7 @@ async function store(tokens, { saveToken, log }) {
 //   signed in; nothing on a failure. A no-op by default
 export async function signIn({
     fetch = globalThis.fetch,
-    sleep = sleepFor,
+    sleep = setTimeout,
     now = Date.now,
     open = openInBrowser,
     tty = Boolean(process.stdin.isTTY && process.stdout.isTTY),

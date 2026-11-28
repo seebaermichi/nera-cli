@@ -1,3 +1,5 @@
+import { readJson } from './http.js'
+
 // The one GitHub client of `nera publish`: a few helpers over `fetch`, no
 // Octokit. `fetch` is injectable, so tests stub it and never reach the
 // network. The token travels in the Authorization header only; no error
@@ -27,17 +29,6 @@ export function redact(text, secrets = []) {
         if (typeof secret === 'string' && secret !== '') result = result.split(secret).join('***')
     }
     return result
-}
-
-// The response body as JSON, or null when it is empty or not JSON.
-async function readJson(response) {
-    const text = await response.text()
-    if (text === '') return null
-    try {
-        return JSON.parse(text)
-    } catch {
-        return null
-    }
 }
 
 // Call fetch, turning a network failure into a GitHubError with status 0.

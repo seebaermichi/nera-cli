@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { setTimeout } from 'node:timers/promises'
 import { GitHubError, GITHUB_WEB } from './github.js'
 import { parseRepository } from './site-config.js'
 import { BUILD_JOB_ID, BUILD_STEPS, WORKFLOW_FILE } from './workflow.js'
@@ -23,8 +24,6 @@ export const TRANSIENT_RETRIES = 3
 
 // At most this many log lines in the excerpt.
 export const EXCERPT_LINES = 20
-
-const sleepFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // "2026-10-26T10:00:00.1234567Z " at the start of every line of a job log.
 const LOG_TIMESTAMP = /^\d{4}-\d\d-\d\dT[\d:.]+Z ?/
@@ -77,7 +76,7 @@ export async function waitForRun({
     client,
     repository,
     sha,
-    sleep = sleepFor,
+    sleep = setTimeout,
     now = Date.now,
     log = (line) => console.log(line),
 } = {}) {
