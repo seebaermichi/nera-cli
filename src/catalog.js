@@ -1,6 +1,7 @@
+import { isPluginPackage, themePackage } from '@nera-static/plugin-utils/packages'
 import { BUNDLED_STARTERS } from './starters.js'
 import { starterSource } from './starter.js'
-import { themePackageName, validateThemeSpec } from './scaffold.js'
+import { validateThemeSpec } from './scaffold.js'
 
 const REGISTRY_SEARCH = 'https://registry.npmjs.org/-/v1/search'
 // Every official package carries this keyword; not every one carries
@@ -24,27 +25,29 @@ const readsBackAs = (read) => (name, pkg) => {
     }
 }
 
-// The three catalogs. `prefix` names the official packages of the kind,
-// `keyword` finds third-party ones, `exclude` drops official non-members and
+// A kind whose official packages are exactly those named `prefix…`.
+const byPrefix = (prefix) => ({ prefix, official: (name) => name.startsWith(prefix) })
+
+// The three catalogs. `prefix` is cut from an official package's name,
+// `official(name)` tells them apart (the plugins' rule leaves out the
+// `plugin-utils` library), `keyword` finds third-party ones and
 // `usable(name, pkg)` keeps only entries whose `name` the matching option
 // (`--starter`, `--theme`, a plugin install) reads back as the same package.
 const KINDS = {
     starters: {
-        prefix: `${OFFICIAL_SCOPE}starter-`,
+        ...byPrefix(`${OFFICIAL_SCOPE}starter-`),
         keyword: 'nera-starter',
-        exclude: new Set(),
         usable: readsBackAs((name) => starterSource(name).spec),
     },
     themes: {
-        prefix: `${OFFICIAL_SCOPE}theme-`,
+        ...byPrefix(`${OFFICIAL_SCOPE}theme-`),
         keyword: 'nera-theme',
-        exclude: new Set(),
-        usable: readsBackAs((name) => themePackageName(validateThemeSpec(name))),
+        usable: readsBackAs((name) => themePackage(validateThemeSpec(name))),
     },
     plugins: {
         prefix: `${OFFICIAL_SCOPE}plugin-`,
+        official: isPluginPackage,
         keyword: 'nera-plugin',
-        exclude: new Set([`${OFFICIAL_SCOPE}plugin-utils`]),
         usable: () => true,
     },
 }
@@ -112,9 +115,7 @@ async function fromRegistry(kind, fetch, timeout) {
         search(fetch, `keywords:${OFFICIAL_KEYWORD}`, timeout),
         search(fetch, `keywords:${kind.keyword}`, timeout),
     ])
-    const official = [...officialHits, ...keywordHits].filter(
-        (pkg) => pkg.name.startsWith(kind.prefix) && !kind.exclude.has(pkg.name),
-    )
+    const official = [...officialHits, ...keywordHits].filter((pkg) => kind.official(pkg.name))
     const thirdParty = keywordHits.filter((pkg) => !pkg.name.startsWith(OFFICIAL_SCOPE))
     const byName = new Map()
     for (const [group, isOfficial] of [[official, true], [thirdParty, false]]) {

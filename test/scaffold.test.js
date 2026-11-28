@@ -14,7 +14,6 @@ import {
     validateLang,
     validateProjectName,
     validateThemeSpec,
-    themePackageName,
     projectNameFromDir,
     templateDir,
     probeNpmVersion,
@@ -549,7 +548,7 @@ describe('scaffoldProject Nera skill (.agents/skills/nera, .claude/skills/nera)'
     })
 })
 
-describe('validateThemeSpec / themePackageName', () => {
+describe('validateThemeSpec', () => {
     it('accepts the three forms core accepts', () => {
         for (const spec of ['example', '@acme/my-theme', './my-theme', '../t', '.']) {
             expect(validateThemeSpec(spec)).toBe(spec)
@@ -560,12 +559,6 @@ describe('validateThemeSpec / themePackageName', () => {
         for (const spec of ['', 'a b', '-x', '/abs/path', 'Example', '@acme']) {
             expect(() => validateThemeSpec(spec)).toThrow(/Invalid theme/)
         }
-    })
-
-    it('maps a spec to its package the way core does', () => {
-        expect(themePackageName('example')).toBe('@nera-static/theme-example')
-        expect(themePackageName('@acme/t')).toBe('@acme/t')
-        expect(themePackageName('./t')).toBeNull()
     })
 })
 

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import os from 'node:os'
-import { addPlugin, pluginPackage } from '../src/plugin.js'
+import { addPlugin } from '../src/plugin.js'
 
 const PKG = '@nera-static/plugin-x'
 const DEFAULT_CONFIG = '# plugin-x defaults\nenabled: true\n'
@@ -55,35 +55,6 @@ function fakeNpm({ config = true, bin = 'bin/publish-template.js', script = '' }
         return ''
     })
 }
-
-describe('pluginPackage', () => {
-    it.each([
-        ['x', 'x'],
-        ['plugin-x', 'x'],
-        ['@nera-static/plugin-x', 'x'],
-        ['page-pagination', 'page-pagination'],
-        ['@nera-static/plugin-code-blocks', 'code-blocks'],
-    ])('accepts %s', (spec, name) => {
-        expect(pluginPackage(spec)).toEqual({ name, pkg: `@nera-static/plugin-${name}` })
-    })
-
-    it.each([
-        'utils',
-        'plugin-utils',
-        '@nera-static/plugin-utils',
-        '@other/x',
-        '@nera-static/core',
-        'x@1',
-        '@nera-static/plugin-x@latest',
-        '../x',
-        './x',
-        'X',
-        '',
-        undefined,
-    ])('refuses %s', (spec) => {
-        expect(() => pluginPackage(spec)).toThrow(/is not a Nera plugin.*nera\.js\.org\/plugins/)
-    })
-})
 
 describe('addPlugin', () => {
     it('installs the plugin, copies its default config and publishes its templates', async () => {
@@ -197,9 +168,32 @@ describe('addPlugin', () => {
         await expect(fs.access(path.join(site, 'config', 'x.yaml'))).rejects.toThrow()
     })
 
-    it.each(['utils', '@other/x', 'x@1', '../x', 'plugin-utils'])('refuses %s without calling npm', async (spec) => {
+    it.each(['x', 'plugin-x', '@nera-static/plugin-x'])('reads %s as the official plugin', async (spec) => {
+        const runNpm = fakeNpm()
+        const result = await addPlugin(spec, { cwd: site, log, runNpm, runNode: vi.fn(async () => '') })
+
+        expect(result.plugin).toBe(PKG)
+        expect(runNpm.mock.calls[0][0]).toEqual(['install', PKG])
+    })
+
+    it.each([
+        'utils',
+        'plugin-utils',
+        '@nera-static/plugin-utils',
+        '@other/x',
+        '@nera-static/core',
+        'x@1',
+        '@nera-static/plugin-x@latest',
+        '../x',
+        './x',
+        'X',
+        '',
+        undefined,
+    ])('refuses %s without calling npm', async (spec) => {
         const runNpm = vi.fn()
-        await expect(addPlugin(spec, { cwd: site, log, runNpm })).rejects.toThrow(/is not a Nera plugin/)
+        await expect(addPlugin(spec, { cwd: site, log, runNpm })).rejects.toThrow(
+            /is not a Nera plugin.*nera\.js\.org\/plugins/,
+        )
         expect(runNpm).not.toHaveBeenCalled()
         expect(lines).toEqual([])
     })

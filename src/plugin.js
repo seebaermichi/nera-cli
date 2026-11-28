@@ -1,36 +1,13 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { resolveSiteModel } from '@nera-static/core'
+import { pluginPackage } from '@nera-static/plugin-utils/packages'
+import { isInside } from '@nera-static/plugin-utils/urls'
 import { classifyProject } from './commands/update.js'
 import { runNpmAsync, spawnChild } from './npm.js'
 
-const PLUGIN_SCOPE = '@nera-static/'
-const PLUGIN_PREFIX = 'plugin-'
-const PLUGIN_NAME = /^[a-z0-9][a-z0-9-]*$/
-// In the scope's `plugin-` namespace, but no plugin: the shared library.
-const NOT_PLUGINS = new Set(['utils'])
 // The `bin` entry a plugin ships its template publishing under.
 const TEMPLATE_SCRIPT = 'publish-template.js'
-const CATALOG_URL = 'https://nera.js.org/plugins/'
-
-// The official plugin a spec names: `<name>`, `plugin-<name>` or
-// `@nera-static/plugin-<name>`. Anything else — another scope, a version or
-// tag (`x@1`), a path, the `plugin-utils` library — throws, so nothing
-// outside the official plugins ever reaches npm.
-export function pluginPackage(spec) {
-    const fullPrefix = `${PLUGIN_SCOPE}${PLUGIN_PREFIX}`
-    let name = typeof spec === 'string' ? spec : ''
-    if (name.startsWith(fullPrefix)) name = name.slice(fullPrefix.length)
-    else if (name.startsWith(PLUGIN_PREFIX)) name = name.slice(PLUGIN_PREFIX.length)
-    if (!PLUGIN_NAME.test(name) || NOT_PLUGINS.has(name)) {
-        throw new Error(
-            `"${spec}" is not a Nera plugin. Give an official plugin as ` +
-                '`<name>` or `@nera-static/plugin-<name>` (e.g. `sitemap`); ' +
-                `the catalog is at ${CATALOG_URL}.`,
-        )
-    }
-    return { name, pkg: `${fullPrefix}${name}` }
-}
 
 // Only a thin site (one that depends on @nera-static/nera) takes a plugin:
 // in any other folder `npm install` would create or change a package.json
@@ -71,9 +48,7 @@ async function resolveInPackage(packageDir, relative) {
         if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return null
         throw err
     }
-    const root = await fs.realpath(packageDir)
-    const rel = path.relative(root, real)
-    const outside = rel === '' || rel.startsWith('..') || path.isAbsolute(rel)
+    const outside = !isInside(await fs.realpath(packageDir), real, { self: false })
     return { real, outside }
 }
 

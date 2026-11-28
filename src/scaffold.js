@@ -2,6 +2,9 @@ import fs from 'node:fs/promises'
 import fssync from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ownVersion, themePackage } from '@nera-static/plugin-utils/packages'
+import { satisfiesFloor } from '@nera-static/plugin-utils/guard'
+import { isText } from '@nera-static/plugin-utils/values'
 import { runNpmAsync } from './npm.js'
 import { skillSourceDir, syncSkill } from './skill.js'
 import {
@@ -115,15 +118,6 @@ export function validateThemeSpec(theme) {
     )
 }
 
-// The npm package a theme spec installs, or null for a local path. Same rule
-// as core's packageName() — keep the two in step.
-export function themePackageName(theme) {
-    if (theme.startsWith('.')) return null
-    return theme.includes('/') || theme.startsWith('@')
-        ? theme
-        : `@nera-static/theme-${theme}`
-}
-
 // Starter templates carry this marker on their first line. With a theme they
 // are left out: site views win over theme views file by file, so a starter
 // layout would hide the theme's own. @nera-static/validate warns on the same
@@ -141,10 +135,7 @@ export const templateDir = () =>
 // The range a new or migrated site depends on: this CLI's own version, so the
 // site never claims to work with an older one that lacks what set it up
 // (starters, `nera check`, the `validate`/`check` scripts).
-export const ownRange = () => {
-    const pkgPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'package.json')
-    return `^${JSON.parse(fssync.readFileSync(pkgPath, 'utf-8')).version}`
-}
+export const ownRange = () => `^${ownVersion(import.meta.url)}`
 
 async function copyDir(src, dest, { skipStarters = false, log }) {
     await fs.mkdir(dest, { recursive: true })
@@ -189,7 +180,7 @@ async function applyTheme(targetDir, theme, log) {
         `${yaml.replace(/\n*$/, '\n')}\ntheme: ${theme}\n`,
     )
 
-    const pkgName = themePackageName(theme)
+    const pkgName = themePackage(theme)
     if (pkgName) {
         const pkgPath = path.join(targetDir, 'package.json')
         const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf-8'))
@@ -211,7 +202,7 @@ async function applyTheme(targetDir, theme, log) {
 // tabs). It is written as a JSON string, which is also valid YAML, so `:`,
 // `#` and quotes are safe.
 export function validateSiteName(name) {
-    if (typeof name === 'string' && name.trim() !== '' && !/\p{Cc}/u.test(name)) {
+    if (isText(name) && !/\p{Cc}/u.test(name)) {
         return name
     }
     throw new Error(
@@ -314,17 +305,19 @@ async function addSkill(targetDir, log) {
 // npm before 10.9 (bundled with Node < 22.12) crashes in arborist on the
 // optional peer chain of vite 8, which every site installs; that is why
 // Nera's Node floor is 22.12. Checked before anything is written or asked.
-const MIN_NPM = [10, 9, 0]
+const MIN_NPM = '10.9.0'
+// Every version `satisfiesFloor` can read is this one or later.
+const ANY_VERSION = '0.0.0'
 
 // Through src/npm.js, so it works on Windows too (npm.cmd), and without
 // blocking the event loop.
 const defaultExecNpm = (args, options) => runNpmAsync(args, options)
 
 // The installed npm's version, or null when it cannot be read (no npm on the
-// PATH, an unparseable answer): then nothing is refused, and `npm install`
-// reports its own error. `env` decides which npm a shim PATH finds; an abort
-// rejects with `signal.reason` instead of answering null. `execNpm` may
-// return stdout or a promise of it.
+// PATH, an answer that is no x.y.z version): then nothing is refused, and
+// `npm install` reports its own error. `env` decides which npm a shim PATH
+// finds; an abort rejects with `signal.reason` instead of answering null.
+// `execNpm` may return stdout or a promise of it.
 export async function probeNpmVersion(execNpm = defaultExecNpm, { env = process.env, signal } = {}) {
     signal?.throwIfAborted()
     try {
@@ -334,7 +327,7 @@ export async function probeNpmVersion(execNpm = defaultExecNpm, { env = process.
             signal,
         })
         const version = String(out).trim()
-        return /^\d+\.\d+\.\d+/.test(version) ? version : null
+        return satisfiesFloor(version, ANY_VERSION) ? version : null
     } catch {
         signal?.throwIfAborted()
         return null
@@ -343,10 +336,7 @@ export async function probeNpmVersion(execNpm = defaultExecNpm, { env = process.
 
 // Throws when `version` is an npm that cannot install a site; null passes.
 export function assertNpmCanInstall(version) {
-    if (version === null) return
-    const parts = version.split(/[.-]/).slice(0, 3).map(Number)
-    const i = parts.findIndex((n, j) => n !== MIN_NPM[j])
-    if (i === -1 || parts[i] > MIN_NPM[i]) return
+    if (version === null || satisfiesFloor(version, MIN_NPM)) return
     throw new Error(
         `npm ${version} cannot install a Nera site: it crashes on vite's ` +
             'dependencies. Use Node.js 22.12 or later, which bundles npm 10.9, ' +
@@ -480,7 +470,7 @@ export async function createSite(projectName, options = {}) {
         // Naming the theme package installs everything else too, and makes npm
         // replace the `latest` placeholder with a caret range for the version
         // it resolved. A starter's dependencies are already in package.json.
-        const themePkg = theme ? themePackageName(theme) : null
+        const themePkg = themePackage(theme)
         const args = themePkg ? ['install', themePkg] : ['install']
         try {
             await execNpm(args, { cwd: targetDir, stdio, env, signal })

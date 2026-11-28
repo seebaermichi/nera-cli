@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import fssync from 'node:fs'
 import path from 'node:path'
+import { satisfiesFloor } from '@nera-static/plugin-utils/guard'
 import { syncAgentFiles, SITE_NOTES_MARKER } from '../agent-files.js'
 import { ownRange, templateDir as packageTemplateDir } from '../scaffold.js'
 import { installedSkillDir, skillSourceDir, syncSkill } from '../skill.js'
@@ -19,17 +20,23 @@ export function neraDeps(pkg) {
     )
 }
 
+// A plain `x.y.z` (no prerelease) and a plain caret range of one; group 1
+// is the major.
+const PLAIN_VERSION = /^(\d+)\.\d+\.\d+$/
+const PLAIN_CARET = /^\^(\d+)\.\d+\.\d+$/
+
 // The caret range `range` raised to the installed `version`, or null when it
 // stays: only a plain `^x.y.z` with x ≥ 1, only upwards, never across a major.
 // Exact, tilde, tag, git and 0.x ranges are the user's choice and stay as
 // they are. `npm update` installs within the range but never rewrites it.
 export function raisedRange(range, version) {
-    const from = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(range ?? '')
-    const to = /^(\d+)\.(\d+)\.(\d+)$/.exec(version ?? '')
+    const from = PLAIN_CARET.exec(range ?? '')
+    const to = PLAIN_VERSION.exec(version ?? '')
     if (!from || !to) return null
-    const [a, b] = [from, to].map((m) => m.slice(1).map(Number))
-    if (a[0] < 1 || a[0] !== b[0]) return null
-    const newer = b[1] > a[1] || (b[1] === a[1] && b[2] > a[2])
+    const major = Number(from[1])
+    if (major < 1 || major !== Number(to[1])) return null
+    const floor = from[0].slice(1)
+    const newer = satisfiesFloor(version, floor) && !satisfiesFloor(floor, version)
     return newer ? `^${version}` : null
 }
 

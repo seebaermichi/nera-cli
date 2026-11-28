@@ -60,6 +60,11 @@ describe('siteNameOf', () => {
         expect(siteNameOf('a'.repeat(70))).toHaveLength(63)
         expect(siteNameOf(`${'a'.repeat(62)}-b`)).toBe('a'.repeat(62))
     })
+
+    it('folds accents and ß the way the shared slug does', () => {
+        expect(siteNameOf('Über uns')).toBe('uber-uns')
+        expect(siteNameOf('Straße-Café')).toBe('strasse-cafe')
+    })
 })
 
 describe('ensureSite', () => {

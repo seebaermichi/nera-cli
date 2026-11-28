@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { slugify } from '@nera-static/plugin-utils'
 import { checkDns, movedDomainNote, reportDns } from './dns.js'
 import { createNetlifyClient, NetlifyError, NETLIFY_API } from './netlify-api.js'
 import { ensureNetlifyToken } from './netlify-auth.js'
@@ -58,12 +59,11 @@ function randomSuffix() {
     return [...randomBytes(SUFFIX_LENGTH)].map((byte) => (byte % 36).toString(36)).join('')
 }
 
-// `name` (the repository's name) as a Netlify site name: lower case, every
-// run of other characters one `-`, no `-` at either end, at most `max`
-// characters; FALLBACK_NAME when nothing is left.
+// `name` (the repository's name) as a Netlify site name: the shared slug
+// (accents dropped, `ß` → `ss`, every run of other characters one `-`, no `-`
+// at either end), at most `max` characters; FALLBACK_NAME when nothing is left.
 export function siteNameOf(name, max = NAME_MAX) {
-    const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-    return slug.slice(0, max).replace(/-+$/, '') || FALLBACK_NAME
+    return slugify(name).slice(0, max).replace(/-+$/, '') || FALLBACK_NAME
 }
 
 // The site Netlify describes, checked to have the id the deploy needs.
@@ -74,7 +74,7 @@ function checkedSite(site, what) {
     return site
 }
 
-// The Netlify site to deploy to (D5): the one `siteId` names while Netlify
+// The Netlify site to deploy to: the one `siteId` names while Netlify
 // still has it, otherwise a new site named after `name` with no repository
 // link. A taken name (422) is retried with a random suffix from `random()`.
 // Resolves `{ site, created }`.
@@ -114,7 +114,7 @@ export function monthStart(now) {
     return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)
 }
 
-// What a first set-up says once about the free-plan budget (D6).
+// What a first set-up says once about the free-plan budget.
 export const BUDGET_NOTE =
     `Netlify's free plan has ${FREE_CREDITS} credits a month. Each production deploy costs ${DEPLOY_CREDITS}, ` +
     `so about ${FREE_CREDITS / DEPLOY_CREDITS} deploys use it all, and bandwidth comes on top. ` +
@@ -123,7 +123,7 @@ export const BUDGET_NOTE =
     `nera publish warns at ${WARN_SHARE * 100} % of the budget.`
 
 // Estimate this month's credits from the site's successful production
-// deploys since the start of the UTC month (D6): deploy previews, branch
+// deploys since the start of the UTC month: deploy previews, branch
 // deploys and failed deploys cost nothing. At WARN_SHARE of FREE_CREDITS or
 // more, log a warning. Bandwidth and the team's other sites are not counted,
 // and the warning says so. Never throws for Netlify: a failed call logs a
@@ -163,7 +163,7 @@ export async function checkCredits({ client, siteId, now = Date.now, log }) {
     return { deploys: count, credits }
 }
 
-// Netlify as the DNS check (dns.js) expects it for `site` (D7): a
+// Netlify as the DNS check (dns.js) expects it for `site`: a
 // subdomain's CNAME names `<site>.netlify.app`, an apex domain has the A
 // record of Netlify's load balancer. Netlify issues the certificate itself.
 export function netlifyDns(site) {
@@ -173,7 +173,7 @@ export function netlifyDns(site) {
     return { name: 'Netlify', cname: `${site.name}.netlify.app`, a: NETLIFY_A, aaaa: [] }
 }
 
-// `--domain` for Netlify (D7): make `domain` the custom domain of `site`
+// `--domain` for Netlify: make `domain` the custom domain of `site`
 // through the API unless it already is, then, when the site has a custom
 // domain, check its DNS and report the records to set. Netlify's refusal
 // (422, e.g. a domain another site uses) becomes a NetlifyError that says
@@ -205,12 +205,12 @@ export async function applyDomain({ client, site, domain, resolver, log }) {
 }
 
 // Prepare Netlify before the first push: sign in (netlify-auth.js), create
-// or reuse the site and record its id in config/publish.yaml (D5), remove
+// or reuse the site and record its id in config/publish.yaml, remove
 // `base_path` (Netlify serves from the root), set `--domain` (`options.domain`)
-// and check the custom domain's DNS (D7), store the token and the site id as
+// and check the custom domain's DNS, store the token and the site id as
 // encrypted repository secrets (written every run, since the token may have
 // changed), then print the budget note on a first set-up or the credit
-// warning on a later one (D6). Resolves the site as Netlify describes it.
+// warning on a later one. Resolves the site as Netlify describes it.
 // The host context is publishSite's; Netlify-specific collaborators on it:
 // `resolver` (dns.js), `fetch`, `sleep`/`now`, `open`,
 // `readNetlifyToken`/`saveNetlifyToken` (credentials.js, account netlify)
@@ -281,7 +281,7 @@ async function liveUrl(host) {
 const JQ_ERROR = "jq -r '.message // .error // empty' deploy.json 2>/dev/null || true"
 const JQ_DEPLOY_ERROR = 'jq -r \'.error_message // "no reason given"\' deploy.json'
 
-// The deploy step's shell (D4): zip `public/`, upload it to Netlify's zip
+// The deploy step's shell: zip `public/`, upload it to Netlify's zip
 // deploy API, poll the deploy until it is `ready`, fail on `error`, on any
 // answer outside 2xx and after DEPLOY_POLL_TRIES polls. The token and the
 // site id come in through the step's `env:`, never as `${{ }}` in the script.
@@ -327,7 +327,7 @@ echo '::error::The Netlify deploy did not finish within ${(DEPLOY_POLL_SECONDS *
 exit 1
 `
 
-// The deploy job of the generated workflow (D4): fetch the `public/` folder
+// The deploy job of the generated workflow: fetch the `public/` folder
 // the build job uploaded and deploy it with curl and jq (both on
 // ubuntu-latest); no third-party action and no netlify-cli. It needs no
 // scope beyond the workflow's `contents: read`.
@@ -355,7 +355,7 @@ function deployJob() {
     }
 }
 
-// What a move away from Netlify leaves behind (D5 of the wizard issue), from
+// What a move away from Netlify leaves behind, from
 // the host context alone, with no sign-in to Netlify: the site (named by the
 // `netlify.site_id` the run read from config/publish.yaml, when there is one)
 // stays online until it is deleted in Netlify's app, the deploy job's two
